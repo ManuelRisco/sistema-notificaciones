@@ -1,0 +1,21 @@
+{
+    "name": "manue/sistema-notificaciones",
+    "description": "Sistema de notificaciones de stock mediante correo",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Manue\\SistemaNotificaciones\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Fabrizzio",
+            "email": "manuelfabrizzio.risco@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "phpmailer/phpmailer": "*",
+        "vlucas/phpdotenv": "^5.8"
+    }
+}

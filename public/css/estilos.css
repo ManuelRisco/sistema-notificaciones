@@ -1,0 +1,679 @@
+/* ==========================================================================
+   SISTEMA DE NOTIFICACIONES Y ALERTAS DE STOCK
+   ========================================================================== */
+
+:root {
+    /* Paleta Corporativa / ERP */
+    --color-fondo: #f8fafc;
+    --color-tarjeta: #ffffff;
+    --color-texto: #0f172a;
+    --color-texto-muted: #64748b;
+    --color-borde: #e2e8f0;
+    --color-borde-campo: #cbd5e1;
+
+    /* Primario (Azul Ejecutivo) */
+    --color-primario: #2563eb;
+    --color-primario-hover: #1d4ed8;
+
+    /* Secundario (Gris Neutro) */
+    --color-secundario: #64748b;
+    --color-secundario-hover: #475569;
+    --color-secundario-fondo: #f1f5f9;
+
+    /* Acciones de Tabla */
+    --color-editar-fondo: #fef3c7;
+    --color-editar-texto: #b45309;
+    --color-editar-borde: #fde68a;
+    --color-editar-hover: #fde68a;
+
+    --color-peligro-fondo: #fee2e2;
+    --color-peligro-texto: #b91c1c;
+    --color-peligro-borde: #fecaca;
+    --color-peligro-hover: #fecaca;
+
+    --color-exito-fondo: #d1fae5;
+    --color-exito-texto: #047857;
+    --color-exito-borde: #a7f3d0;
+    --color-exito-hover: #a7f3d0;
+
+    /* Geometría y Sombras */
+    --radio-tarjeta: 10px;
+    --radio-control: 8px;
+    --radio-btn: 7px;
+    --sombra-tarjeta: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+    --sombra-formulario: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+}
+
+/* Reset y Base */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+   1. CONTENEDORES Y ESTRUCTURA GENERAL
+   -------------------------------------------------------------------------- */
+
+.contenedor {
+    width: 94%;
+    max-width: 1280px;
+    margin: 40px auto;
+}
+
+/* Formulario enfocado, amplio (760px) y perfectamente centrado */
+.contenedor-formulario {
+    max-width: 760px;
+    margin: 40px auto;
+}
+
+/* Encabezado */
+.encabezado {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 28px;
+}
+
+.encabezado h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--color-texto);
+    letter-spacing: -0.5px;
+    line-height: 1.25;
+}
+
+.encabezado p {
+    font-size: 16px;
+    color: var(--color-texto-muted);
+    margin-top: 4px;
+    font-weight: 400;
+}
+
+.encabezado-acciones {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.form-ejecutar-manual {
+    display: inline-flex;
+    margin: 0;
+    padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   2. FORMULARIOS ADMINISTRATIVOS (760px)
+   -------------------------------------------------------------------------- */
+
+.formulario {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    background: var(--color-tarjeta);
+    padding: 38px 42px;
+    border-radius: var(--radio-tarjeta);
+    border: 1px solid var(--color-borde);
+    box-shadow: var(--sombra-formulario);
+}
+
+/* Distribución en cuadrícula de 2 columnas */
+.form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+}
+
+/* Campos individuales */
+.campo {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 24px;
+}
+
+.campo label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 8px;
+    display: block;
+    letter-spacing: -0.1px;
+}
+
+/* Inputs y Selects: Altura de 48px y texto cómodo a 16px */
+.campo input,
+.campo select {
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    padding: 0 16px;
+    border: 1.5px solid var(--color-borde-campo);
+    border-radius: var(--radio-control);
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--color-texto);
+    background-color: #ffffff;
+    outline: none;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.campo input::placeholder {
+    color: #94a3b8;
+    font-size: 15px;
+}
+
+.campo input:focus,
+.campo select:focus {
+    border-color: var(--color-primario);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Campos de solo lectura claramente diferenciados */
+.campo input[readonly] {
+    background-color: #f8fafc;
+    color: #64748b;
+    cursor: not-allowed;
+    border: 1.5px solid #e2e8f0;
+    font-weight: 500;
+}
+
+/* Barra de acciones de formulario */
+.acciones {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 32px;
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.acciones .btn {
+    height: 48px;
+    padding: 0 28px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: var(--radio-control);
+}
+
+/* --------------------------------------------------------------------------
+   3. BOTONES
+   -------------------------------------------------------------------------- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: var(--radio-btn);
+    border: none;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    line-height: 1;
+    font-family: inherit;
+}
+
+/* Botón Primario */
+.btn-primario {
+    background-color: var(--color-primario);
+    color: #ffffff;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.btn-primario:hover {
+    background-color: var(--color-primario-hover);
+}
+
+/* Botón Secundario (Volver / Cancelar) */
+.btn-secundario {
+    background-color: var(--color-secundario-fondo);
+    color: #334155;
+    border: 1.5px solid var(--color-borde-campo);
+}
+
+.btn-secundario:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+}
+
+/* Botones de acción en tabla */
+.btn-editar {
+    background-color: var(--color-editar-fondo);
+    color: var(--color-editar-texto);
+    border: 1px solid var(--color-editar-borde);
+}
+
+.btn-editar:hover {
+    background-color: var(--color-editar-hover);
+    color: #78350f;
+}
+
+.btn-eliminar {
+    background-color: var(--color-peligro-fondo);
+    color: var(--color-peligro-texto);
+    border: 1px solid var(--color-peligro-borde);
+}
+
+.btn-eliminar:hover {
+    background-color: var(--color-peligro-hover);
+    color: #7f1d1d;
+}
+
+.btn-reactivar {
+    background-color: var(--color-exito-fondo);
+    color: var(--color-exito-texto);
+    border: 1px solid var(--color-exito-borde);
+}
+
+.btn-reactivar:hover {
+    background-color: var(--color-exito-hover);
+    color: #064e3b;
+}
+
+/* Botón Ejecutar Alertas Manual */
+.btn-ejecutar {
+    background-color: #059669;
+    color: #ffffff;
+    border: 1px solid #047857;
+    box-shadow: 0 1px 2px rgba(5, 150, 105, 0.2);
+}
+
+.btn-ejecutar:hover {
+    background-color: #047857;
+    color: #ffffff;
+}
+
+.btn-ejecutar:active {
+    background-color: #065f46;
+}
+
+/* --------------------------------------------------------------------------
+   4. TABLA DE CONFIGURACIONES (DISEÑO ADMINISTRATIVO ERP)
+   -------------------------------------------------------------------------- */
+
+/* Barra de Resumen / Métricas */
+.resumen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    background: var(--color-tarjeta);
+    padding: 16px 22px;
+    margin-bottom: 22px;
+    border-radius: var(--radio-tarjeta);
+    border: 1px solid var(--color-borde);
+    box-shadow: var(--sombra-tarjeta);
+    font-size: 14px;
+}
+
+.resumen-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid var(--color-borde);
+}
+
+.resumen-item strong {
+    font-size: 15px;
+    color: var(--color-texto);
+}
+
+/* Contenedor de tabla con scroll horizontal suave */
+.tabla-contenedor {
+    background: var(--color-tarjeta);
+    border-radius: var(--radio-tarjeta);
+    border: 1px solid var(--color-borde);
+    box-shadow: var(--sombra-tarjeta);
+    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+    text-align: left;
+}
+
+th {
+    background: #1e293b;
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 16px 20px;
+}
+
+td {
+    padding: 15px 20px;
+    font-size: 14px;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--color-borde);
+    color: #334155;
+    vertical-align: middle;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Registros Deshabilitados / Borrado Lógico */
+.fila-inactiva {
+    background-color: #f8fafc;
+}
+
+.fila-inactiva td {
+    color: #94a3b8;
+}
+
+.fila-inactiva:hover {
+    background-color: #f1f5f9;
+}
+
+/* Badges / Etiquetas de Estado */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.badge-activo {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.badge-activo::before {
+    background-color: #16a34a;
+}
+
+.badge-inactivo {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
+.badge-inactivo::before {
+    background-color: #94a3b8;
+}
+
+/* Celdas de Acciones en la Tabla */
+.acciones-celda {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.acciones-celda .btn {
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    height: 34px;
+}
+
+.form-eliminar {
+    display: inline-block;
+    margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   5. ALERTAS Y NOTIFICACIONES
+   -------------------------------------------------------------------------- */
+
+.alerta {
+    padding: 16px 20px;
+    border-radius: var(--radio-tarjeta);
+    margin-bottom: 24px;
+    font-size: 15px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.alerta-error {
+    background-color: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.alerta-exito {
+    background-color: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+/* --------------------------------------------------------------------------
+   6. DISEÑO ADAPTABLE (RESPONSIVE)
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+    .contenedor {
+        width: 95%;
+        margin: 25px auto;
+    }
+
+    .contenedor-formulario {
+        width: 95%;
+        margin: 25px auto;
+    }
+
+    .formulario {
+        padding: 30px 24px;
+    }
+}
+
+@media (max-width: 640px) {
+    .encabezado {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .encabezado h1 {
+        font-size: 24px;
+    }
+
+    .encabezado-acciones {
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+    }
+
+    .encabezado-acciones .btn,
+    .encabezado-acciones .form-ejecutar-manual,
+    .encabezado-acciones .form-ejecutar-manual .btn,
+    .encabezado .btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .form-grid-2 {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .formulario {
+        padding: 24px 18px;
+    }
+
+    .acciones {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .acciones .btn {
+        width: 100%;
+    }
+
+    .acciones-celda {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   7. PERSONALIZACIÓN SWEETALERT2 (DISEÑO ADMINISTRATIVO ERP)
+   -------------------------------------------------------------------------- */
+
+.swal2-popup {
+    font-family: inherit !important;
+    border-radius: 14px !important;
+    padding: 26px 28px !important;
+    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 10px 10px -5px rgba(15, 23, 42, 0.06) !important;
+    border: 1px solid var(--color-borde) !important;
+}
+
+.swal2-title {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    color: var(--color-texto) !important;
+    margin-bottom: 8px !important;
+}
+
+.swal2-html-container {
+    font-size: 15px !important;
+    color: var(--color-texto-muted) !important;
+    line-height: 1.55 !important;
+    margin: 12px 0 !important;
+}
+
+.swal2-actions {
+    gap: 12px !important;
+    margin-top: 22px !important;
+}
+
+.swal2-styled {
+    border-radius: var(--radio-boton) !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 10px 22px !important;
+    box-shadow: none !important;
+    transition: background-color var(--transicion-suave), opacity var(--transicion-suave) !important;
+}
+
+.swal2-timer-progress-bar {
+    background: rgba(37, 99, 235, 0.45) !important;
+}
+.badge-sin-datos {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
+.badge-sin-datos::before {
+    background-color: #94a3b8;
+}
+
+/* ==========================================================================
+   BUSCADOR DE ARTÍCULOS
+   ========================================================================== */
+
+.busqueda-contenedor {
+    background: var(--color-tarjeta);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-tarjeta);
+    box-shadow: var(--sombra-tarjeta);
+    padding: 20px 24px;
+    margin-bottom: 22px;
+}
+
+.busqueda-form {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.busqueda-campo {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 240px;
+    gap: 8px;
+}
+
+.busqueda-campo label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-texto);
+}
+
+.busqueda-campo input {
+    width: 100%;
+    height: 46px;
+    padding: 0 15px;
+    border: 1.5px solid var(--color-borde-campo);
+    border-radius: var(--radio-control);
+    font-family: inherit;
+    font-size: 15px;
+    outline: none;
+}
+
+.busqueda-campo input:focus {
+    border-color: var(--color-primario);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.busqueda-form .btn {
+    height: 46px;
+    padding: 0 22px;
+}
+
+.busqueda-resultados {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--color-texto-muted);
+}
+
+@media (max-width: 640px) {
+
+    .busqueda-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .busqueda-campo {
+        min-width: 100%;
+    }
+
+    .busqueda-form .btn {
+        width: 100%;
+    }
+}

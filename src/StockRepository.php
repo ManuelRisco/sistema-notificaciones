@@ -1,0 +1,322 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Manue\SistemaNotificaciones;
+
+use RuntimeException;
+
+class StockRepository
+{
+    private mixed $connection;
+
+    /**
+     * Recibe la conexión existente de SQL Server.
+     */
+    public function __construct(mixed $connection)
+    {
+        $this->connection = $connection;
+    }
+
+    /**
+     * Obtiene el stock físico total de los artículos configurados y DISPONIBLES (disponible = 1).
+     * Suma todos los lotes de cada artículo y almacén.
+     */
+    public function obtenerStockConfigurado(): array
+    {
+        $sql = "
+            ;WITH StockCalculado AS
+            (
+                SELECT
+                    cfg.emp_codigo,
+                    a.art_codigo,
+                    b.alm_codigo,
+
+                    SUM(
+                        CASE
+                            WHEN b.mov_tipo = 'I'
+                                THEN a.mov_ctdmov
+                            ELSE 0
+                        END
+                    ) -
+                    SUM(
+                        CASE
+                            WHEN b.mov_tipo = 'S'
+                                THEN a.mov_ctdmov
+                            ELSE 0
+                        END
+                    ) AS stock_actual
+
+                FROM dbo.cfg_alerta_stock cfg
+
+                INNER JOIN dbo.log_detmov a
+                    ON a.emp_codigo = cfg.emp_codigo
+                    AND a.art_codigo = cfg.art_codigo
+
+                INNER JOIN dbo.log_cabmov b
+                    ON a.mov_id = b.mov_id
+                    AND b.alm_codigo = cfg.alm_codigo
+
+                WHERE b.mov_flag <> 'A'
+                  AND b.mov_fecemi <= GETDATE()
+                  AND cfg.disponible = 1
+
+                GROUP BY
+                    cfg.emp_codigo,
+                    a.art_codigo,
+                    b.alm_codigo
+            )
+
+            SELECT
+                cfg.emp_codigo,
+                cfg.art_codigo,
+                RTRIM(c.art_nombre) AS descripcion,
+                cfg.alm_codigo,
+                RTRIM(d.ume_abrv) AS unidad_medida,
+
+                ISNULL(s.stock_actual, 0) AS stock_actual,
+
+                cfg.stock_minimo,
+                cfg.band_stock,
+                cfg.band_correo,
+                cfg.disponible
+
+            FROM dbo.cfg_alerta_stock cfg
+
+            INNER JOIN dbo.mae_articulo c
+                ON c.emp_codigo = cfg.emp_codigo
+                AND c.art_codigo = cfg.art_codigo
+
+            INNER JOIN dbo.mae_cabumedida d
+                ON c.ume_codigo = d.ume_codigo
+
+            LEFT JOIN StockCalculado s
+                ON s.emp_codigo = cfg.emp_codigo
+                AND s.art_codigo = cfg.art_codigo
+                AND s.alm_codigo = cfg.alm_codigo
+
+            WHERE cfg.disponible = 1
+
+            ORDER BY cfg.art_codigo;
+        ";
+
+        $stmt = sqlsrv_query($this->connection, $sql);
+
+        if ($stmt === false) {
+            throw $this->crearErrorSql(
+                'No se pudo obtener el stock configurado'
+            );
+        }
+
+        $resultados = [];
+
+        try {
+
+            while (true) {
+
+                $fila = sqlsrv_fetch_array(
+                    $stmt,
+                    SQLSRV_FETCH_ASSOC
+                );
+
+                if ($fila === null) {
+                    break;
+                }
+
+                if ($fila === false) {
+                    throw $this->crearErrorSql(
+                        'Error al recuperar los resultados'
+                    );
+                }
+
+                $resultados[] = $fila;
+            }
+
+        } finally {
+            sqlsrv_free_stmt($stmt);
+        }
+
+        return $resultados;
+    }
+
+    /**
+     * Actualiza las banderas de un artículo.
+     */
+    public function actualizarBanderas(
+        string $empresa,
+        string $articulo,
+        string $almacen,
+        int $bandStock,
+        int $bandCorreo
+    ): void {
+
+        if (!in_array($bandStock, [0, 1], true)
+            || !in_array($bandCorreo, [0, 1], true)) {
+            throw new RuntimeException(
+                'Las banderas solamente aceptan 0 o 1.'
+            );
+        }
+
+        $sql = "
+            UPDATE dbo.cfg_alerta_stock
+            SET
+                band_stock = ?,
+                band_correo = ?,
+                fecha_actualizacion = SYSDATETIME()
+            WHERE
+                emp_codigo = ?
+                AND art_codigo = ?
+                AND alm_codigo = ?
+                AND (
+                    band_stock <> ?
+                    OR band_correo <> ?
+                );
+        ";
+
+        $params = [
+            $bandStock,
+            $bandCorreo,
+            $empresa,
+            $articulo,
+            $almacen,
+            $bandStock,
+            $bandCorreo
+        ];
+
+        $stmt = sqlsrv_query(
+            $this->connection,
+            $sql,
+            $params
+        );
+
+        if ($stmt === false) {
+            throw $this->crearErrorSql(
+                'No se pudieron actualizar las banderas'
+            );
+        }
+
+        sqlsrv_free_stmt($stmt);
+    }
+
+    /**
+     * Eliminación lógica: cambia el estado de disponible a 0.
+     * No elimina el registro físicamente de la base de datos.
+     */
+    public function eliminarLogico(
+        string $empresa,
+        string $articulo,
+        string $almacen
+    ): void {
+        $this->actualizarDisponible($empresa, $articulo, $almacen, 0);
+    }
+
+    /**
+     * Cambia la disponibilidad (1 = activo, 0 = inactivo / borrado lógico).
+     */
+    public function actualizarDisponible(
+        string $empresa,
+        string $articulo,
+        string $almacen,
+        int $disponible
+    ): void {
+
+        if (!in_array($disponible, [0, 1], true)) {
+            throw new RuntimeException(
+                'El valor de disponible solo puede ser 0 o 1.'
+            );
+        }
+
+        $sql = "
+            UPDATE dbo.cfg_alerta_stock
+            SET
+                disponible = ?,
+                fecha_actualizacion = SYSDATETIME()
+            WHERE
+                emp_codigo = ?
+                AND art_codigo = ?
+                AND alm_codigo = ?;
+        ";
+
+        $params = [
+            $disponible,
+            $empresa,
+            $articulo,
+            $almacen
+        ];
+
+        $stmt = sqlsrv_query($this->connection, $sql, $params);
+
+        if ($stmt === false) {
+            throw $this->crearErrorSql(
+                'No se pudo actualizar el estado de disponibilidad'
+            );
+        }
+
+        sqlsrv_free_stmt($stmt);
+    }
+
+    /**
+     * Marca una alerta como notificada.
+     */
+    public function marcarCorreoEnviado(
+        string $empresa,
+        string $articulo,
+        string $almacen
+    ): void {
+
+        $sql = "
+            UPDATE dbo.cfg_alerta_stock
+            SET
+                band_correo = 1,
+                fecha_actualizacion = SYSDATETIME()
+            WHERE
+                emp_codigo = ?
+                AND art_codigo = ?
+                AND alm_codigo = ?
+                AND band_stock = 1
+                AND band_correo = 0;
+        ";
+
+        $params = [
+            $empresa,
+            $articulo,
+            $almacen
+        ];
+
+        $stmt = sqlsrv_query(
+            $this->connection,
+            $sql,
+            $params
+        );
+
+        if ($stmt === false) {
+            throw $this->crearErrorSql(
+                'No se pudo marcar el correo como enviado'
+            );
+        }
+
+        sqlsrv_free_stmt($stmt);
+    }
+
+    /**
+     * Construye una excepción con los errores de SQL Server.
+     */
+    private function crearErrorSql(string $mensaje): RuntimeException
+    {
+        $errores = sqlsrv_errors(SQLSRV_ERR_ALL) ?: [];
+
+        $detalles = [];
+
+        foreach ($errores as $error) {
+            $detalles[] = sprintf(
+                '[%s] %s',
+                $error['code'] ?? 'N/A',
+                $error['message'] ?? 'Error desconocido'
+            );
+        }
+
+        return new RuntimeException(
+            $mensaje . ': ' . implode(' | ', $detalles)
+        );
+    }
+}
