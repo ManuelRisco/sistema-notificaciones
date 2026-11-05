@@ -181,7 +181,6 @@ class EmailService
 
             $codigo = trim((string) ($articulo['art_codigo'] ?? ''));
             $descripcion = trim((string) ($articulo['descripcion'] ?? ''));
-            $almacen = trim((string) ($articulo['alm_codigo'] ?? ''));
 
             $unidad = (string) ($articulo['unidad_medida'] ?? 'UND');
 
@@ -191,7 +190,6 @@ class EmailService
             if (
                 $codigo === ''
                 || $descripcion === ''
-                || $almacen === ''
             ) {
                 throw new RuntimeException(
                     'Un artículo contiene datos incompletos.'
@@ -200,7 +198,7 @@ class EmailService
 
             if ($stockActual > $stockMinimo) {
                 throw new RuntimeException(
-                    "El artículo {$codigo} ya no está por debajo del stock mínimo."
+                    "El artículo {$codigo} ya no está por debajo del stock."
                 );
             }
 
@@ -213,12 +211,6 @@ class EmailService
 
             $descripcionHtml = htmlspecialchars(
                 $descripcion,
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
-
-            $almacenHtml = htmlspecialchars(
-                $almacen,
                 ENT_QUOTES | ENT_SUBSTITUTE,
                 'UTF-8'
             );
@@ -295,17 +287,6 @@ class EmailService
     </tr>
 
     <tr>
-        <td style='padding:12px 14px;'>
-            <div style='font-size:13px;color:#666666;'>
-                Almacén
-            </div>
-            <div style='font-size:14px;color:#222222;margin-top:3px;'>
-                {$almacenHtml}
-            </div>
-        </td>
-    </tr>
-
-    <tr>
         <td style='padding:0 14px 12px 14px;'>
             <div style='font-size:13px;color:#666666;'>
                 Stock físico actual
@@ -338,7 +319,6 @@ class EmailService
             $lineasTexto[] =
                 "Código: {$codigo}\n"
                 . "Descripción: {$descripcion}\n"
-                . "Almacén: {$almacen}\n"
                 . "Stock actual: {$stockFormato} {$unidad}\n"
                 . "Stock mínimo: {$minimoFormato} {$unidad}\n";
         }

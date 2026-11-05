@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Dotenv\Dotenv;
 use Manue\SistemaNotificaciones\EmailService;
 
-$raiz = dirname(__DIR__);
+$raiz = dirname(__DIR__, 2);
 
 require_once $raiz . '/vendor/autoload.php';
 

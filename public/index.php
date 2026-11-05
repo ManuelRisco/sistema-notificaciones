@@ -340,7 +340,8 @@ if (isset($_GET['toggle_dark_mode'])) {
                 + Nuevo registro
             </a>
             <!-- Botón para alternar el modo -->
-            <a href="?toggle_dark_mode=1" style="padding: 11px; background: #ffffffff; text-decoration: none; border-radius: 5px; color: #000;">
+            <a href="?toggle_dark_mode=1" style="display: grid; place-items: center;
+            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1;">
                 <?php echo $darkMode ? '🌞' : '🌚'; ?>
             </a>
         </div>
@@ -876,14 +877,24 @@ document.addEventListener('DOMContentLoaded', function() {
                         const tiempoSegundos = ((performance.now() - tiempoInicio) / 1000).toFixed(1);
 
                         if (status === 200 && data.exito) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: '¡Alertas procesadas con éxito!',
-                                confirmButtonColor: '#059669',
-                                confirmButtonText: 'Aceptar'
-                            }).then(() => {
-                                window.location.reload();
-                            });
+                            if (data.en_curso) {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Proceso en curso',
+                                    text: data.mensaje || 'Ya hay una revisión de alertas en ejecución en este momento. Por favor espera a que finalice.',
+                                    confirmButtonColor: '#2563eb',
+                                    confirmButtonText: 'Entendido'
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '¡Alertas procesadas con éxito!',
+                                    confirmButtonColor: '#059669',
+                                    confirmButtonText: 'Aceptar'
+                                }).then(() => {
+                                    window.location.reload();
+                                });
+                            }
                         } else {
                             Swal.fire({
                                 icon: 'error',

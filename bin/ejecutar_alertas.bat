@@ -16,12 +16,17 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 REM Entrar al directorio del proyecto
 cd /d "%APP_DIR%"
 
-REM Obtener fecha actual en formato YYYY-MM-DD
+REM Obtener fecha actual en formato YYYY-MM-DD y subcarpeta YYYY-MM
 for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set "FECHA=%%I"
 if "%FECHA%"=="" set "FECHA=actual"
+set "ANIO_MES=%FECHA:~0,7%"
+
+REM Crear subcarpeta por mes si no existe
+set "LOG_SUBDIR=%LOG_DIR%\%ANIO_MES%"
+if not exist "%LOG_SUBDIR%" mkdir "%LOG_SUBDIR%"
 
 REM Archivo de log diario (se acumula por dia, sin borrar historicos)
-set "LOG_FILE=%LOG_DIR%\procesamiento_%FECHA%.log"
+set "LOG_FILE=%LOG_SUBDIR%\procesamiento_%FECHA%.log"
 
 REM Ejecutar el sistema y registrar salida y errores
 "%PHP_EXE%" "%APP_DIR%\bin\procesar_alertas.php" >> "%LOG_FILE%" 2>&1

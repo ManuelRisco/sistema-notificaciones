@@ -23,6 +23,15 @@ try {
     // 1. Validar el token de seguridad CSRF
     validarTokenCsrf();
 
+    // 2. Liberar de inmediato el archivo de sesión de PHP
+    // Si un usuario abre dos pestañas o ventanas en el mismo navegador,
+    // PHP por defecto bloquea la segunda hasta que termine la primera.
+    // Al cerrar la sesión aquí, permitimos concurrencia real para que
+    // el candado de alertas (flock) pueda detectar procesos simultáneos.
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+
     $phpExe = 'C:\xampp\php\php.exe';
     if (!file_exists($phpExe)) {
         $phpExe = PHP_BINARY ?: 'php';
@@ -48,13 +57,14 @@ try {
         $salida = (string) ob_get_clean();
     }
 
-    // 3. Registrar la salida en el archivo de log diario
+    // 3. Registrar la salida en el archivo de log diario organizado por mes (YYYY-MM)
     $fecha = date('Y-m-d');
-    $logDir = $raizProyecto . DIRECTORY_SEPARATOR . 'logs';
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0777, true);
+    $anioMes = date('Y-m');
+    $logSubDir = $raizProyecto . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . $anioMes;
+    if (!is_dir($logSubDir)) {
+        @mkdir($logSubDir, 0777, true);
     }
-    $logFile = $logDir . DIRECTORY_SEPARATOR . "procesamiento_{$fecha}.log";
+    $logFile = $logSubDir . DIRECTORY_SEPARATOR . "procesamiento_{$fecha}.log";
 
     if (!empty($salida)) {
         @file_put_contents(
@@ -69,6 +79,9 @@ try {
             "El proceso finalizó con código {$codigoSalida}. " . substr($salida, 0, 300)
         );
     }
+
+    // Detectar si el proceso se omitió porque ya había otro en curso
+    $enCurso = strpos($salida, 'AVISO: Ya existe otro proceso de alertas en ejecución') !== false;
 
     // Extraer la última línea de resumen relevante para la interfaz web
     $lineasSalida = array_values(array_filter(array_map('trim', explode("\n", $salida))));
@@ -85,14 +98,25 @@ try {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'exito' => true,
-            'mensaje' => 'Proceso de alertas ejecutado correctamente.',
+            'en_curso' => $enCurso,
+            'mensaje' => $enCurso
+                ? 'Ya existe una revisión de stock en ejecución en este momento.'
+                : 'Proceso de alertas ejecutado correctamente.',
             'resumen' => $resumen,
             'salida_completa' => $salida
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    $_SESSION['flash_ejecucion'] = $resumen;
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        @session_start();
+    }
+
+    if ($enCurso) {
+        $_SESSION['flash_ejecucion'] = 'Ya hay una revisión de alertas ejecutándose en segundo plano.';
+    } else {
+        $_SESSION['flash_ejecucion'] = $resumen;
+    }
     header('Location: index.php?ok=ejecutado');
     exit;
 
@@ -111,6 +135,10 @@ try {
             'error' => $e->getMessage()
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        @session_start();
     }
 
     $_SESSION['flash_error'] = 'Error al ejecutar alertas: ' . $e->getMessage();

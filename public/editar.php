@@ -366,9 +366,28 @@ if (!function_exists('h')) {
     }
 }
 
+// Detectar si hay una cookie de modo oscuro activa
+$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
+
+// Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
+if (isset($_GET['toggle_dark_mode'])) {
+    $darkMode = !$darkMode;
+    setcookie('dark_mode', $darkMode ? 'true' : 'false', time() + (86400 * 30), "/");
+
+    // Mantener los parámetros GET originales (emp, art, alm)
+    $params = $_GET;
+    unset($params['toggle_dark_mode']);
+    $urlLimpia = strtok($_SERVER["REQUEST_URI"], '?');
+    if (!empty($params)) {
+        $urlLimpia .= '?' . http_build_query($params);
+    }
+    header("Location: " . $urlLimpia);
+    exit;
+}
+
 ?>
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="<?php echo $darkMode ? 'dark-mode' : ''; ?>">
 <head>
     <meta charset="UTF-8">
     <meta
@@ -386,9 +405,20 @@ if (!function_exists('h')) {
             <h1>Editar Stock Mínimo</h1>
             <p>Modificar código artículo, stock mínimo y disponibilidad.</p>
         </div>
-        <a href="index.php" class="btn btn-secundario">
-            ← Volver
-        </a>
+        <div class="encabezado-acciones">
+            <a href="index.php" class="btn btn-secundario">
+                ← Volver
+            </a>
+            <!-- Botón para alternar el modo -->
+            <?php
+            $paramsToggle = $_GET;
+            $paramsToggle['toggle_dark_mode'] = 1;
+            ?>
+            <a href="?<?= htmlspecialchars(http_build_query($paramsToggle), ENT_QUOTES, 'UTF-8') ?>" style="display: grid; place-items: center;
+            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1;">
+                <?php echo $darkMode ? '🌞' : '🌚'; ?>
+            </a>
+        </div>
     </header>
 
     <?php if ($mostrarFormulario): ?>

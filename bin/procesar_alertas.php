@@ -26,6 +26,30 @@ date_default_timezone_set($zonaHoraria);
 $modoSimulacion = in_array('--simular', $argv ?? [], true);
 $mostrarDetalleCompleto = in_array('--detalle', $argv ?? [], true);
 
+// -----------------------------------------------------------------------------
+// Control de Concurrencia (Mutex): Asegura que solo un proceso corra a la vez
+// -----------------------------------------------------------------------------
+$lockDir = $raizProyecto . DIRECTORY_SEPARATOR . 'logs';
+if (!is_dir($lockDir)) {
+    @mkdir($lockDir, 0777, true);
+}
+$lockFilePath = $lockDir . DIRECTORY_SEPARATOR . 'alerta_proceso.lock';
+$lockHandle = fopen($lockFilePath, 'c+');
+
+if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    $fechaHora = date('d/m/Y H:i:s');
+    echo "[{$fechaHora}] AVISO: Ya existe otro proceso de alertas en ejecución. Se omite esta ejecución para evitar duplicados." . PHP_EOL;
+    if ($lockHandle) {
+        fclose($lockHandle);
+    }
+    exit(0);
+}
+
+// Registrar PID y momento de inicio en el archivo de bloqueo
+@ftruncate($lockHandle, 0);
+@fwrite($lockHandle, "PID: " . getmypid() . " | Inicio: " . date('Y-m-d H:i:s') . PHP_EOL);
+@fflush($lockHandle);
+
 $conexion = null;
 
 try {
@@ -231,5 +255,11 @@ if (!$requiereDetalle && !$mostrarDetalleCompleto) {
 
     if ($conexion !== null && $conexion !== false) {
         sqlsrv_close($conexion);
+    }
+
+    // Liberar candado de ejecución única
+    if (isset($lockHandle) && is_resource($lockHandle)) {
+        @flock($lockHandle, LOCK_UN);
+        @fclose($lockHandle);
     }
 }
