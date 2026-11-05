@@ -1,50 +1,63 @@
-/* ==========================================================================
+/* ========================================================================== 
    SISTEMA DE NOTIFICACIONES Y ALERTAS DE STOCK
+   Hoja de estilos principal
+   ========================================================================== */
+
+/* ========================================================================== 
+   1. VARIABLES GLOBALES
    ========================================================================== */
 
 :root {
-    /* Paleta Corporativa / ERP */
+    /* Paleta corporativa / ERP */
     --color-fondo: #f8fafc;
     --color-tarjeta: #ffffff;
     --color-texto: #0f172a;
-    --color-texto-muted: #64748b;
+    --color-texto-muted: #5c6067;
     --color-borde: #e2e8f0;
     --color-borde-campo: #cbd5e1;
 
-    /* Primario (Azul Ejecutivo) */
+    /* Color primario: azul ejecutivo */
     --color-primario: #2563eb;
     --color-primario-hover: #1d4ed8;
 
-    /* Secundario (Gris Neutro) */
+    /* Color secundario: gris neutro */
     --color-secundario: #64748b;
     --color-secundario-hover: #475569;
     --color-secundario-fondo: #f1f5f9;
 
-    /* Acciones de Tabla */
+    /* Acciones de tabla: editar */
     --color-editar-fondo: #fef3c7;
     --color-editar-texto: #b45309;
     --color-editar-borde: #fde68a;
     --color-editar-hover: #fde68a;
 
+    /* Acciones de tabla: eliminar */
     --color-peligro-fondo: #fee2e2;
     --color-peligro-texto: #b91c1c;
     --color-peligro-borde: #fecaca;
     --color-peligro-hover: #fecaca;
 
+    /* Acciones de tabla: reactivar */
     --color-exito-fondo: #d1fae5;
     --color-exito-texto: #047857;
     --color-exito-borde: #a7f3d0;
     --color-exito-hover: #a7f3d0;
 
-    /* Geometría y Sombras */
+    /* Geometría y sombras */
     --radio-tarjeta: 10px;
     --radio-control: 8px;
     --radio-btn: 7px;
-    --sombra-tarjeta: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
-    --sombra-formulario: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+    --sombra-tarjeta: 0 4px 6px -1px rgba(0, 0, 0, 0.05),
+                      0 2px 4px -2px rgba(0, 0, 0, 0.03);
+    --sombra-formulario: 0 10px 15px -3px rgba(0, 0, 0, 0.05),
+                         0 4px 6px -4px rgba(0, 0, 0, 0.02);
 }
 
-/* Reset y Base */
+
+/* ========================================================================== 
+   2. RESET Y ESTILOS BASE
+   ========================================================================== */
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -52,16 +65,18 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, sans-serif;
     background-color: var(--color-fondo);
     color: var(--color-texto);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
 
-/* --------------------------------------------------------------------------
-   1. CONTENEDORES Y ESTRUCTURA GENERAL
-   -------------------------------------------------------------------------- */
+
+/* ========================================================================== 
+   3. CONTENEDORES Y ESTRUCTURA GENERAL
+   ========================================================================== */
 
 .contenedor {
     width: 94%;
@@ -69,13 +84,12 @@ body {
     margin: 40px auto;
 }
 
-/* Formulario enfocado, amplio (760px) y perfectamente centrado */
 .contenedor-formulario {
     max-width: 760px;
     margin: 40px auto;
 }
 
-/* Encabezado */
+/* Encabezado principal */
 .encabezado {
     display: flex;
     justify-content: space-between;
@@ -112,9 +126,10 @@ body {
     padding: 0;
 }
 
-/* --------------------------------------------------------------------------
-   2. FORMULARIOS ADMINISTRATIVOS (760px)
-   -------------------------------------------------------------------------- */
+
+/* ========================================================================== 
+   4. FORMULARIOS ADMINISTRATIVOS
+   ========================================================================== */
 
 .formulario {
     width: 100%;
@@ -127,14 +142,13 @@ body {
     box-shadow: var(--sombra-formulario);
 }
 
-/* Distribución en cuadrícula de 2 columnas */
+/* Distribución de campos en dos columnas */
 .form-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 22px;
 }
 
-/* Campos individuales */
 .campo {
     display: flex;
     flex-direction: column;
@@ -142,15 +156,15 @@ body {
 }
 
 .campo label {
+    display: block;
     font-size: 15px;
     font-weight: 600;
     color: #1e293b;
     margin-bottom: 8px;
-    display: block;
     letter-spacing: -0.1px;
 }
 
-/* Inputs y Selects: Altura de 48px y texto cómodo a 16px */
+/* Inputs y selectores */
 .campo input,
 .campo select {
     width: 100%;
@@ -164,7 +178,8 @@ body {
     color: var(--color-texto);
     background-color: #ffffff;
     outline: none;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    transition: border-color 0.15s ease-in-out,
+                box-shadow 0.15s ease-in-out;
 }
 
 .campo input::placeholder {
@@ -178,13 +193,24 @@ body {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
-/* Campos de solo lectura claramente diferenciados */
+/* Campos de solo lectura */
 .campo input[readonly] {
     background-color: #f8fafc;
     color: #64748b;
     cursor: not-allowed;
     border: 1.5px solid #e2e8f0;
     font-weight: 500;
+}
+
+/* Información y estado de búsqueda en tiempo real del artículo */
+.info-articulo {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    min-height: 24px;
+    font-size: 13px;
 }
 
 /* Barra de acciones de formulario */
@@ -205,9 +231,10 @@ body {
     border-radius: var(--radio-control);
 }
 
-/* --------------------------------------------------------------------------
-   3. BOTONES
-   -------------------------------------------------------------------------- */
+
+/* ========================================================================== 
+   5. BOTONES
+   ========================================================================== */
 
 .btn {
     display: inline-flex;
@@ -226,7 +253,7 @@ body {
     font-family: inherit;
 }
 
-/* Botón Primario */
+/* Botón primario */
 .btn-primario {
     background-color: var(--color-primario);
     color: #ffffff;
@@ -237,7 +264,7 @@ body {
     background-color: var(--color-primario-hover);
 }
 
-/* Botón Secundario (Volver / Cancelar) */
+/* Botón secundario: volver / cancelar */
 .btn-secundario {
     background-color: var(--color-secundario-fondo);
     color: #334155;
@@ -249,7 +276,7 @@ body {
     color: #0f172a;
 }
 
-/* Botones de acción en tabla */
+/* Botón editar */
 .btn-editar {
     background-color: var(--color-editar-fondo);
     color: var(--color-editar-texto);
@@ -261,6 +288,7 @@ body {
     color: #78350f;
 }
 
+/* Botón eliminar */
 .btn-eliminar {
     background-color: var(--color-peligro-fondo);
     color: var(--color-peligro-texto);
@@ -272,6 +300,7 @@ body {
     color: #7f1d1d;
 }
 
+/* Botón reactivar */
 .btn-reactivar {
     background-color: var(--color-exito-fondo);
     color: var(--color-exito-texto);
@@ -283,7 +312,7 @@ body {
     color: #064e3b;
 }
 
-/* Botón Ejecutar Alertas Manual */
+/* Botón para ejecutar alertas manualmente */
 .btn-ejecutar {
     background-color: #059669;
     color: #ffffff;
@@ -300,75 +329,128 @@ body {
     background-color: #065f46;
 }
 
-/* --------------------------------------------------------------------------
-   4. TABLA DE CONFIGURACIONES (DISEÑO ADMINISTRATIVO ERP)
-   -------------------------------------------------------------------------- */
 
-/* Barra de Resumen / Métricas */
+/* ========================================================================== 
+   6. TABLA DE CONFIGURACIONES
+   ========================================================================== */
+
+/* Resumen general / métricas */
 .resumen {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    gap: 10px 16px;
     background: var(--color-tarjeta);
-    padding: 16px 22px;
+    padding: 14px 22px;
     margin-bottom: 22px;
     border-radius: var(--radio-tarjeta);
     border: 1px solid var(--color-borde);
     box-shadow: var(--sombra-tarjeta);
-    font-size: 14px;
+    font-size: 13.5px;
+    text-align: center;
+}
+
+.resumen-separador {
+    width: 1px;
+    height: 22px;
+    background-color: var(--color-borde);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+.resumen-grupo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.resumen-grupo-titulo {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-texto-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-right: 2px;
 }
 
 .resumen-item {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
+    gap: 6px;
+    padding: 5px 12px;
     background: #f8fafc;
     border-radius: 6px;
     border: 1px solid var(--color-borde);
+    color: var(--color-texto);
+    font-size: 13px;
+    user-select: text;
+    white-space: nowrap;
 }
 
 .resumen-item strong {
-    font-size: 15px;
-    color: var(--color-texto);
+    font-size: 14px;
+    font-weight: 500;
 }
 
-/* Contenedor de tabla con scroll horizontal suave */
+/* Contenedor con desplazamiento horizontal */
 .tabla-contenedor {
     background: var(--color-tarjeta);
     border-radius: var(--radio-tarjeta);
     border: 1px solid var(--color-borde);
     box-shadow: var(--sombra-tarjeta);
-    overflow: hidden;
     overflow-x: auto;
+
+    /* Encabezado que se mantenga */
+    overflow-y: auto;
+    max-height: 65vh;
+
+    min-height: 280px;
     -webkit-overflow-scrolling: touch;
+    position: relative;
 }
 
 table {
     width: 100%;
-    border-collapse: collapse;
+    border-spacing: 0;
     white-space: nowrap;
     text-align: left;
 }
 
 th {
-    background: #1e293b;
+    background: #1f2229;
     color: #f8fafc;
     font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 16px 20px;
+
+    /* Encabezado que se mantenga */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 td {
     padding: 15px 20px;
     font-size: 14px;
     line-height: 1.5;
-    border-bottom: 1px solid var(--color-borde);
     color: #334155;
     vertical-align: middle;
+
+    border-bottom: 1px solid #d3d3d3;
+    border-right: 1px solid #d3d3d3;
+}
+
+th:last-child,
+td:last-child {
+    border-right: none;
 }
 
 tbody tr:last-child td {
@@ -379,45 +461,148 @@ tbody tr:hover {
     background-color: #f8fafc;
 }
 
-/* Registros Deshabilitados / Borrado Lógico */
-.fila-inactiva {
-    background-color: #f8fafc;
+
+/* ========================================================================== 
+   7. FILTROS EN LOS ENCABEZADOS DE TABLA
+   ========================================================================== */
+
+.th-filtrable {
+    position: sticky;
 }
 
-.fila-inactiva td {
-    color: #94a3b8;
+.th-filtrable.th-menu-activo {
+    z-index: 50;
 }
 
-.fila-inactiva:hover {
-    background-color: #f1f5f9;
-}
-
-/* Badges / Etiquetas de Estado */
-.badge {
+.th-contenido {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 9999px;
-    font-size: 12px;
+    gap: 8px;
+}
+
+.btn-filtro-columna {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn-filtro-columna:hover {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-filtro-columna.filtro-activo {
+    background: #3b82f6 !important;
+    color: #ffffff !important;
+    border-color: #60a5fa !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+.icono-filtro {
+    display: block;
+    pointer-events: none;
+}
+
+.menu-filtro {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    margin-top: 4px;
+    min-width: 195px;
+    background: #ffffff;
+    border: 1px solid var(--color-borde);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2),
+                0 8px 10px -6px rgba(15, 23, 42, 0.1);
+    z-index: 100;
+    padding: 6px 0;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.menu-filtro.menu-abierto {
+    display: block;
+    animation: fadeInMenu 0.12s ease-out;
+}
+
+@keyframes fadeInMenu {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.opcion-filtro {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--color-texto);
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.1s ease;
+}
+
+.opcion-filtro:hover {
+    background-color: #f1f5f9;
+    color: var(--color-primario);
+}
+
+.opcion-filtro.seleccionada {
+    background-color: #eff6ff;
+    color: var(--color-primario);
     font-weight: 600;
 }
 
-.badge::before {
-    content: '';
+.indicador-check {
     display: inline-block;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+    width: 14px;
+    font-weight: 700;
+    color: var(--color-primario);
+    text-align: center;
+}
+
+
+/* ========================================================================== 
+   8. BADGES, ETIQUETAS Y ACCIONES DE TABLA
+   ========================================================================== */
+
+/* Etiquetas de estado */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 11px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0.2px;
+    text-align: center;
 }
 
 .badge-activo {
     background-color: #dcfce7;
     color: #15803d;
-}
-
-.badge-activo::before {
-    background-color: #16a34a;
+    border: 1px solid #bbf7d0;
 }
 
 .badge-inactivo {
@@ -426,11 +611,19 @@ tbody tr:hover {
     border: 1px solid #cbd5e1;
 }
 
-.badge-inactivo::before {
-    background-color: #94a3b8;
+.badge-alerta {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
 }
 
-/* Celdas de Acciones en la Tabla */
+.badge-sin-datos {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
+/* Celda y botones de acciones */
 .acciones-celda {
     display: inline-flex;
     align-items: center;
@@ -438,7 +631,7 @@ tbody tr:hover {
 }
 
 .acciones-celda .btn {
-    padding: 7px 14px;
+    padding: 5px;
     font-size: 13px;
     font-weight: 600;
     border-radius: 6px;
@@ -450,19 +643,69 @@ tbody tr:hover {
     margin: 0;
 }
 
-/* --------------------------------------------------------------------------
-   5. ALERTAS Y NOTIFICACIONES
-   -------------------------------------------------------------------------- */
+/* Descripción secundaria del artículo */
+.articulo-descripcion {
+    display: block;
+    margin-top: 4px;
+    color: var(--color-texto-muted);
+    font-size: 12px;
+    font-weight: 400;
+    white-space: normal;
+    max-width: 220px;
+}
+
+
+/* ========================================================================== 
+   9. REGISTROS DESHABILITADOS / BORRADO LÓGICO
+   ========================================================================== */
+
+/* Fondo y texto atenuado en las celdas */
+tbody tr.fila-inactiva td {
+    color: #64748b;
+    border-bottom-color: #d3d3d3;
+}
+
+/* Textos destacados */
+tbody tr.fila-inactiva td strong {
+    color: #334155;
+}
+
+/* Descripción del artículo */
+tbody tr.fila-inactiva .articulo-descripcion {
+    color: #64748b;
+}
+
+/* Los badges conservan sus colores originales intactos (igual que en los registros disponibles) */
+tbody tr.fila-inactiva .badge {
+    filter: none !important;
+    opacity: 1 !important;
+}
+
+/* Botones continúan siendo claramente identificables y funcionales */
+tbody tr.fila-inactiva .acciones-celda .btn {
+    filter: none;
+    opacity: 1;
+}
+
+/* Mantener el fondo suave cuando se pasa el cursor */
+tbody tr.fila-inactiva:hover td {
+    background-color: #f8fafc;
+}
+
+
+/* ========================================================================== 
+   10. ALERTAS Y NOTIFICACIONES
+   ========================================================================== */
 
 .alerta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 16px 20px;
     border-radius: var(--radio-tarjeta);
     margin-bottom: 24px;
     font-size: 15px;
     font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 12px;
 }
 
 .alerta-error {
@@ -477,27 +720,143 @@ tbody tr:hover {
     border: 1px solid #bbf7d0;
 }
 
-/* --------------------------------------------------------------------------
-   6. DISEÑO ADAPTABLE (RESPONSIVE)
-   -------------------------------------------------------------------------- */
 
-@media (max-width: 900px) {
-    .contenedor {
-        width: 95%;
-        margin: 25px auto;
-    }
+/* ========================================================================== 
+   11. BUSCADOR DE ARTÍCULOS
+   ========================================================================== */
 
-    .contenedor-formulario {
-        width: 95%;
-        margin: 25px auto;
-    }
-
-    .formulario {
-        padding: 30px 24px;
-    }
+.busqueda-contenedor {
+    background: var(--color-tarjeta);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-tarjeta);
+    box-shadow: var(--sombra-tarjeta);
+    padding: 20px 24px;
+    margin-bottom: 22px;
 }
 
-@media (max-width: 640px) {
+.busqueda-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.busqueda-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.busqueda-campo-texto {
+    flex: 1;
+    min-width: 240px;
+}
+
+.busqueda-campo label {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--color-texto);
+}
+
+.busqueda-campo input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    border: 1.5px solid var(--color-borde-campo);
+    border-radius: var(--radio-control);
+    background-color: #ffffff;
+    font-family: inherit;
+    font-size: 14.5px;
+    color: var(--color-texto);
+    outline: none;
+}
+
+.busqueda-campo input:focus {
+    border-color: var(--color-primario);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.busqueda-acciones {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.busqueda-form .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 0 20px;
+    white-space: nowrap;
+}
+
+.busqueda-resultados {
+    margin-top: 14px;
+    font-size: 13.5px;
+    color: var(--color-texto-muted);
+}
+
+
+/* ========================================================================== 
+   12. PERSONALIZACIÓN DE SWEETALERT2
+   ========================================================================== */
+
+.swal2-popup {
+    font-family: inherit !important;
+    border-radius: 14px !important;
+    padding: 26px 28px !important;
+    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12),
+                0 10px 10px -5px rgba(15, 23, 42, 0.06) !important;
+    border: 1px solid var(--color-borde) !important;
+}
+
+.swal2-title {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    color: var(--color-texto) !important;
+    margin-bottom: 8px !important;
+}
+
+.swal2-html-container {
+    font-size: 15px !important;
+    color: var(--color-texto-muted) !important;
+    line-height: 1.55 !important;
+    margin: 12px 0 !important;
+}
+
+.swal2-actions {
+    gap: 12px !important;
+    margin-top: 22px !important;
+}
+
+.swal2-styled {
+    border-radius: var(--radio-btn) !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 10px 22px !important;
+    box-shadow: none !important;
+    transition: background-color 0.15s ease-in-out,
+                opacity 0.15s ease-in-out !important;
+}
+
+.swal2-timer-progress-bar {
+    background: rgba(37, 99, 235, 0.45) !important;
+}
+
+
+/* ========================================================================== 
+   13. DISEÑO ADAPTABLE / RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .contenedor,
+    .contenedor-formulario {
+        width: 95%;
+        margin: 20px auto;
+    }
+
+    /* Encabezado */
     .encabezado {
         flex-direction: column;
         align-items: stretch;
@@ -523,6 +882,7 @@ tbody tr:hover {
         justify-content: center;
     }
 
+    /* Formularios */
     .form-grid-2 {
         grid-template-columns: 1fr;
         gap: 0;
@@ -541,139 +901,56 @@ tbody tr:hover {
         width: 100%;
     }
 
+    /* Acciones de tabla */
     .acciones-celda {
         flex-direction: column;
         align-items: stretch;
         width: 100%;
     }
-}
 
-/* --------------------------------------------------------------------------
-   7. PERSONALIZACIÓN SWEETALERT2 (DISEÑO ADMINISTRATIVO ERP)
-   -------------------------------------------------------------------------- */
-
-.swal2-popup {
-    font-family: inherit !important;
-    border-radius: 14px !important;
-    padding: 26px 28px !important;
-    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 10px 10px -5px rgba(15, 23, 42, 0.06) !important;
-    border: 1px solid var(--color-borde) !important;
-}
-
-.swal2-title {
-    font-size: 20px !important;
-    font-weight: 700 !important;
-    color: var(--color-texto) !important;
-    margin-bottom: 8px !important;
-}
-
-.swal2-html-container {
-    font-size: 15px !important;
-    color: var(--color-texto-muted) !important;
-    line-height: 1.55 !important;
-    margin: 12px 0 !important;
-}
-
-.swal2-actions {
-    gap: 12px !important;
-    margin-top: 22px !important;
-}
-
-.swal2-styled {
-    border-radius: var(--radio-boton) !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    padding: 10px 22px !important;
-    box-shadow: none !important;
-    transition: background-color var(--transicion-suave), opacity var(--transicion-suave) !important;
-}
-
-.swal2-timer-progress-bar {
-    background: rgba(37, 99, 235, 0.45) !important;
-}
-.badge-sin-datos {
-    background-color: #f1f5f9;
-    color: #64748b;
-    border: 1px solid #cbd5e1;
-}
-
-.badge-sin-datos::before {
-    background-color: #94a3b8;
-}
-
-/* ==========================================================================
-   BUSCADOR DE ARTÍCULOS
-   ========================================================================== */
-
-.busqueda-contenedor {
-    background: var(--color-tarjeta);
-    border: 1px solid var(--color-borde);
-    border-radius: var(--radio-tarjeta);
-    box-shadow: var(--sombra-tarjeta);
-    padding: 20px 24px;
-    margin-bottom: 22px;
-}
-
-.busqueda-form {
-    display: flex;
-    align-items: end;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.busqueda-campo {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 240px;
-    gap: 8px;
-}
-
-.busqueda-campo label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-texto);
-}
-
-.busqueda-campo input {
-    width: 100%;
-    height: 46px;
-    padding: 0 15px;
-    border: 1.5px solid var(--color-borde-campo);
-    border-radius: var(--radio-control);
-    font-family: inherit;
-    font-size: 15px;
-    outline: none;
-}
-
-.busqueda-campo input:focus {
-    border-color: var(--color-primario);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
-.busqueda-form .btn {
-    height: 46px;
-    padding: 0 22px;
-}
-
-.busqueda-resultados {
-    margin-top: 14px;
-    font-size: 13px;
-    color: var(--color-texto-muted);
-}
-
-@media (max-width: 640px) {
-
+    /* Buscador */
     .busqueda-form {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .busqueda-campo {
+    .busqueda-campo,
+    .busqueda-campo-texto {
         min-width: 100%;
+        width: 100%;
     }
 
+    .busqueda-acciones {
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+    }
+
+    .busqueda-acciones .btn,
     .busqueda-form .btn {
         width: 100%;
     }
+
+    /* Resumen general */
+    .resumen {
+        padding: 12px 14px;
+        gap: 8px 12px;
+    }
 }
+
+/* ========================================================================== 
+   14. MODO OSCURO
+   ========================================================================== */
+
+   /* Cuando el documento tenga la clase 'dark-mode', se invierte todo */
+    html.dark-mode {
+        filter: invert(1) hue-rotate(180deg);
+    }
+
+    /* Revierte el filtro para imágenes, videos y elementos multimedia */
+    html.dark-mode img,
+    html.dark-mode video,
+    html.dark-mode th,
+    html.dark-mode .no-invert {
+        filter: invert(1) hue-rotate(180deg);
+    }

@@ -18,6 +18,7 @@ $empCodigo = '001';
 $almCodigo = '003';
 
 $artCodigo = '';
+$artNombre = '';
 $stockMinimo = '';
 
 $error = null;
@@ -43,9 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
         }
 
-        if (strlen($artCodigo) > 15) {
+        if (strlen($artCodigo) > 30) {
             throw new RuntimeException(
-                'El código del artículo admite máximo 15 caracteres.'
+                'El código del artículo admite máximo 30 caracteres.'
             );
         }
 
@@ -57,6 +58,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 4. Conectar con SQL Server.
         $conexion = getSqlServerConn();
+
+        // 4.1 Consultar nombre del artículo en el maestro de artículos
+        $sqlMae = "
+            SELECT RTRIM(art_nombre) AS art_nombre
+            FROM TECNOTEST.dbo.mae_articulo
+            WHERE emp_codigo = ? AND art_codigo = ?;
+        ";
+        $stmtMae = sqlsrv_query($conexion, $sqlMae, [$empCodigo, $artCodigo]);
+        if ($stmtMae !== false) {
+            $filaMae = sqlsrv_fetch_array($stmtMae, SQLSRV_FETCH_ASSOC);
+            if ($filaMae && isset($filaMae['art_nombre'])) {
+                $artNombre = trim((string) $filaMae['art_nombre']);
+            }
+            sqlsrv_free_stmt($stmtMae);
+        }
 
         // 5. Comprobar si ya existe en la base de datos (incluso si fue borrado lógicamente)
         $sqlCheck = "
@@ -83,9 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         sqlsrv_free_stmt($stmtCheck);
 
         if ($existente !== null && $existente !== false) {
+            $detalleNombre = $artNombre !== '' ? " ({$artNombre})" : '';
             if ((int) ($existente['disponible'] ?? 0) === 1) {
                 throw new RuntimeException(
-                    'Este artículo ya tiene una configuración activa para la empresa 001 y el almacén 003.'
+                    "El artículo {$artCodigo}{$detalleNombre} ya tiene una configuración activa para la empresa 001 y el almacén 003."
                 );
             }
 
@@ -168,7 +185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($guardado) {
-        header('Location: index.php?ok=creado');
+        $urlDestino = 'index.php?ok=creado&art=' . urlencode($artCodigo) . ($artNombre !== '' ? '&nom=' . urlencode($artNombre) : '');
+        header('Location: ' . $urlDestino);
         exit;
     }
 }
@@ -218,26 +236,6 @@ if (!function_exists('h')) {
             value="<?= h(generarTokenCsrf()) ?>"
         >
 
-        <!-- Empresa y Almacén en 2 columnas -->
-        <div class="form-grid-2">
-            <div class="campo">
-                <label>Emp_codigo</label>
-                <input
-                    type="text"
-                    value="001"
-                    readonly
-                >
-            </div>
-            <div class="campo">
-                <label>Alm_codigo</label>
-                <input
-                    type="text"
-                    value="003"
-                    readonly
-                >
-            </div>
-        </div>
-
         <!-- Artículo -->
         <div class="campo">
             <label for="art_codigo">
@@ -247,11 +245,13 @@ if (!function_exists('h')) {
                 type="text"
                 id="art_codigo"
                 name="art_codigo"
-                maxlength="15"
+                maxlength="30"
                 required
                 placeholder="020100149"
                 value="<?= h($artCodigo) ?>"
+                autocomplete="off"
             >
+            <div id="info_articulo" class="info-articulo"></div>
         </div>
 
         <!-- Stock mínimo -->
@@ -301,7 +301,81 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     <?php endif; ?>
 
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
     const form = document.querySelector('.formulario');
+    const artInput = document.getElementById('art_codigo');
+    const infoContainer = document.getElementById('info_articulo');
+    let debounceTimer = null;
+    let currentArtData = null;
+
+    function renderInfoArticulo(data) {
+        if (!data || !infoContainer) {
+            if (infoContainer) infoContainer.innerHTML = '';
+            return;
+        }
+
+        if (!data.encontrado) {
+            infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>';
+            return;
+        }
+
+        const nombreHtml = `<span class="articulo-descripcion" style="margin-top: 0; font-size: 13px; font-weight: 500; color: #334155;">${escapeHtml(data.art_nombre || '')}</span>`;
+
+        if (data.registrado) {
+            if (data.disponible === 1) {
+                infoContainer.innerHTML = `<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">Ya está registrado</span> ${nombreHtml}`;
+            } else {
+                infoContainer.innerHTML = `<span class="badge badge-inactivo" style="display: inline-block; font-size: 11px;">Ya registrado (Inactivo - se reactivará)</span> ${nombreHtml}`;
+            }
+        } else {
+            infoContainer.innerHTML = nombreHtml;
+        }
+    }
+
+    function consultarArticulo(codigo) {
+        codigo = codigo.trim();
+        if (!codigo) {
+            if (infoContainer) infoContainer.innerHTML = '';
+            currentArtData = null;
+            return;
+        }
+
+        if (infoContainer) {
+            infoContainer.innerHTML = '<span style="color: #64748b; font-size: 13px;">Buscando artículo...</span>';
+        }
+
+        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (artInput && artInput.value.trim() !== codigo) {
+                    return;
+                }
+                currentArtData = data;
+                renderInfoArticulo(data);
+            })
+            .catch(() => {
+                if (infoContainer) infoContainer.innerHTML = '';
+            });
+    }
+
+    if (artInput) {
+        artInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                consultarArticulo(artInput.value);
+            }, 300);
+        });
+
+        if (artInput.value.trim() !== '') {
+            consultarArticulo(artInput.value);
+        }
+    }
+
     if (form) {
         let confirmado = false;
 
@@ -317,37 +391,118 @@ document.addEventListener('DOMContentLoaded', function() {
 
             e.preventDefault();
 
-            const artInput = form.querySelector('#art_codigo');
             const artCodigo = artInput ? artInput.value.trim() : '';
 
-            Swal.fire({
-                title: '¿Guardar nuevo registro?',
-                html: `¿Estás seguro de que deseas registrar esta configuración para el artículo <strong>${artCodigo}</strong>?`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#2563eb',
-                cancelButtonColor: '#64748b',
-                confirmButtonText: 'Sí, guardar',
-                cancelButtonText: 'Cancelar',
-                reverseButtons: true,
-                focusCancel: true
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    confirmado = true;
+            const procesarConfirmacion = (data) => {
+                const artNombre = (data && data.encontrado && data.art_nombre) ? data.art_nombre : '';
+                const estaRegistrado = data && data.registrado;
+                const disponible = data ? data.disponible : null;
+                const noEncontrado = data && !data.encontrado;
 
+                // 1. Ya registrado y activo en cfg_alerta_stock
+                if (estaRegistrado && disponible === 1) {
                     Swal.fire({
-                        title: 'Guardando registro...',
-                        html: 'Registrando artículo y stock mínimo en la base de datos.<br><small style="color: #64748b;">Por favor espera un momento...</small>',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        didOpen: () => {
-                            Swal.showLoading();
+                        icon: 'warning',
+                        title: 'Artículo ya registrado',
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ''}<br><br><span style="color: #dc2626;">Ya cuenta con una configuración activa registrada.</span>`,
+                        confirmButtonColor: '#dc2626',
+                        confirmButtonText: 'Entendido'
+                    });
+                    return;
+                }
+
+                // 2. Ya registrado pero inactivo (se reactivará)
+                if (estaRegistrado && disponible === 0) {
+                    Swal.fire({
+                        title: '¿Reactivar configuración?',
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ''}<br><br>Ya se encuentra registrado pero está <strong>inactivo</strong>.<br>¿Deseas reactivarlo con el nuevo stock mínimo?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#059669',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: 'Sí, reactivar',
+                        cancelButtonText: 'Cancelar',
+                        reverseButtons: true,
+                        focusCancel: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            ejecutarEnvio();
                         }
                     });
-
-                    form.submit();
+                    return;
                 }
-            });
+
+                // 3. No encontrado en el catálogo mae_articulo
+                if (noEncontrado) {
+                    Swal.fire({
+                        title: 'Artículo no encontrado',
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong> no se encuentra en el catálogo de artículos.<br><br>¿Deseas registrar esta configuración de todas formas?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#2563eb',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: 'Sí, guardar de todas formas',
+                        cancelButtonText: 'Cancelar',
+                        reverseButtons: true,
+                        focusCancel: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            ejecutarEnvio();
+                        }
+                    });
+                    return;
+                }
+
+                // 4. Caso normal: encontrado y no registrado
+                const detalleArticulo = artNombre
+                    ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
+                    : '';
+
+                Swal.fire({
+                    title: '¿Guardar nuevo registro?',
+                    html: `¿Estás seguro de que deseas registrar esta configuración para el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#2563eb',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Sí, guardar',
+                    cancelButtonText: 'Cancelar',
+                    reverseButtons: true,
+                    focusCancel: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        ejecutarEnvio();
+                    }
+                });
+            };
+
+            function ejecutarEnvio() {
+                confirmado = true;
+                Swal.fire({
+                    title: 'Guardando registro...',
+                    html: 'Registrando artículo y stock mínimo en la base de datos.<br><small style="color: #64748b;">Por favor espera un momento...</small>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                form.submit();
+            }
+
+            if (currentArtData && currentArtData.art_codigo === artCodigo) {
+                procesarConfirmacion(currentArtData);
+            } else {
+                fetch(`consultar_articulo.php?codigo=${encodeURIComponent(artCodigo)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        currentArtData = data;
+                        procesarConfirmacion(data);
+                    })
+                    .catch(() => {
+                        procesarConfirmacion(null);
+                    });
+            }
         });
     }
 });

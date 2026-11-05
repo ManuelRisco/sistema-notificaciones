@@ -21,6 +21,7 @@ $almOriginal = trim($_GET['alm'] ?? $_POST['alm_original'] ?? '');
 
 // Valores editables.
 $artCodigo = $artOriginal;
+$artNombre = '';
 $stockMinimo = '';
 $disponible = 1;
 
@@ -39,7 +40,7 @@ try {
         $empOriginal !== '001'
         || $almOriginal !== '003'
         || $artOriginal === ''
-        || strlen($artOriginal) > 15
+        || strlen($artOriginal) > 30
     ) {
         throw new RuntimeException(
             'La identificación del registro no es válida.'
@@ -74,9 +75,9 @@ try {
         }
 
         // 7. Validar longitud del código.
-        if (strlen($artCodigo) > 15) {
+        if (strlen($artCodigo) > 30) {
             throw new RuntimeException(
-                'El código de artículo admite máximo 15 caracteres.'
+                'El código de artículo admite máximo 30 caracteres.'
             );
         }
 
@@ -90,13 +91,17 @@ try {
         // 9. Recuperar los valores actuales desde SQL Server.
         $sqlActual = "
             SELECT
-                art_codigo,
-                stock_minimo,
-                disponible
-            FROM TECNOTEST.dbo.cfg_alerta_stock
-            WHERE emp_codigo = ?
-              AND art_codigo = ?
-              AND alm_codigo = ?;
+                cfg.art_codigo,
+                cfg.stock_minimo,
+                cfg.disponible,
+                RTRIM(m.art_nombre) AS art_nombre
+            FROM TECNOTEST.dbo.cfg_alerta_stock cfg
+            LEFT JOIN TECNOTEST.dbo.mae_articulo m
+                ON m.emp_codigo = cfg.emp_codigo
+                AND m.art_codigo = cfg.art_codigo
+            WHERE cfg.emp_codigo = ?
+              AND cfg.art_codigo = ?
+              AND cfg.alm_codigo = ?;
         ";
 
         $paramsActual = [
@@ -130,9 +135,27 @@ try {
             );
         }
 
+        $artNombre = trim((string) ($registroActual['art_nombre'] ?? ''));
+
         // 10. Comparar cambios en código, stock mínimo y disponible.
         $articuloCambio =
             $artCodigo !== trim((string) $registroActual['art_codigo']);
+
+        // Si se modificó el código de artículo, consultar el nombre del nuevo artículo
+        if ($articuloCambio && $artCodigo !== '') {
+            $sqlNom = "
+                SELECT RTRIM(art_nombre) AS art_nombre
+                FROM TECNOTEST.dbo.mae_articulo
+                WHERE emp_codigo = ?
+                  AND art_codigo = ?;
+            ";
+            $stmtNom = sqlsrv_query($conexion, $sqlNom, [$empOriginal, $artCodigo]);
+            if ($stmtNom !== false) {
+                $filaNom = sqlsrv_fetch_array($stmtNom, SQLSRV_FETCH_ASSOC);
+                $artNombre = trim((string) ($filaNom['art_nombre'] ?? ''));
+                sqlsrv_free_stmt($stmtNom);
+            }
+        }
 
         $stockCambio =
             normalizarStock($stockMinimo)
@@ -237,15 +260,19 @@ try {
         // 13. GET: consultar el registro original.
         $sql = "
             SELECT
-                emp_codigo,
-                art_codigo,
-                alm_codigo,
-                stock_minimo,
-                disponible
-            FROM TECNOTEST.dbo.cfg_alerta_stock
-            WHERE emp_codigo = ?
-              AND art_codigo = ?
-              AND alm_codigo = ?;
+                cfg.emp_codigo,
+                cfg.art_codigo,
+                cfg.alm_codigo,
+                cfg.stock_minimo,
+                cfg.disponible,
+                RTRIM(m.art_nombre) AS art_nombre
+            FROM TECNOTEST.dbo.cfg_alerta_stock cfg
+            LEFT JOIN TECNOTEST.dbo.mae_articulo m
+                ON m.emp_codigo = cfg.emp_codigo
+                AND m.art_codigo = cfg.art_codigo
+            WHERE cfg.emp_codigo = ?
+              AND cfg.art_codigo = ?
+              AND cfg.alm_codigo = ?;
         ";
 
         $params = [
@@ -280,6 +307,7 @@ try {
         }
 
         $artCodigo = trim((string) $registro['art_codigo']);
+        $artNombre = trim((string) ($registro['art_nombre'] ?? ''));
         $stockMinimo = (string) $registro['stock_minimo'];
         $disponible = (int) ($registro['disponible'] ?? 1);
         $registroEncontrado = true;
@@ -298,7 +326,8 @@ try {
 
 // Redireccionar si la actualización fue exitosa
 if ($actualizado) {
-    header('Location: index.php?ok=editado');
+    $urlDestino = 'index.php?ok=editado&art=' . urlencode($artCodigo) . ($artNombre !== '' ? '&nom=' . urlencode($artNombre) : '');
+    header('Location: ' . $urlDestino);
     exit;
 }
 
@@ -346,7 +375,7 @@ if (!function_exists('h')) {
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
-    <title>Editar configuración</title>
+    <title>Editar Stock Mínimo</title>
     <link rel="stylesheet" href="css/estilos.css">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
@@ -354,7 +383,7 @@ if (!function_exists('h')) {
 <main class="contenedor contenedor-formulario">
     <header class="encabezado">
         <div>
-            <h1>Editar configuración</h1>
+            <h1>Editar Stock Mínimo</h1>
             <p>Modificar código artículo, stock mínimo y disponibilidad.</p>
         </div>
         <a href="index.php" class="btn btn-secundario">
@@ -388,26 +417,6 @@ if (!function_exists('h')) {
                 value="<?= h($almOriginal) ?>"
             >
 
-            <!-- Empresa y Almacén en 2 columnas -->
-            <div class="form-grid-2">
-                <div class="campo">
-                    <label>Emp_codigo</label>
-                    <input
-                        type="text"
-                        value="001"
-                        readonly
-                    >
-                </div>
-                <div class="campo">
-                    <label>Alm_codigo</label>
-                    <input
-                        type="text"
-                        value="003"
-                        readonly
-                    >
-                </div>
-            </div>
-
             <!-- Artículo editable. -->
             <div class="campo">
                 <label for="art_codigo">
@@ -417,10 +426,20 @@ if (!function_exists('h')) {
                     type="text"
                     id="art_codigo"
                     name="art_codigo"
-                    maxlength="15"
+                    maxlength="30"
                     required
                     value="<?= h($artCodigo) ?>"
+                    autocomplete="off"
                 >
+                <div id="info_articulo" class="info-articulo">
+                    <?php if ($artNombre !== ''): ?>
+                        <span class="articulo-descripcion" style="margin-top: 0; font-size: 13px; font-weight: 500; color: #334155;">
+                            <?= h($artNombre) ?>
+                        </span>
+                    <?php else: ?>
+                        <span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>
+                    <?php endif; ?>
+                </div>
             </div>
 
             <!-- Stock mínimo editable. -->
@@ -497,7 +516,101 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     <?php endif; ?>
 
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
     const form = document.querySelector('.formulario');
+    const artInput = document.getElementById('art_codigo');
+    const infoContainer = document.getElementById('info_articulo');
+    const codigoOriginal = <?= json_encode($artOriginal, JSON_UNESCAPED_UNICODE) ?>;
+    const nombreOriginal = <?= json_encode($artNombre, JSON_UNESCAPED_UNICODE) ?>;
+    let debounceTimer = null;
+    let currentArtData = null;
+
+    function renderInfoArticulo(data, codigo) {
+        if (!infoContainer) return;
+
+        if (!codigo) {
+            infoContainer.innerHTML = '';
+            return;
+        }
+
+        if (!data || !data.encontrado) {
+            infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>';
+            return;
+        }
+
+        const nombreHtml = `<span class="articulo-descripcion" style="margin-top: 0; font-size: 13px; font-weight: 500; color: #334155;">${escapeHtml(data.art_nombre || '')}</span>`;
+
+        // Si ya está registrado en la base de datos
+        if (data.registrado) {
+            // Si es el mismo código original que se está editando, no es advertencia
+            if (codigo === codigoOriginal) {
+                infoContainer.innerHTML = nombreHtml;
+                return;
+            }
+
+            if (data.disponible === 1) {
+                infoContainer.innerHTML = `<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">Ya está registrado</span> ${nombreHtml}`;
+            } else {
+                infoContainer.innerHTML = `<span class="badge badge-inactivo" style="display: inline-block; font-size: 11px;">Ya registrado (Inactivo)</span> ${nombreHtml}`;
+            }
+        } else {
+            infoContainer.innerHTML = nombreHtml;
+        }
+    }
+
+    function consultarArticulo(codigo) {
+        codigo = codigo.trim();
+        if (!codigo) {
+            if (infoContainer) infoContainer.innerHTML = '';
+            currentArtData = null;
+            return;
+        }
+
+        // Si es el código original y ya conocemos su nombre
+        if (codigo === codigoOriginal && nombreOriginal !== '') {
+            currentArtData = {
+                encontrado: true,
+                art_codigo: codigo,
+                art_nombre: nombreOriginal,
+                registrado: true,
+                disponible: 1
+            };
+            renderInfoArticulo(currentArtData, codigo);
+            return;
+        }
+
+        if (infoContainer) {
+            infoContainer.innerHTML = '<span style="color: #64748b; font-size: 13px;">Buscando artículo...</span>';
+        }
+
+        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (artInput && artInput.value.trim() !== codigo) {
+                    return;
+                }
+                currentArtData = data;
+                renderInfoArticulo(data, codigo);
+            })
+            .catch(() => {
+                if (infoContainer) infoContainer.innerHTML = '';
+            });
+    }
+
+    if (artInput) {
+        artInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                consultarArticulo(artInput.value);
+            }, 300);
+        });
+    }
+
     if (form) {
         let confirmado = false;
 
@@ -513,37 +626,109 @@ document.addEventListener('DOMContentLoaded', function() {
 
             e.preventDefault();
 
-            const artInput = form.querySelector('#art_codigo');
             const artCodigo = artInput ? artInput.value.trim() : '';
 
-            Swal.fire({
-                title: '¿Guardar cambios?',
-                html: `¿Estás seguro de que deseas actualizar la configuración para el artículo <strong>${artCodigo}</strong>?`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#2563eb',
-                cancelButtonColor: '#64748b',
-                confirmButtonText: 'Sí, guardar cambios',
-                cancelButtonText: 'Cancelar',
-                reverseButtons: true,
-                focusCancel: true
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    confirmado = true;
+            const procesarConfirmacion = (data) => {
+                const artNombre = (data && data.encontrado && data.art_nombre)
+                    ? data.art_nombre
+                    : (artCodigo === codigoOriginal ? nombreOriginal : '');
+                const estaRegistrado = data && data.registrado;
+                const codigoCambio = (artCodigo !== codigoOriginal);
+                const noEncontrado = data && !data.encontrado;
 
+                // 1. Si cambió de código y el nuevo código ya está registrado en otra alerta
+                if (codigoCambio && estaRegistrado) {
                     Swal.fire({
-                        title: 'Actualizando registro...',
-                        html: 'Guardando los cambios en la base de datos.<br><small style="color: #64748b;">Por favor espera un momento...</small>',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        didOpen: () => {
-                            Swal.showLoading();
+                        icon: 'warning',
+                        title: 'Artículo ya registrado',
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ''}<br><br><span style="color: #dc2626;">Ya se encuentra registrado en el sistema.</span>`,
+                        confirmButtonColor: '#dc2626',
+                        confirmButtonText: 'Entendido'
+                    });
+                    return;
+                }
+
+                // 2. Si no fue encontrado en el catálogo mae_articulo
+                if (noEncontrado) {
+                    Swal.fire({
+                        title: 'Artículo no encontrado',
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong> no se encuentra en el catálogo de artículos.<br><br>¿Deseas continuar con la actualización de todas formas?`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#2563eb',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: 'Sí, actualizar de todas formas',
+                        cancelButtonText: 'Cancelar',
+                        reverseButtons: true,
+                        focusCancel: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            ejecutarEnvio();
                         }
                     });
-
-                    form.submit();
+                    return;
                 }
-            });
+
+                // 3. Confirmación normal con código y nombre
+                const detalleArticulo = artNombre
+                    ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
+                    : '';
+
+                Swal.fire({
+                    title: '¿Guardar cambios?',
+                    html: `¿Estás seguro de que deseas actualizar la configuración para el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#2563eb',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Sí, guardar cambios',
+                    cancelButtonText: 'Cancelar',
+                    reverseButtons: true,
+                    focusCancel: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        ejecutarEnvio();
+                    }
+                });
+            };
+
+            function ejecutarEnvio() {
+                confirmado = true;
+
+                Swal.fire({
+                    title: 'Actualizando registro...',
+                    html: 'Guardando los cambios en la base de datos.<br><small style="color: #64748b;">Por favor espera un momento...</small>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                form.submit();
+            }
+
+            if (currentArtData && currentArtData.art_codigo === artCodigo) {
+                procesarConfirmacion(currentArtData);
+            } else if (artCodigo === codigoOriginal) {
+                procesarConfirmacion({
+                    encontrado: (nombreOriginal !== ''),
+                    art_codigo: artCodigo,
+                    art_nombre: nombreOriginal,
+                    registrado: true,
+                    disponible: 1
+                });
+            } else {
+                fetch(`consultar_articulo.php?codigo=${encodeURIComponent(artCodigo)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        currentArtData = data;
+                        procesarConfirmacion(data);
+                    })
+                    .catch(() => {
+                        procesarConfirmacion(null);
+                    });
+            }
         });
     }
 });

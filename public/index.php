@@ -19,18 +19,97 @@ require_once $raizProyecto . '/config/database.php';
 $conexion = null;
 $registros = [];
 $error = null;
-// Código de artículo ingresado en el buscador.
+// Filtros recibidos por GET (consultados directamente a la base de datos)
 $busqueda = isset($_GET['articulo']) && is_string($_GET['articulo'])
-        ? trim($_GET['articulo'])
-        : '';
+    ? trim($_GET['articulo'])
+    : '';
+
+$filtroDisponible = isset($_GET['disponible']) && in_array((string)$_GET['disponible'], ['0', '1'], true)
+    ? (string)$_GET['disponible']
+    : '';
+
+$filtroStock = isset($_GET['stock']) && in_array((string)$_GET['stock'], ['0', '1'], true)
+    ? (string)$_GET['stock']
+    : '';
+
+$filtroCorreo = isset($_GET['correo']) && in_array((string)$_GET['correo'], ['0', '1'], true)
+    ? (string)$_GET['correo']
+    : '';
+
+$totales = [
+    'total' => 0,
+    'disponibles' => 0,
+    'no_disponibles' => 0,
+    'con_stock' => 0,
+    'sin_stock' => 0,
+    'correo_enviado' => 0,
+    'correo_no_enviado' => 0
+];
 
 try {
 
     // 4. Obtener la conexión.
     $conexion = getSqlServerConn();
 
+    // 5. Consultar los totales generales directamente en la base de datos
+    $sqlTotales = "
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN disponible = 1 THEN 1 ELSE 0 END) AS disponibles,
+            SUM(CASE WHEN disponible = 0 THEN 1 ELSE 0 END) AS no_disponibles,
+            SUM(CASE WHEN band_stock = 0 THEN 1 ELSE 0 END) AS con_stock,
+            SUM(CASE WHEN band_stock = 1 THEN 1 ELSE 0 END) AS sin_stock,
+            SUM(CASE WHEN band_correo = 1 THEN 1 ELSE 0 END) AS correo_enviado,
+            SUM(CASE WHEN band_correo = 0 THEN 1 ELSE 0 END) AS correo_no_enviado
+        FROM dbo.cfg_alerta_stock;
+    ";
 
-    // 5. Calcular el stock físico de cada artículo configurado.
+    $stmtTotales = sqlsrv_query($conexion, $sqlTotales);
+    if ($stmtTotales !== false) {
+        $filaTotales = sqlsrv_fetch_array($stmtTotales, SQLSRV_FETCH_ASSOC);
+        if ($filaTotales) {
+            $totales = [
+                'total' => (int) ($filaTotales['total'] ?? 0),
+                'disponibles' => (int) ($filaTotales['disponibles'] ?? 0),
+                'no_disponibles' => (int) ($filaTotales['no_disponibles'] ?? 0),
+                'con_stock' => (int) ($filaTotales['con_stock'] ?? 0),
+                'sin_stock' => (int) ($filaTotales['sin_stock'] ?? 0),
+                'correo_enviado' => (int) ($filaTotales['correo_enviado'] ?? 0),
+                'correo_no_enviado' => (int) ($filaTotales['correo_no_enviado'] ?? 0)
+            ];
+        }
+        sqlsrv_free_stmt($stmtTotales);
+    }
+
+    // 6. Construir condiciones WHERE dinámicas para filtrar en SQL Server
+    $condiciones = [];
+    $params = [];
+
+    if ($busqueda !== '') {
+        $condiciones[] = "(cfg.art_codigo LIKE ? OR m.art_nombre LIKE ?)";
+        $parametroBusqueda = '%' . $busqueda . '%';
+        $params[] = $parametroBusqueda;
+        $params[] = $parametroBusqueda;
+    }
+
+    if ($filtroDisponible !== '') {
+        $condiciones[] = "cfg.disponible = ?";
+        $params[] = (int) $filtroDisponible;
+    }
+
+    if ($filtroStock !== '') {
+        $condiciones[] = "cfg.band_stock = ?";
+        $params[] = (int) $filtroStock;
+    }
+
+    if ($filtroCorreo !== '') {
+        $condiciones[] = "cfg.band_correo = ?";
+        $params[] = (int) $filtroCorreo;
+    }
+
+    $clausulaWhere = !empty($condiciones) ? 'WHERE ' . implode(' AND ', $condiciones) : '';
+
+    // 7. Calcular el stock físico de cada artículo configurado (filtrado en BD)
     $sql = "
         ;WITH StockCalculado AS
         (
@@ -82,8 +161,9 @@ try {
             cfg.band_correo,
             cfg.disponible,
 
-            s.stock_actual AS stock_actual,
+            RTRIM(m.art_nombre) AS art_nombre,
 
+            s.stock_actual AS stock_actual,
             cfg.fecha_actualizacion
 
         FROM dbo.cfg_alerta_stock cfg
@@ -92,9 +172,13 @@ try {
             ON s.emp_codigo = cfg.emp_codigo
             AND s.art_codigo = cfg.art_codigo
             AND s.alm_codigo = cfg.alm_codigo
-            
-        WHERE cfg.art_codigo LIKE ?     
-            
+
+        LEFT JOIN dbo.mae_articulo m
+            ON m.emp_codigo = cfg.emp_codigo
+            AND m.art_codigo = cfg.art_codigo
+
+        {$clausulaWhere}
+
         ORDER BY
             cfg.disponible DESC,
             cfg.emp_codigo,
@@ -102,24 +186,21 @@ try {
             cfg.alm_codigo;
     ";
 
-    // 6. Ejecutar la consulta.
-    // Buscar por coincidencia parcial o completa.
-    $params = [
-            '%' . $busqueda . '%'
-    ];
-
     $stmt = sqlsrv_query($conexion, $sql, $params);
 
     if ($stmt === false) {
+        $errores = sqlsrv_errors(SQLSRV_ERR_ALL);
+
         throw new RuntimeException(
-                'No se pudo consultar la configuración de stock.'
+            'No se pudo consultar la configuración de stock: ' .
+            print_r($errores, true)
         );
     }
 
-    // 7. Recuperar los registros.
+    // 8. Recuperar los registros.
     while ($fila = sqlsrv_fetch_array(
-            $stmt,
-            SQLSRV_FETCH_ASSOC
+        $stmt,
+        SQLSRV_FETCH_ASSOC
     )) {
         $registros[] = $fila;
     }
@@ -140,39 +221,67 @@ try {
 /**
  * Escapa los datos antes de mostrarlos en HTML.
  */
-function escapar(mixed $valor): string
-{
-    return htmlspecialchars(
-        (string) $valor,
-        ENT_QUOTES | ENT_SUBSTITUTE,
-        'UTF-8'
-    );
-}
-
-$totalActivos = 0;
-foreach ($registros as $reg) {
-    if ((int) ($reg['disponible'] ?? 1) === 1) {
-        $totalActivos++;
+if (!function_exists('escapar')) {
+    function escapar(mixed $valor): string
+    {
+        return htmlspecialchars(
+            (string) $valor,
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
     }
 }
-$totalInactivos = count($registros) - $totalActivos;
+
+/**
+ * Genera URLs acumulativas o conmutables para los filtros en BD
+ */
+if (!function_exists('urlConFiltros')) {
+    function urlConFiltros(array $cambios = []): string
+    {
+        $parametros = $_GET;
+        unset($parametros['ok'], $parametros['error']);
+
+        foreach ($cambios as $clave => $valor) {
+            if ($valor === null || $valor === '') {
+                unset($parametros[$clave]);
+            } else {
+                $parametros[$clave] = (string) $valor;
+            }
+        }
+
+        $query = http_build_query($parametros);
+        return 'index.php' . ($query !== '' ? '?' . $query : '');
+    }
+}
+
+$hayFiltrosActivos = ($busqueda !== '' || $filtroDisponible !== '' || $filtroStock !== '' || $filtroCorreo !== '');
 
 // Gestión de mensajes de notificación (éxito o error)
 $mensajeExito = null;
 $ok = $_GET['ok'] ?? '';
+$artParam = trim((string) ($_GET['art'] ?? ''));
+$nomParam = trim((string) ($_GET['nom'] ?? ''));
+
+$detalleArticuloParam = '';
+if ($artParam !== '') {
+    $detalleArticuloParam = ' para el artículo <strong>' . htmlspecialchars($artParam, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong>';
+    if ($nomParam !== '') {
+        $detalleArticuloParam .= '<br><span style="color: #64748b; font-size: 13px;">' . htmlspecialchars($nomParam, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
+    }
+}
 
 if ($ok === 'ejecutado') {
     $detalleEjecucion = $_SESSION['flash_ejecucion'] ?? '';
     unset($_SESSION['flash_ejecucion']);
     $mensajeExito = 'Proceso de alertas de stock ejecutado correctamente.' . ($detalleEjecucion !== '' ? ' — ' . $detalleEjecucion : '');
 } elseif ($ok === 'creado') {
-    $mensajeExito = 'Configuración de stock registrada exitosamente.';
+    $mensajeExito = 'Configuración de stock' . $detalleArticuloParam . ' registrada exitosamente.';
 } elseif ($ok === 'editado') {
-    $mensajeExito = 'Configuración de stock actualizada exitosamente.';
+    $mensajeExito = 'Configuración de stock' . $detalleArticuloParam . ' actualizada exitosamente.';
 } elseif ($ok === 'eliminado') {
-    $mensajeExito = 'Configuración de stock desactivada (borrado lógico) exitosamente.';
+    $mensajeExito = 'Configuración de stock' . $detalleArticuloParam . ' desactivada exitosamente.';
 } elseif ($ok === 'reactivado') {
-    $mensajeExito = 'Configuración de stock reactivada exitosamente.';
+    $mensajeExito = 'Configuración de stock' . $detalleArticuloParam . ' reactivada exitosamente.';
 }
 
 if (!empty($_SESSION['flash_error'])) {
@@ -180,16 +289,30 @@ if (!empty($_SESSION['flash_error'])) {
     unset($_SESSION['flash_error']);
 }
 
+// Detectar si hay una cookie de modo oscuro activa
+$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
+
+// Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
+if (isset($_GET['toggle_dark_mode'])) {
+    $darkMode = !$darkMode;
+    // Guardar la preferencia por 30 días
+    setcookie('dark_mode', $darkMode ? 'true' : 'false', time() + (86400 * 30), "/");
+    
+    // Redirigir a la misma página para limpiar la URL de la variable GET
+    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
+    exit;
+}
+
 ?>
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="<?php echo $darkMode ? 'dark-mode' : ''; ?>">
 <head>
     <meta charset="UTF-8">
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
-    <title>Configuración de stock</title>
+    <title>Sistema de Notificaciones</title>
     <link rel="stylesheet" href="css/estilos.css">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
@@ -197,8 +320,9 @@ if (!empty($_SESSION['flash_error'])) {
 <main class="contenedor">
     <header class="encabezado">
         <div>
-            <h1>Administración de Stock mínimo</h1>
+            <h1>Sistema de Notificaciones</h1>
         </div>
+
         <div class="encabezado-acciones">
             <a href="index.php" class="btn btn-secundario">
                 Recargar Página
@@ -215,79 +339,213 @@ if (!empty($_SESSION['flash_error'])) {
             <a href="crear.php" class="btn btn-primario">
                 + Nuevo registro
             </a>
+            <!-- Botón para alternar el modo -->
+            <a href="?toggle_dark_mode=1" style="padding: 11px; background: #ffffffff; text-decoration: none; border-radius: 5px; color: #000;">
+                <?php echo $darkMode ? '🌞' : '🌚'; ?>
+            </a>
         </div>
     </header>
 
-    <!-- BUSCADOR POR CÓDIGO DE ARTÍCULO -->
+    <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
+        <!-- PANEL RESUMEN CON LOS TOTALES DE LOS ARTICULOS -->
+        <div class="resumen">
+            <div class="resumen-item">
+                Total: <strong><?= $totales['total'] ?></strong>
+            </div>
+
+            <div class="resumen-separador"></div>
+
+            <div class="resumen-grupo">
+                <span class="resumen-grupo-titulo">Disponibilidad:</span>
+                <div class="resumen-item">
+                    <span>Disponibles</span>
+                    <strong><?= $totales['disponibles'] ?></strong>
+                </div>
+                <div class="resumen-separador"></div>
+                <div class="resumen-item">
+                    <span>No disponibles</span>
+                    <strong><?= $totales['no_disponibles'] ?></strong>
+                </div>
+            </div>
+
+            <div class="resumen-separador"></div>
+
+            <div class="resumen-grupo">
+                <span class="resumen-grupo-titulo">Stock:</span>
+                <div class="resumen-item">
+                    <span>Con stock</span>
+                    <strong><?= $totales['con_stock'] ?></strong>
+                </div>
+                <div class="resumen-separador"></div>
+                <div class="resumen-item">
+                    <span>Sin stock</span>
+                    <strong><?= $totales['sin_stock'] ?></strong>
+                </div>
+            </div>
+
+            <div class="resumen-separador"></div>
+
+            <div class="resumen-grupo">
+                <span class="resumen-grupo-titulo">Correo:</span>
+                <div class="resumen-item">
+                    <span>Correo enviado</span>
+                    <strong><?= $totales['correo_enviado'] ?></strong>
+                </div>
+                <div class="resumen-separador"></div>
+                <div class="resumen-item">
+                    <span>Correo no enviado</span>
+                    <strong><?= $totales['correo_no_enviado'] ?></strong>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <!-- BUSCADOR POR CÓDIGO O NOMBRE DE ARTÍCULO -->
     <div class="busqueda-contenedor">
         <form
                 action="index.php"
                 method="GET"
                 class="busqueda-form"
         >
-            <div class="busqueda-campo">
+            <?php if ($filtroDisponible !== ''): ?>
+                <input type="hidden" name="disponible" value="<?= escapar($filtroDisponible) ?>">
+            <?php endif; ?>
+            <?php if ($filtroStock !== ''): ?>
+                <input type="hidden" name="stock" value="<?= escapar($filtroStock) ?>">
+            <?php endif; ?>
+            <?php if ($filtroCorreo !== ''): ?>
+                <input type="hidden" name="correo" value="<?= escapar($filtroCorreo) ?>">
+            <?php endif; ?>
+
+            <div class="busqueda-campo busqueda-campo-texto">
                 <label for="articulo">
-                    Buscar artículo por código
+                    Buscar artículo por código o nombre
                 </label>
                 <input
                         type="search"
                         id="articulo"
                         name="articulo"
-                        maxlength="15"
+                        maxlength="50"
                         value="<?= escapar($busqueda) ?>"
-                        placeholder="Ingrese el código del artículo..."
+                        placeholder="020100427 | ROJO BANDERA 409"
                 >
             </div>
-            <button type="submit" class="btn btn-primario">
-                Buscar
-            </button>
-            <a
-                    href="index.php"
-                    class="btn btn-secundario"
-            >
-                Limpiar
-            </a>
+            <div class="busqueda-acciones">
+                <button type="submit" class="btn btn-primario">
+                    Buscar
+                </button>
+                <?php if ($hayFiltrosActivos): ?>
+                    <a
+                            href="index.php"
+                            class="btn btn-secundario"
+                    >
+                        Limpiar
+                    </a>
+                <?php endif; ?>
+            </div>
         </form>
 
-        <?php if ($busqueda !== ''): ?>
-
+        <?php if ($hayFiltrosActivos): ?>
             <p class="busqueda-resultados">
-                Resultados para:
-                <strong><?= escapar($busqueda) ?></strong>
-
-                — <?= count($registros) ?> registros encontrados.
+                Filtros activos en base de datos — <strong><?= count($registros) ?></strong> <?= count($registros) === 1 ? 'registro encontrado' : 'registros encontrados' ?>.
+                <a href="index.php" style="margin-left: 8px; color: var(--color-primario); text-decoration: underline;">Quitar todos los filtros</a>
             </p>
-
         <?php endif; ?>
-
     </div>
 
-    <?php if ($error === null || !empty($registros)): ?>
-        <div class="resumen">
-            <div class="resumen-item">
-                Total de registros: <strong><?= count($registros) ?></strong>
-            </div>
-            <div class="resumen-item">
-                <span class="badge badge-activo">Disponibles</span>
-                <strong><?= $totalActivos ?></strong>
-            </div>
-            <div class="resumen-item">
-                <span class="badge badge-inactivo">No disponibles</span>
-                <strong><?= $totalInactivos ?></strong>
-            </div>
-        </div>
+    <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
         <div class="tabla-contenedor">
             <table>
                 <thead>
                 <tr>
-                    <th>emp_codigo</th>
                     <th>Código Artículo</th>
-                    <th>alm_codigo</th>
                     <th>Stock físico</th>
                     <th>Stock mínimo</th>
-                    <th>Band. stock</th>
-                    <th>Band. correo</th>
-                    <th>Estado</th>
+
+                    <!-- FILTRO TIPO: BAND. STOCK -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Band. stock</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= ($filtroStock !== '') ? 'filtro-activo' : '' ?>"
+                                title="Filtrar por Stock"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-stock')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-stock" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['stock' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroStock === '') ? '✓' : '' ?></span> Todas las opciones
+                            </a>
+                            <a href="<?= urlConFiltros(['stock' => '0']) ?>" class="opcion-filtro <?= ($filtroStock === '0') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroStock === '0') ? '✓' : '' ?></span> Con Stock
+                            </a>
+                            <a href="<?= urlConFiltros(['stock' => '1']) ?>" class="opcion-filtro <?= ($filtroStock === '1') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroStock === '1') ? '✓' : '' ?></span> Sin Stock
+                            </a>
+                        </div>
+                    </th>
+
+                    <!-- FILTRO TIPO: BAND. CORREO -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Band. correo</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= ($filtroCorreo !== '') ? 'filtro-activo' : '' ?>"
+                                title="Filtrar por Correo"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-correo')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-correo" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['correo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroCorreo === '') ? '✓' : '' ?></span> Todas las opciones
+                            </a>
+                            <a href="<?= urlConFiltros(['correo' => '1']) ?>" class="opcion-filtro <?= ($filtroCorreo === '1') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroCorreo === '1') ? '✓' : '' ?></span> Correo enviado
+                            </a>
+                            <a href="<?= urlConFiltros(['correo' => '0']) ?>" class="opcion-filtro <?= ($filtroCorreo === '0') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroCorreo === '0') ? '✓' : '' ?></span> Correo no enviado
+                            </a>
+                        </div>
+                    </th>
+
+                    <!-- FILTRO: ESTADO (DISPONIBILIDAD) -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Estado</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= ($filtroDisponible !== '') ? 'filtro-activo' : '' ?>"
+                                title="Filtrar por Estado"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-estado')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-estado" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['disponible' => '']) ?>" class="opcion-filtro <?= ($filtroDisponible === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroDisponible === '') ? '✓' : '' ?></span> Todas las opciones
+                            </a>
+                            <a href="<?= urlConFiltros(['disponible' => '1']) ?>" class="opcion-filtro <?= ($filtroDisponible === '1') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroDisponible === '1') ? '✓' : '' ?></span> Disponible
+                            </a>
+                            <a href="<?= urlConFiltros(['disponible' => '0']) ?>" class="opcion-filtro <?= ($filtroDisponible === '0') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroDisponible === '0') ? '✓' : '' ?></span> No disponible
+                            </a>
+                        </div>
+                    </th>
+
                     <th>Fecha actualización</th>
                     <th>Acciones</th>
                 </tr>
@@ -295,8 +553,10 @@ if (!empty($_SESSION['flash_error'])) {
                 <tbody>
                 <?php if (empty($registros)): ?>
                     <tr>
-                        <td colspan="10">
-                            No existen configuraciones registradas.
+                        <td colspan="8" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
+                            <?= $hayFiltrosActivos
+                                ? 'No existen configuraciones que coincidan con los filtros aplicados en la base de datos.'
+                                : 'No existen configuraciones registradas.' ?>
                         </td>
                     </tr>
                 <?php else: ?>
@@ -304,13 +564,10 @@ if (!empty($_SESSION['flash_error'])) {
                         <?php $estaDisponible = ((int) ($registro['disponible'] ?? 1) === 1); ?>
                         <tr class="<?= $estaDisponible ? '' : 'fila-inactiva' ?>">
                             <td>
-                                <?= escapar(trim($registro['emp_codigo'])) ?>
-                            </td>
-                            <td>
                                 <strong><?= escapar(trim($registro['art_codigo'])) ?></strong>
-                            </td>
-                            <td>
-                                <?= escapar(trim($registro['alm_codigo'])) ?>
+                                <span class="articulo-descripcion">
+                                    <?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?: '<span class="badge badge-alerta">No encontrado</span>' ?>
+                                </span>
                             </td>
                             <td>
                                 <?php if ($registro['stock_actual'] === null): ?>
@@ -322,7 +579,7 @@ if (!empty($_SESSION['flash_error'])) {
                                         <?= escapar(
                                                 number_format(
                                                         (float) $registro['stock_actual'],
-                                                        3,
+                                                        5,
                                                         '.',
                                                         ','
                                                 )
@@ -331,13 +588,28 @@ if (!empty($_SESSION['flash_error'])) {
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?= escapar($registro['stock_minimo']) ?>
+                                <?= escapar(
+                                        number_format(
+                                                (float) $registro['stock_minimo'],
+                                                        5,
+                                                        '.',
+                                                        ','
+                                        )
+                                ) ?>
                             </td>
                             <td>
-                                <?= escapar($registro['band_stock']) ?>
+                                <?php if ($registro['band_stock']): ?>
+                                    <span class="badge badge-alerta">Alerta de stock</span>
+                                <?php else: ?>
+                                    <span class="badge badge-activo">Con Stock</span>
+                                <?php endif; ?>
                             </td>
                             <td>
-                                <?= escapar($registro['band_correo']) ?>
+                                <?php if ($registro['band_correo']): ?>
+                                    <span class="badge badge-alerta">Correo enviado</span>
+                                <?php else: ?>
+                                    <span class="badge badge-inactivo">Correo no enviado</span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($estaDisponible): ?>
@@ -391,6 +663,11 @@ if (!empty($_SESSION['flash_error'])) {
                                             >
                                             <input
                                                 type="hidden"
+                                                name="art_nombre"
+                                                value="<?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
                                                 name="accion"
                                                 value="eliminar"
                                             >
@@ -430,6 +707,11 @@ if (!empty($_SESSION['flash_error'])) {
                                             >
                                             <input
                                                 type="hidden"
+                                                name="art_nombre"
+                                                value="<?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
                                                 name="accion"
                                                 value="reactivar"
                                             >
@@ -458,6 +740,50 @@ if (!empty($_SESSION['flash_error'])) {
 </main>
 
 <script>
+// Manejo del menú desplegable para filtros de columnas
+function toggleMenuFiltro(e, menuId) {
+    e.stopPropagation();
+    const menu = document.getElementById(menuId);
+    if (!menu) return;
+
+    const estaAbierto = menu.classList.contains('menu-abierto');
+
+    // Cerrar cualquier otro menú de filtro abierto
+    document.querySelectorAll('.menu-filtro').forEach(function(m) {
+        m.classList.remove('menu-abierto');
+        const th = m.closest('.th-filtrable');
+        if (th) th.classList.remove('th-menu-activo');
+    });
+
+    if (!estaAbierto) {
+        menu.classList.add('menu-abierto');
+        const thActual = menu.closest('.th-filtrable');
+        if (thActual) thActual.classList.add('th-menu-activo');
+    }
+}
+
+// Cerrar menús al hacer clic fuera de los encabezados filtrables
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.th-filtrable')) {
+        document.querySelectorAll('.menu-filtro').forEach(function(m) {
+            m.classList.remove('menu-abierto');
+            const th = m.closest('.th-filtrable');
+            if (th) th.classList.remove('th-menu-activo');
+        });
+    }
+});
+
+// Cerrar menús con la tecla Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.menu-filtro').forEach(function(m) {
+            m.classList.remove('menu-abierto');
+            const th = m.closest('.th-filtrable');
+            if (th) th.classList.remove('th-menu-activo');
+        });
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
 
     // 1. Mostrar modales animados para mensajes de sesión o URL (sin incrustar alertas estáticas en el HTML)
@@ -502,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             Swal.fire({
                 title: '¿Ejecutar revisión de stock?',
-                text: 'Se analizará el inventario actual y se enviarán correos si existen alertas pendientes.',
+                text: 'Se analizará el inventario actual y se enviarán correos si existen alertas de stock que no se enviaron por correo.',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#059669',
@@ -587,12 +913,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const accion = form.querySelector('input[name="accion"]')?.value || 'eliminar';
             const artCodigo = form.querySelector('input[name="art_codigo"]')?.value || '';
+            const artNombre = form.querySelector('input[name="art_nombre"]')?.value || '';
             const esReactivar = (accion === 'reactivar');
+
+            const detalleArticulo = artNombre
+                ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
+                : '';
 
             const titulo = esReactivar ? '¿Reactivar configuración?' : '¿Desactivar configuración?';
             const mensaje = esReactivar
-                ? `¿Deseas volver a habilitar el artículo <strong>${escapeHtml(artCodigo)}</strong> para el monitoreo de stock?`
-                : `¿Estás seguro de desactivar el artículo <strong>${escapeHtml(artCodigo)}</strong>?`;
+                ? `¿Deseas volver a habilitar el artículo <strong>${escapeHtml(artCodigo)}</strong> para el monitoreo de stock?${detalleArticulo}`
+                : `¿Estás seguro de desactivar el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`;
             const icono = esReactivar ? 'question' : 'warning';
             const colorConfirmar = esReactivar ? '#059669' : '#dc2626';
             const textoConfirmar = esReactivar ? 'Sí, reactivar' : 'Sí, desactivar';

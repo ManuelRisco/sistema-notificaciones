@@ -392,31 +392,10 @@ class EmailService
             margin:0 0 18px 0;
         '>
             Se detectaron los siguientes artículos con un stock
-            físico igual o inferior al mínimo configurado.
+            físico igual o inferior al mínimo.
         </p>
 
         {$tarjetasHtml}
-
-        <div style='
-            margin-top:20px;
-            padding:14px;
-            background-color:#fff3cd;
-            border-left:4px solid #ffc107;
-            box-sizing:border-box;
-        '>
-            <strong style='color:#856404;'>
-                Acción recomendada:
-            </strong>
-
-            <p style='
-                margin:6px 0 0 0;
-                font-size:13px;
-                line-height:1.5;
-                color:#856404;
-            '>
-                Gestionar la reposición o compra de los artículos indicados.
-            </p>
-        </div>
 
         <p style='
             margin-top:20px;
@@ -426,17 +405,6 @@ class EmailService
             Fecha de generación: {$fecha}
         </p>
 
-    </div>
-
-    <div style='
-        padding:15px 10px;
-        background-color:#f5f5f5;
-        text-align:center;
-        font-size:11px;
-        color:#777777;zz
-        box-sizing:border-box;
-    '>
-        Notificación automática del Sistema de Alertas de Stock.
     </div>
 
 </div>";

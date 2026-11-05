@@ -34,6 +34,7 @@ try {
     $empCodigo = trim($_POST['emp_codigo'] ?? '');
     $artCodigo = trim($_POST['art_codigo'] ?? '');
     $almCodigo = trim($_POST['alm_codigo'] ?? '');
+    $artNombre = trim($_POST['art_nombre'] ?? '');
     $accion = trim($_POST['accion'] ?? 'eliminar');
 
     // 3. Validar los valores.
@@ -42,7 +43,7 @@ try {
         || $artCodigo === ''
         || $almCodigo === ''
         || strlen($empCodigo) > 3
-        || strlen($artCodigo) > 15
+        || strlen($artCodigo) > 30
         || strlen($almCodigo) > 3
     ) {
         throw new RuntimeException(
@@ -93,6 +94,23 @@ try {
         );
     }
 
+    // Obtener nombre del artículo si no se envió desde el formulario
+    if ($artNombre === '' && $artCodigo !== '') {
+        $sqlNom = "
+            SELECT RTRIM(art_nombre) AS art_nombre
+            FROM TECNOTEST.dbo.mae_articulo
+            WHERE emp_codigo = ? AND art_codigo = ?;
+        ";
+        $stmtNom = sqlsrv_query($conexion, $sqlNom, [$empCodigo, $artCodigo]);
+        if ($stmtNom !== false) {
+            $filaNom = sqlsrv_fetch_array($stmtNom, SQLSRV_FETCH_ASSOC);
+            if ($filaNom) {
+                $artNombre = trim((string) ($filaNom['art_nombre'] ?? ''));
+            }
+            sqlsrv_free_stmt($stmtNom);
+        }
+    }
+
     $actualizado = true;
 
 } catch (Throwable $e) {
@@ -113,19 +131,24 @@ $esAjax = (
 );
 
 if ($actualizado) {
+    $detalleArticulo = $artNombre !== '' ? " ({$artNombre})" : '';
+
     if ($esAjax) {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'exito' => true,
             'accion' => $accion,
+            'art_codigo' => $artCodigo,
+            'art_nombre' => $artNombre,
             'mensaje' => ($accion === 'reactivar')
-                ? 'Configuración reactivada exitosamente.'
-                : 'Configuración desactivada exitosamente.'
+                ? "Configuración del artículo {$artCodigo}{$detalleArticulo} reactivada exitosamente."
+                : "Configuración del artículo {$artCodigo}{$detalleArticulo} desactivada exitosamente."
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
     $paramOk = ($accion === 'reactivar') ? 'reactivado' : 'eliminado';
-    header("Location: index.php?ok={$paramOk}");
+    $urlRedir = "index.php?ok={$paramOk}&art=" . urlencode($artCodigo) . ($artNombre !== '' ? '&nom=' . urlencode($artNombre) : '');
+    header("Location: {$urlRedir}");
     exit;
 }
 
