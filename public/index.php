@@ -85,9 +85,10 @@ try {
     $condiciones = [];
     $params = [];
 
+    // YA NO SE USA ESTO, IGUAL SE DEJA POR SI ACASO
     if ($busqueda !== '') {
         $condiciones[] = "(cfg.art_codigo LIKE ? OR m.art_nombre LIKE ?)";
-        $parametroBusqueda = '%' . $busqueda . '%';
+        $parametroBusqueda = $busqueda . '%';
         $params[] = $parametroBusqueda;
         $params[] = $parametroBusqueda;
     }
@@ -341,7 +342,7 @@ if (isset($_GET['toggle_dark_mode'])) {
             </a>
             <!-- Botón para alternar el modo -->
             <a href="?toggle_dark_mode=1" style="display: grid; place-items: center;
-            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1;">
+            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);">
                 <?php echo $darkMode ? '🌞' : '🌚'; ?>
             </a>
         </div>
@@ -350,7 +351,7 @@ if (isset($_GET['toggle_dark_mode'])) {
     <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
         <!-- PANEL RESUMEN CON LOS TOTALES DE LOS ARTICULOS -->
         <div class="resumen">
-            <div class="resumen-item">
+            <div class="resumen-grupo" style="font-size: 16px">
                 Total: <strong><?= $totales['total'] ?></strong>
             </div>
 
@@ -432,26 +433,23 @@ if (isset($_GET['toggle_dark_mode'])) {
                 >
             </div>
             <div class="busqueda-acciones">
-                <button type="submit" class="btn btn-primario">
-                    Buscar
-                </button>
                 <?php if ($hayFiltrosActivos): ?>
                     <a
                             href="index.php"
                             class="btn btn-secundario"
                     >
-                        Limpiar
+                        Limpiar filtros
                     </a>
                 <?php endif; ?>
             </div>
         </form>
 
-        <?php if ($hayFiltrosActivos): ?>
-            <p class="busqueda-resultados">
+        <p id="busqueda-resultados" class="busqueda-resultados" style="<?= ($hayFiltrosActivos || $busqueda !== '') ? '' : 'display: none;' ?>">
+            <?php if ($hayFiltrosActivos): ?>
                 Filtros activos en base de datos — <strong><?= count($registros) ?></strong> <?= count($registros) === 1 ? 'registro encontrado' : 'registros encontrados' ?>.
                 <a href="index.php" style="margin-left: 8px; color: var(--color-primario); text-decoration: underline;">Quitar todos los filtros</a>
-            </p>
-        <?php endif; ?>
+            <?php endif; ?>
+        </p>
     </div>
 
     <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
@@ -562,12 +560,20 @@ if (isset($_GET['toggle_dark_mode'])) {
                     </tr>
                 <?php else: ?>
                     <?php foreach ($registros as $registro): ?>
-                        <?php $estaDisponible = ((int) ($registro['disponible'] ?? 1) === 1); ?>
-                        <tr class="<?= $estaDisponible ? '' : 'fila-inactiva' ?>">
+                        <?php
+                        $estaDisponible = ((int) ($registro['disponible'] ?? 1) === 1);
+                        $artCodigo = trim((string) ($registro['art_codigo'] ?? ''));
+                        $artNombre = trim((string) ($registro['art_nombre'] ?? ''));
+                        ?>
+                        <tr class="<?= $estaDisponible ? '' : 'fila-inactiva' ?>"
+                            data-codigo="<?= escapar($artCodigo) ?>"
+                            data-nombre="<?= escapar($artNombre) ?>">
                             <td>
-                                <strong><?= escapar(trim($registro['art_codigo'])) ?></strong>
-                                <span class="articulo-descripcion">
-                                    <?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?: '<span class="badge badge-alerta">No encontrado</span>' ?>
+                                <strong>
+                                    <?= escapar($artNombre) ?: '<span class="badge badge-alerta">No encontrado</span>' ?>
+                                </strong>
+                                <span class="articulo-titulo">
+                                    <?= escapar($artCodigo) ?>
                                 </span>
                             </td>
                             <td>
@@ -1018,6 +1024,100 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+
+    // 4. Búsqueda instantánea en tiempo real sobre la tabla de artículos
+    const inputArticulo = document.getElementById('articulo');
+    const formBusqueda = document.querySelector('.busqueda-form');
+    const tablaCuerpo = document.querySelector('.tabla-contenedor tbody');
+    const parrafoResultados = document.getElementById('busqueda-resultados');
+
+    if (inputArticulo && tablaCuerpo) {
+        // Evitar que al presionar Enter se recargue la página
+        if (formBusqueda) {
+            formBusqueda.addEventListener('submit', function(e) {
+                e.preventDefault();
+            });
+        }
+
+        // Obtener todas las filas reales de datos (ignorando filas de mensajes estáticos)
+        const filas = Array.from(tablaCuerpo.querySelectorAll('tr')).filter(tr => {
+            return !tr.querySelector('td[colspan]');
+        });
+
+        // Crear dinámicamente fila para mensaje de "Sin resultados" si no existe
+        let filaSinResultados = document.getElementById('fila-sin-resultados');
+        if (!filaSinResultados) {
+            filaSinResultados = document.createElement('tr');
+            filaSinResultados.id = 'fila-sin-resultados';
+            filaSinResultados.style.display = 'none';
+            filaSinResultados.innerHTML = `
+                <td colspan="8" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
+                    No se encontraron artículos que coincidan con la búsqueda.
+                </td>
+            `;
+            tablaCuerpo.appendChild(filaSinResultados);
+        }
+
+        function ejecutarFiltroEnVivo() {
+            const termino = inputArticulo.value.toLowerCase().trim();
+            let visibles = 0;
+
+            filas.forEach(fila => {
+                // Obtenemos código y descripción directamente de data-attributes o del DOM
+                const codigo = (fila.dataset.codigo || fila.querySelector('.articulo-titulo')?.textContent || '').toLowerCase().trim();
+                const nombre = (fila.dataset.nombre || fila.querySelector('strong')?.textContent || '').toLowerCase().trim();
+
+                // Búsqueda estricta de izquierda a derecha (starts with):
+                // 1. Código: coincide si el código empieza por el término (o sin ceros iniciales si los omite)
+                const coincideCodigo = codigo.startsWith(termino) || codigo.replace(/^0+/, '').startsWith(termino);
+
+                // 2. Nombre: coincide si el nombre o alguna de sus palabras empieza por el término
+                const palabrasNombre = nombre.split(/\s+/);
+                const coincideNombre = nombre.startsWith(termino) || palabrasNombre.some(p => p.startsWith(termino));
+
+                if (termino === '' || coincideCodigo || coincideNombre) {
+                    fila.style.display = '';
+                    visibles++;
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+
+            // Si hay término y 0 coincidencias, mostrar mensaje
+            if (filas.length > 0) {
+                if (visibles === 0 && termino !== '') {
+                    filaSinResultados.style.display = '';
+                } else {
+                    filaSinResultados.style.display = 'none';
+                }
+            }
+
+            // Actualizar indicador de resultados en pantalla
+            if (parrafoResultados) {
+                if (termino !== '') {
+                    parrafoResultados.style.display = 'block';
+                    parrafoResultados.innerHTML = `Coincidencias en tiempo real: <strong>${visibles}</strong> de <strong>${filas.length}</strong> artículos.`;
+                } else {
+                    <?php if ($hayFiltrosActivos): ?>
+                    parrafoResultados.style.display = 'block';
+                    parrafoResultados.innerHTML = `Filtros activos en base de datos — <strong><?= count($registros) ?></strong> <?= count($registros) === 1 ? 'registro encontrado' : 'registros encontrados' ?>. <a href="index.php" style="margin-left: 8px; color: var(--color-primario); text-decoration: underline;">Quitar todos los filtros</a>`;
+                    <?php else: ?>
+                    parrafoResultados.style.display = 'none';
+                    <?php endif; ?>
+                }
+            }
+        }
+
+        // Se ejecuta cada vez que el usuario escribe, borra o pega (instantáneo)
+        inputArticulo.addEventListener('input', ejecutarFiltroEnVivo);
+        // Se ejecuta cuando el usuario hace clic en la "x" nativa de input[type=search]
+        inputArticulo.addEventListener('search', ejecutarFiltroEnVivo);
+
+        // Si ya hay un valor cargado al entrar a la página, filtrar inmediatamente
+        if (inputArticulo.value.trim() !== '') {
+            ejecutarFiltroEnVivo();
+        }
+    }
 });
 </script>
 </body>

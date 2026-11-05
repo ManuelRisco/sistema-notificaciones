@@ -79,7 +79,7 @@ body {
    ========================================================================== */
 
 .contenedor {
-    width: 94%;
+    width: 95%;
     max-width: 1280px;
     margin: 40px auto;
 }
@@ -345,8 +345,7 @@ body {
     padding: 14px 22px;
     margin-bottom: 22px;
     border-radius: var(--radio-tarjeta);
-    border: 1px solid var(--color-borde);
-    box-shadow: var(--sombra-tarjeta);
+    border: 2px solid var(--color-borde);
     font-size: 13.5px;
     text-align: center;
 }
@@ -369,7 +368,7 @@ body {
 
 .resumen-grupo-titulo {
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--color-texto-muted);
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -381,7 +380,6 @@ body {
     align-items: center;
     gap: 6px;
     padding: 5px 12px;
-    background: #f8fafc;
     border-radius: 6px;
     border: 1px solid var(--color-borde);
     color: var(--color-texto);
@@ -397,6 +395,10 @@ body {
 
 /* Contenedor con desplazamiento horizontal */
 .tabla-contenedor {
+
+    max-width: 1270px;
+    margin: 0 auto;
+
     background: var(--color-tarjeta);
     border-radius: var(--radio-tarjeta);
     border: 1px solid var(--color-borde);
@@ -627,7 +629,7 @@ tbody tr:hover {
 .acciones-celda {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
 }
 
 .acciones-celda .btn {
@@ -643,8 +645,8 @@ tbody tr:hover {
     margin: 0;
 }
 
-/* Descripción secundaria del artículo */
-.articulo-descripcion {
+/* titulo del artículo */
+.articulo-titulo {
     display: block;
     margin-top: 4px;
     color: var(--color-texto-muted);
@@ -671,7 +673,7 @@ tbody tr.fila-inactiva td strong {
 }
 
 /* Descripción del artículo */
-tbody tr.fila-inactiva .articulo-descripcion {
+tbody tr.fila-inactiva .articulo-titulo {
     color: #64748b;
 }
 
@@ -727,9 +729,8 @@ tbody tr.fila-inactiva:hover td {
 
 .busqueda-contenedor {
     background: var(--color-tarjeta);
-    border: 1px solid var(--color-borde);
+    border: 2px solid var(--color-borde);
     border-radius: var(--radio-tarjeta);
-    box-shadow: var(--sombra-tarjeta);
     padding: 20px 24px;
     margin-bottom: 22px;
 }

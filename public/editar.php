@@ -415,7 +415,7 @@ if (isset($_GET['toggle_dark_mode'])) {
             $paramsToggle['toggle_dark_mode'] = 1;
             ?>
             <a href="?<?= htmlspecialchars(http_build_query($paramsToggle), ENT_QUOTES, 'UTF-8') ?>" style="display: grid; place-items: center;
-            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1;">
+            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);">
                 <?php echo $darkMode ? '🌞' : '🌚'; ?>
             </a>
         </div>
