@@ -36,6 +36,14 @@ $filtroCatalogo = isset($_GET['catalogo']) && $_GET['catalogo'] === 'no_encontra
     ? 'no_encontrado'
     : '';
 
+$filtroCategoria = isset($_GET['categoria']) ? trim((string)$_GET['categoria']) : '';
+$filtroFamilia = isset($_GET['familia']) ? trim((string)$_GET['familia']) : '';
+$filtroTfa = isset($_GET['tfa']) ? trim((string)$_GET['tfa']) : '';
+
+$opcionesCategoria = [];
+$opcionesFamilia = [];
+$opcionesTfa = [];
+
 $totales = [
     'total' => 0,
     'disponibles' => 0,
@@ -111,6 +119,21 @@ try {
         $params[] = (int) $filtroCorreo;
     }
 
+    if ($filtroCategoria !== '') {
+        $condiciones[] = "RTRIM(ta.tar_nombre) = ?";
+        $params[] = $filtroCategoria;
+    }
+
+    if ($filtroFamilia !== '') {
+        $condiciones[] = "RTRIM(f.fam_nombre) = ?";
+        $params[] = $filtroFamilia;
+    }
+
+    if ($filtroTfa !== '') {
+        $condiciones[] = "RTRIM(tf.tfa_nombre) = ?";
+        $params[] = $filtroTfa;
+    }
+
     $clausulaWhere = !empty($condiciones) ? 'WHERE ' . implode(' AND ', $condiciones) : '';
 
     // 7. Calcular el stock físico de cada artículo configurado (filtrado en BD)
@@ -167,6 +190,10 @@ try {
 
             m.art_codigo AS mae_art_codigo,
             RTRIM(m.art_nombre) AS art_nombre,
+            RTRIM(d.ume_abrv) AS unidad_medida,
+            RTRIM(ta.tar_nombre) AS categoria,
+            RTRIM(f.fam_nombre) AS fam_nombre,
+            RTRIM(tf.tfa_nombre) AS tfa_nombre,
 
             s.stock_actual AS stock_actual,
             cfg.fecha_actualizacion
@@ -181,6 +208,23 @@ try {
         LEFT JOIN dbo.mae_articulo m
             ON m.emp_codigo = cfg.emp_codigo
             AND m.art_codigo = cfg.art_codigo
+
+        LEFT JOIN dbo.mae_cabumedida d
+            ON d.ume_codigo = m.ume_codigo
+
+        LEFT JOIN dbo.mae_tpoarticulo ta
+            ON ta.tar_codigo = m.tar_codigo
+
+        LEFT JOIN dbo.mae_familia f
+            ON f.emp_codigo = m.emp_codigo
+            AND f.tar_codigo = m.tar_codigo
+            AND f.fam_codigo = m.fam_codigo
+
+        LEFT JOIN dbo.mae_tpofamilia tf
+            ON tf.emp_codigo = m.emp_codigo
+            AND tf.tar_codigo = m.tar_codigo
+            AND tf.fam_codigo = m.fam_codigo
+            AND tf.tfa_codigo = m.tfa_codigo
 
         {$clausulaWhere}
 
@@ -211,6 +255,56 @@ try {
     }
 
     sqlsrv_free_stmt($stmt);
+
+    // 9. Consultar opciones distintas de Detalle (Categoría, Familia, Tipo familia)
+    $sqlOpcionesDetalle = "
+        SELECT DISTINCT
+            RTRIM(ta.tar_nombre) AS categoria,
+            RTRIM(f.fam_nombre) AS fam_nombre,
+            RTRIM(tf.tfa_nombre) AS tfa_nombre
+        FROM dbo.cfg_alerta_stock cfg
+        INNER JOIN dbo.mae_articulo m
+            ON m.emp_codigo = cfg.emp_codigo
+            AND m.art_codigo = cfg.art_codigo
+        LEFT JOIN dbo.mae_tpoarticulo ta
+            ON ta.tar_codigo = m.tar_codigo
+        LEFT JOIN dbo.mae_familia f
+            ON f.emp_codigo = m.emp_codigo
+            AND f.tar_codigo = m.tar_codigo
+            AND f.fam_codigo = m.fam_codigo
+        LEFT JOIN dbo.mae_tpofamilia tf
+            ON tf.emp_codigo = m.emp_codigo
+            AND tf.tar_codigo = m.tar_codigo
+            AND tf.fam_codigo = m.fam_codigo
+            AND tf.tfa_codigo = m.tfa_codigo;
+    ";
+
+    $stmtOpciones = sqlsrv_query($conexion, $sqlOpcionesDetalle);
+    if ($stmtOpciones !== false) {
+        while ($rowOp = sqlsrv_fetch_array($stmtOpciones, SQLSRV_FETCH_ASSOC)) {
+            $cat = trim((string)($rowOp['categoria'] ?? ''));
+            $fam = trim((string)($rowOp['fam_nombre'] ?? ''));
+            $tfa = trim((string)($rowOp['tfa_nombre'] ?? ''));
+
+            if ($cat !== '') {
+                $opcionesCategoria[$cat] = true;
+            }
+            if ($fam !== '') {
+                $opcionesFamilia[$fam] = true;
+            }
+            if ($tfa !== '') {
+                $opcionesTfa[$tfa] = true;
+            }
+        }
+        sqlsrv_free_stmt($stmtOpciones);
+    }
+
+    $opcionesCategoria = array_keys($opcionesCategoria);
+    sort($opcionesCategoria, SORT_NATURAL | SORT_FLAG_CASE);
+    $opcionesFamilia = array_keys($opcionesFamilia);
+    sort($opcionesFamilia, SORT_NATURAL | SORT_FLAG_CASE);
+    $opcionesTfa = array_keys($opcionesTfa);
+    sort($opcionesTfa, SORT_NATURAL | SORT_FLAG_CASE);
 
 } catch (Throwable $e) {
 
@@ -259,7 +353,15 @@ if (!function_exists('urlConFiltros')) {
     }
 }
 
-$hayFiltrosActivos = ($filtroDisponible !== '' || $filtroStock !== '' || $filtroCorreo !== '' || $filtroCatalogo !== '');
+$hayFiltrosActivos = (
+    $filtroDisponible !== '' ||
+    $filtroStock !== '' ||
+    $filtroCorreo !== '' ||
+    $filtroCatalogo !== '' ||
+    $filtroCategoria !== '' ||
+    $filtroFamilia !== '' ||
+    $filtroTfa !== ''
+);
 
 // Gestión de mensajes de notificación (éxito o error)
 $mensajeExito = null;
@@ -357,7 +459,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                     type="submit"
                     class="btn btn-ejecutar"
                 >
-                    Ejecutar Alertas
+                    Revisar Stock
                 </button>
             </form>
             <a href="crear.php" class="btn btn-primario">
@@ -451,6 +553,15 @@ if (isset($_GET['toggle_dark_mode'])) {
             <?php if ($filtroCatalogo !== ''): ?>
                 <input type="hidden" name="catalogo" value="<?= escapar($filtroCatalogo) ?>">
             <?php endif; ?>
+            <?php if ($filtroCategoria !== ''): ?>
+                <input type="hidden" name="categoria" value="<?= escapar($filtroCategoria) ?>">
+            <?php endif; ?>
+            <?php if ($filtroFamilia !== ''): ?>
+                <input type="hidden" name="familia" value="<?= escapar($filtroFamilia) ?>">
+            <?php endif; ?>
+            <?php if ($filtroTfa !== ''): ?>
+                <input type="hidden" name="tfa" value="<?= escapar($filtroTfa) ?>">
+            <?php endif; ?>
 
             <div class="busqueda-campo busqueda-campo-texto">
                 <label for="articulo">
@@ -490,6 +601,86 @@ if (isset($_GET['toggle_dark_mode'])) {
                 <thead>
                 <tr>
                     <th>Artículo</th>
+                    <!-- FILTRO TIPO: CATEGORÍA -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Categoría</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= ($filtroCategoria !== '') ? 'filtro-activo' : '' ?>"
+                                title="Filtrar por Categoría"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-categoria')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-categoria" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['categoria' => '']) ?>" class="opcion-filtro <?= ($filtroCategoria === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroCategoria === '') ? '✓' : '' ?></span> Todas las opciones
+                            </a>
+                            <?php foreach ($opcionesCategoria as $cat): ?>
+                                <a href="<?= urlConFiltros(['categoria' => ($filtroCategoria === $cat ? '' : $cat)]) ?>" class="opcion-filtro <?= ($filtroCategoria === $cat) ? 'seleccionada' : '' ?>" title="<?= escapar($cat) ?>">
+                                    <span class="indicador-check"><?= ($filtroCategoria === $cat) ? '✓' : '' ?></span> <?= escapar($cat) ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </th>
+
+                    <!-- FILTRO TIPO: FAMILIA -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Familia</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= ($filtroFamilia !== '') ? 'filtro-activo' : '' ?>"
+                                title="Filtrar por Familia"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-familia')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-familia" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['familia' => '']) ?>" class="opcion-filtro <?= ($filtroFamilia === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroFamilia === '') ? '✓' : '' ?></span> Todas las opciones
+                            </a>
+                            <?php foreach ($opcionesFamilia as $fam): ?>
+                                <a href="<?= urlConFiltros(['familia' => ($filtroFamilia === $fam ? '' : $fam)]) ?>" class="opcion-filtro <?= ($filtroFamilia === $fam) ? 'seleccionada' : '' ?>" title="<?= escapar($fam) ?>">
+                                    <span class="indicador-check"><?= ($filtroFamilia === $fam) ? '✓' : '' ?></span> <?= escapar($fam) ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </th>
+
+                    <!-- FILTRO TIPO: TIPO FAMILIA -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Tipo familia</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= ($filtroTfa !== '') ? 'filtro-activo' : '' ?>"
+                                title="Filtrar por Tipo familia"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-tfa')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-tfa" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['tfa' => '']) ?>" class="opcion-filtro <?= ($filtroTfa === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroTfa === '') ? '✓' : '' ?></span> Todas las opciones
+                            </a>
+                            <?php foreach ($opcionesTfa as $tf): ?>
+                                <a href="<?= urlConFiltros(['tfa' => ($filtroTfa === $tf ? '' : $tf)]) ?>" class="opcion-filtro <?= ($filtroTfa === $tf) ? 'seleccionada' : '' ?>" title="<?= escapar($tf) ?>">
+                                    <span class="indicador-check"><?= ($filtroTfa === $tf) ? '✓' : '' ?></span> <?= escapar($tf) ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </th>
                     <th>Stock físico</th>
                     <th>Stock mínimo</th>
 
@@ -589,7 +780,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                 <tbody>
                 <?php if (empty($registros)): ?>
                     <tr>
-                        <td colspan="8" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
+                        <td colspan="11" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
                             <?= $hayFiltrosActivos
                                 ? 'No existen configuraciones que coincidan con los filtros aplicados en la base de datos.'
                                 : 'No existen configuraciones registradas.' ?>
@@ -615,6 +806,27 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 </span>
                             </td>
                             <td>
+                                <?php if ($artEncontrado && !empty($registro['categoria'])): ?>
+                                    <span class="texto-clasificacion"><?= escapar($registro['categoria']) ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-sin-datos" title="Sin categoría">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($artEncontrado && !empty($registro['fam_nombre'])): ?>
+                                    <span class="texto-clasificacion"><?= escapar($registro['fam_nombre']) ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-sin-datos" title="Sin familia">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($artEncontrado && !empty($registro['tfa_nombre'])): ?>
+                                    <span class="texto-clasificacion"><?= escapar($registro['tfa_nombre']) ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-sin-datos" title="Sin tipo de familia">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
                                 <?php if (!$artEncontrado): ?>
                                     <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
                                 <?php elseif ($registro['stock_actual'] === null): ?>
@@ -630,7 +842,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                                                         '.',
                                                         ','
                                                 )
-                                        ) ?>
+                                        ) . (!empty($registro['unidad_medida']) ? ' ' . escapar($registro['unidad_medida']) : '') ?>
                                     </strong>
                                 <?php endif; ?>
                             </td>
@@ -642,7 +854,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                                                         '.',
                                                         ','
                                         )
-                                ) ?>
+                                ) . (!empty($registro['unidad_medida']) ? ' ' . escapar($registro['unidad_medida']) : '') ?>
                             </td>
                             <td>
                                 <?php if (!$artEncontrado): ?>
@@ -720,6 +932,21 @@ if (isset($_GET['toggle_dark_mode'])) {
                                             >
                                             <input
                                                 type="hidden"
+                                                name="categoria"
+                                                value="<?= escapar(trim((string) ($registro['categoria'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
+                                                name="fam_nombre"
+                                                value="<?= escapar(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
+                                                name="tfa_nombre"
+                                                value="<?= escapar(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
                                                 name="accion"
                                                 value="eliminar"
                                             >
@@ -761,6 +988,21 @@ if (isset($_GET['toggle_dark_mode'])) {
                                                 type="hidden"
                                                 name="art_nombre"
                                                 value="<?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
+                                                name="categoria"
+                                                value="<?= escapar(trim((string) ($registro['categoria'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
+                                                name="fam_nombre"
+                                                value="<?= escapar(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
+                                            >
+                                            <input
+                                                type="hidden"
+                                                name="tfa_nombre"
+                                                value="<?= escapar(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
@@ -908,14 +1150,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 
-    // 2. Control animado para "Ejecutar Alertas" (con modal de progreso según el tiempo de respuesta)
+    // 2. Control animado para "Revisar Stock" (con modal de progreso según el tiempo de respuesta)
     const formEjecutar = document.querySelector('.form-ejecutar-manual');
     if (formEjecutar) {
         formEjecutar.addEventListener('submit', function(e) {
             e.preventDefault();
 
             Swal.fire({
-                title: '¿Ejecutar revisión de stock?',
+                title: '¿Deseas revisar el inventario?',
                 text: 'Se analizará el inventario actual y se enviarán correos si existen alertas de stock que no se enviaron por correo.',
                 icon: 'question',
                 showCancelButton: true,
@@ -1012,11 +1254,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const accion = form.querySelector('input[name="accion"]')?.value || 'eliminar';
             const artCodigo = form.querySelector('input[name="art_codigo"]')?.value || '';
             const artNombre = form.querySelector('input[name="art_nombre"]')?.value || '';
+            const categoria = form.querySelector('input[name="categoria"]')?.value || '';
+            const famNombre = form.querySelector('input[name="fam_nombre"]')?.value || '';
+            const tfaNombre = form.querySelector('input[name="tfa_nombre"]')?.value || '';
             const esReactivar = (accion === 'reactivar');
 
-            const detalleArticulo = artNombre
-                ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
-                : '';
+            let detalleArticulo = '';
+            if (artNombre) {
+                detalleArticulo += `<div style="color: #1e293b; font-size: 14px; font-weight: 600; margin-top: 6px; line-height: 1.35;">${escapeHtml(artNombre)}</div>`;
+            }
+
+            if (categoria || famNombre || tfaNombre) {
+                detalleArticulo += `
+                    <div style="margin-top: 12px; padding: 10px 14px; background: #f8fafc; border: 1px solid var(--color-borde, #e2e8f0); border-radius: 8px; font-size: 12.5px; text-align: left; display: inline-flex; flex-direction: column; gap: 4px; min-width: 260px; max-width: 100%; box-sizing: border-box;">
+                        <div style="display: flex; gap: 8px;"><span style="color: var(--color-texto-muted, #64748b); font-weight: 600; min-width: 82px;">Categoría:</span> <strong style="color: var(--color-texto, #0f172a);">${escapeHtml(categoria || '—')}</strong></div>
+                        <div style="display: flex; gap: 8px;"><span style="color: var(--color-texto-muted, #64748b); font-weight: 600; min-width: 82px;">Familia:</span> <strong style="color: var(--color-texto, #0f172a);">${escapeHtml(famNombre || '—')}</strong></div>
+                        <div style="display: flex; gap: 8px;"><span style="color: var(--color-texto-muted, #64748b); font-weight: 600; min-width: 82px;">Tipo familia:</span> <strong style="color: var(--color-texto, #0f172a);">${escapeHtml(tfaNombre || '—')}</strong></div>
+                    </div>
+                `;
+            }
 
             const titulo = esReactivar ? '¿Reactivar configuración?' : '¿Desactivar configuración?';
             const mensaje = esReactivar
@@ -1132,7 +1388,7 @@ document.addEventListener('DOMContentLoaded', function() {
             filaSinResultados.id = 'fila-sin-resultados';
             filaSinResultados.style.display = 'none';
             filaSinResultados.innerHTML = `
-                <td colspan="8" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
+                <td colspan="11" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
                     No se encontraron artículos que coincidan con la búsqueda.
                 </td>
             `;

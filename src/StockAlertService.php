@@ -88,6 +88,10 @@ class StockAlertService
                 'descripcion' => $articulo['descripcion'],
                 'alm_codigo' => $articulo['alm_codigo'],
 
+                'categoria' => trim((string) ($articulo['categoria'] ?? '')),
+                'fam_nombre' => trim((string) ($articulo['fam_nombre'] ?? '')),
+                'tfa_nombre' => trim((string) ($articulo['tfa_nombre'] ?? '')),
+
                 'stock_actual' => $stockActual,
                 'stock_minimo' => $stockMinimo,
 

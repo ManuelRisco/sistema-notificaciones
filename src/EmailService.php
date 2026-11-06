@@ -182,7 +182,13 @@ class EmailService
             $codigo = trim((string) ($articulo['art_codigo'] ?? ''));
             $descripcion = trim((string) ($articulo['descripcion'] ?? ''));
 
-            $unidad = (string) ($articulo['unidad_medida'] ?? 'UND');
+            $unidad = trim((string) ($articulo['unidad_medida'] ?? ''));
+            if ($unidad === '') {
+                $unidad = 'UND';
+            }
+            $categoria = trim((string) ($articulo['categoria'] ?? ''));
+            $famNombre = trim((string) ($articulo['fam_nombre'] ?? ''));
+            $tfaNombre = trim((string) ($articulo['tfa_nombre'] ?? ''));
 
             $stockActual = (float) ($articulo['stock_actual'] ?? 0);
             $stockMinimo = (float) ($articulo['stock_minimo'] ?? 0);
@@ -218,6 +224,24 @@ class EmailService
 
             $unidadHtml = htmlspecialchars(
                 $unidad,
+                ENT_QUOTES | ENT_SUBSTITUTE,
+                'UTF-8'
+            );
+
+            $categoriaHtml = htmlspecialchars(
+                $categoria !== '' ? $categoria : '—',
+                ENT_QUOTES | ENT_SUBSTITUTE,
+                'UTF-8'
+            );
+
+            $famNombreHtml = htmlspecialchars(
+                $famNombre !== '' ? $famNombre : '—',
+                ENT_QUOTES | ENT_SUBSTITUTE,
+                'UTF-8'
+            );
+
+            $tfaNombreHtml = htmlspecialchars(
+                $tfaNombre !== '' ? $tfaNombre : '—',
                 ENT_QUOTES | ENT_SUBSTITUTE,
                 'UTF-8'
             );
@@ -303,6 +327,16 @@ class EmailService
     </tr>
 
     <tr>
+        <td style='padding:9px 14px;background-color:#fafafa;border-bottom:1px solid #eeeeee;'>
+            <div style='font-size:12px;color:#555555;line-height:1.5;'>
+                <span style='margin-right:12px;'><strong style='color:#333333;'>Categoría:</strong> {$categoriaHtml}</span>
+                <span style='margin-right:12px;'><strong style='color:#333333;'>Familia:</strong> {$famNombreHtml}</span>
+                <span><strong style='color:#333333;'>Tipo familia:</strong> {$tfaNombreHtml}</span>
+            </div>
+        </td>
+    </tr>
+
+    <tr>
         <td style='padding:12px 14px 10px 14px;'>
             <div style='font-size:13px;color:#666666;'>
                 Stock físico actual
@@ -352,6 +386,7 @@ class EmailService
             $lineasTexto[] =
                 "Código: {$codigo}\n"
                 . "Descripción: {$descripcion}\n"
+                . "Categoría: " . ($categoria !== '' ? $categoria : '—') . " | Familia: " . ($famNombre !== '' ? $famNombre : '—') . " | Tipo familia: " . ($tfaNombre !== '' ? $tfaNombre : '—') . "\n"
                 . "Stock actual: {$stockFormato} {$unidad}\n"
                 . "Stock mínimo: {$minimoFormato} {$unidad}\n"
                 . "Stock a reponer: {$faltanteValorTexto}\n";

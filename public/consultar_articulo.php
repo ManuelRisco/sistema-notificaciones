@@ -69,6 +69,9 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 RTRIM(m.art_codigo) AS art_codigo, 
                 RTRIM(m.art_nombre) AS art_nombre,
                 RTRIM(d.ume_abrv) AS unidad_medida,
+                RTRIM(ta.tar_nombre) AS categoria,
+                RTRIM(f.fam_nombre) AS fam_nombre,
+                RTRIM(tf.tfa_nombre) AS tfa_nombre,
                 s.stock_actual,
                 c.disponible
             FROM ArticulosObjetivo obj
@@ -77,6 +80,17 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 AND m.art_codigo = obj.art_codigo
             LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
                 ON m.ume_codigo = d.ume_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_tpoarticulo ta
+                ON ta.tar_codigo = m.tar_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_familia f
+                ON f.emp_codigo = m.emp_codigo
+                AND f.tar_codigo = m.tar_codigo
+                AND f.fam_codigo = m.fam_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_tpofamilia tf
+                ON tf.emp_codigo = m.emp_codigo
+                AND tf.tar_codigo = m.tar_codigo
+                AND tf.fam_codigo = m.fam_codigo
+                AND tf.tfa_codigo = m.tfa_codigo
             LEFT JOIN StockCalculado s
                 ON s.emp_codigo = obj.emp_codigo
                 AND s.art_codigo = obj.art_codigo
@@ -108,12 +122,15 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
             $ume = trim((string) ($fila['unidad_medida'] ?? ''));
             $stockFormateado = ($stock !== null)
                 ? number_format($stock, 3, '.', ',') . ($ume !== '' ? ' ' . $ume : '')
-                : '0.000 ' . $ume;
+                : trim('0.000 ' . $ume);
 
             $articulos[] = [
                 'codigo' => $codigo,
                 'nombre' => (string) $fila['art_nombre'],
                 'unidad_medida' => $ume,
+                'categoria' => trim((string) ($fila['categoria'] ?? '')),
+                'fam_nombre' => trim((string) ($fila['fam_nombre'] ?? '')),
+                'tfa_nombre' => trim((string) ($fila['tfa_nombre'] ?? '')),
                 'stock_actual' => $stock,
                 'stock_formateado' => $stockFormateado,
                 'en_uso' => $esArticuloActual
@@ -148,6 +165,9 @@ if ($codigo === '' || strlen($codigo) > 30) {
         'art_codigo' => $codigo,
         'art_nombre' => null,
         'unidad_medida' => null,
+        'categoria' => null,
+        'fam_nombre' => null,
+        'tfa_nombre' => null,
         'stock_actual' => null,
         'stock_actual_formateado' => null,
         'registrado' => false,
@@ -180,10 +200,24 @@ try {
         SELECT 
             RTRIM(m.art_nombre) AS art_nombre,
             RTRIM(d.ume_abrv) AS unidad_medida,
+            RTRIM(ta.tar_nombre) AS categoria,
+            RTRIM(f.fam_nombre) AS fam_nombre,
+            RTRIM(tf.tfa_nombre) AS tfa_nombre,
             s.stock_actual
         FROM TECNOTEST.dbo.mae_articulo m
         LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
             ON m.ume_codigo = d.ume_codigo
+        LEFT JOIN TECNOTEST.dbo.mae_tpoarticulo ta
+            ON ta.tar_codigo = m.tar_codigo
+        LEFT JOIN TECNOTEST.dbo.mae_familia f
+            ON f.emp_codigo = m.emp_codigo
+            AND f.tar_codigo = m.tar_codigo
+            AND f.fam_codigo = m.fam_codigo
+        LEFT JOIN TECNOTEST.dbo.mae_tpofamilia tf
+            ON tf.emp_codigo = m.emp_codigo
+            AND tf.tar_codigo = m.tar_codigo
+            AND tf.fam_codigo = m.fam_codigo
+            AND tf.tfa_codigo = m.tfa_codigo
         LEFT JOIN StockCalculado s
             ON 1 = 1
         WHERE m.emp_codigo = ? AND m.art_codigo = ?;
@@ -192,6 +226,9 @@ try {
     $stmtMae = sqlsrv_query($conexion, $sqlMae, [$alm, $emp, $codigo, $emp, $codigo]);
     $artNombre = null;
     $unidadMedida = null;
+    $categoria = null;
+    $famNombre = null;
+    $tfaNombre = null;
     $stockActual = null;
     $stockFormateado = null;
     $encontrado = false;
@@ -201,10 +238,13 @@ try {
         if ($filaMae && isset($filaMae['art_nombre'])) {
             $artNombre = trim((string) $filaMae['art_nombre']);
             $unidadMedida = trim((string) ($filaMae['unidad_medida'] ?? ''));
+            $categoria = trim((string) ($filaMae['categoria'] ?? ''));
+            $famNombre = trim((string) ($filaMae['fam_nombre'] ?? ''));
+            $tfaNombre = trim((string) ($filaMae['tfa_nombre'] ?? ''));
             $stockActual = $filaMae['stock_actual'] !== null ? (float) $filaMae['stock_actual'] : null;
             $stockFormateado = ($stockActual !== null)
                 ? number_format($stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '')
-                : '0.000 ' . $unidadMedida;
+                : trim('0.000 ' . $unidadMedida);
             $encontrado = true;
         }
         sqlsrv_free_stmt($stmtMae);
@@ -234,6 +274,9 @@ try {
         'art_codigo' => $codigo,
         'art_nombre' => $artNombre,
         'unidad_medida' => $unidadMedida,
+        'categoria' => $categoria,
+        'fam_nombre' => $famNombre,
+        'tfa_nombre' => $tfaNombre,
         'stock_actual' => $stockActual,
         'stock_actual_formateado' => $stockFormateado,
         'registrado' => $registrado,

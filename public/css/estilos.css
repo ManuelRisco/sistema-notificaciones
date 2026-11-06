@@ -285,6 +285,109 @@ body {
     color: #0284c7;
 }
 
+/* Clasificación unificada del artículo en formulario (Categoría, Familia, Tipo familia en un solo bloque) */
+.info-articulo-clasificacion {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 6px;
+    padding: 6px 12px;
+    background-color: var(--color-secundario-fondo, #f8fafc);
+    border: 1px solid var(--color-borde-campo, #cbd5e1);
+    border-radius: var(--radio-control, 8px);
+}
+
+.clasificacion-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.clasificacion-label {
+    font-weight: 600;
+    color: var(--color-texto-muted, #64748b);
+    font-size: 12px;
+}
+
+.clasificacion-dato {
+    font-weight: 700;
+    color: var(--color-texto, #0f172a);
+    font-size: 13px;
+}
+
+.texto-clasificacion {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-texto);
+    line-height: 1.35;
+}
+
+/* Columna de Detalle en el Listado Principal (index.php) */
+.celda-detalle-articulo {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 12px;
+    line-height: 1.35;
+    min-width: 190px;
+}
+
+.item-detalle {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.ref-detalle {
+    font-weight: 600;
+    color: var(--color-texto-muted, #64748b);
+    font-size: 11.5px;
+    min-width: 72px;
+    user-select: none;
+}
+
+.val-detalle {
+    font-weight: 600;
+    color: var(--color-texto, #1e293b);
+    font-size: 12px;
+}
+
+.articulo-clasificacion-fila {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--color-texto-muted, #64748b);
+    line-height: 1.4;
+}
+
+.articulo-clasificacion-fila strong {
+    color: var(--color-texto, #334155);
+    font-weight: 600;
+}
+
+.articulo-clasificacion {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--color-texto-muted, #64748b);
+    line-height: 1.3;
+}
+
+.separador-punto {
+    color: #94a3b8;
+    font-size: 11px;
+    user-select: none;
+}
+
 /* Barra de acciones de formulario */
 .acciones {
     display: flex;
@@ -616,6 +719,9 @@ tbody tr:hover {
     left: 8px;
     margin-top: 4px;
     min-width: 195px;
+    max-width: 320px;
+    max-height: 380px;
+    overflow-y: auto;
     background: #ffffff;
     border: 1px solid var(--color-borde);
     border-radius: 8px;
@@ -626,6 +732,15 @@ tbody tr:hover {
     text-align: left;
     text-transform: none;
     letter-spacing: normal;
+}
+
+.menu-filtro::-webkit-scrollbar {
+    width: 6px;
+}
+
+.menu-filtro::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
 }
 
 .menu-filtro.menu-abierto {
@@ -674,6 +789,46 @@ tbody tr:hover {
     font-weight: 700;
     color: var(--color-primario);
     text-align: center;
+}
+
+.menu-filtro-detalle {
+    min-width: 260px;
+    max-width: 340px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.menu-filtro-detalle::-webkit-scrollbar {
+    width: 6px;
+}
+
+.menu-filtro-detalle::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+}
+
+.menu-filtro-seccion {
+    border-top: 1px solid var(--color-borde);
+    margin-top: 5px;
+    padding-top: 4px;
+}
+
+.menu-filtro-titulo-seccion {
+    display: block;
+    padding: 6px 14px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-texto-muted);
+}
+
+.menu-filtro-vacio {
+    display: block;
+    padding: 4px 14px 6px;
+    font-size: 12px;
+    color: var(--color-texto-muted);
+    font-style: italic;
 }
 
 
@@ -925,6 +1080,11 @@ tbody tr.fila-inactiva:hover td {
     border-radius: 14px !important;
     padding: 26px 28px !important;
     border: 1px solid var(--color-borde) !important;
+}
+
+.swal2-popup.swal-catalogo-ancho {
+    padding: 20px 22px !important;
+    max-width: 96vw !important;
 }
 
 .swal2-title {

@@ -74,6 +74,10 @@ class StockRepository
                 cfg.alm_codigo,
                 RTRIM(d.ume_abrv) AS unidad_medida,
 
+                RTRIM(ta.tar_nombre) AS categoria,
+                RTRIM(f.fam_nombre) AS fam_nombre,
+                RTRIM(tf.tfa_nombre) AS tfa_nombre,
+
                 ISNULL(s.stock_actual, 0) AS stock_actual,
 
                 cfg.stock_minimo,
@@ -87,8 +91,22 @@ class StockRepository
                 ON c.emp_codigo = cfg.emp_codigo
                 AND c.art_codigo = cfg.art_codigo
 
-            INNER JOIN dbo.mae_cabumedida d
+            LEFT JOIN dbo.mae_cabumedida d
                 ON c.ume_codigo = d.ume_codigo
+
+            LEFT JOIN dbo.mae_tpoarticulo ta
+                ON ta.tar_codigo = c.tar_codigo
+
+            LEFT JOIN dbo.mae_familia f
+                ON f.emp_codigo = c.emp_codigo
+                AND f.tar_codigo = c.tar_codigo
+                AND f.fam_codigo = c.fam_codigo
+
+            LEFT JOIN dbo.mae_tpofamilia tf
+                ON tf.emp_codigo = c.emp_codigo
+                AND tf.tar_codigo = c.tar_codigo
+                AND tf.fam_codigo = c.fam_codigo
+                AND tf.tfa_codigo = c.tfa_codigo
 
             LEFT JOIN StockCalculado s
                 ON s.emp_codigo = cfg.emp_codigo

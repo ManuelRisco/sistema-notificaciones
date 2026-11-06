@@ -25,6 +25,9 @@ $artNombre = '';
 $stockMinimo = '';
 $disponible = 1;
 $unidadMedida = '';
+$categoria = '';
+$famNombre = '';
+$tfaNombre = '';
 $stockActual = null;
 
 $error = null;
@@ -309,6 +312,9 @@ try {
                 cfg.disponible,
                 RTRIM(m.art_nombre) AS art_nombre,
                 RTRIM(d.ume_abrv) AS unidad_medida,
+                RTRIM(ta.tar_nombre) AS categoria,
+                RTRIM(f.fam_nombre) AS fam_nombre,
+                RTRIM(tf.tfa_nombre) AS tfa_nombre,
                 s.stock_actual
             FROM TECNOTEST.dbo.cfg_alerta_stock cfg
             LEFT JOIN TECNOTEST.dbo.mae_articulo m
@@ -316,6 +322,17 @@ try {
                 AND m.art_codigo = cfg.art_codigo
             LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
                 ON m.ume_codigo = d.ume_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_tpoarticulo ta
+                ON ta.tar_codigo = m.tar_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_familia f
+                ON f.emp_codigo = m.emp_codigo
+                AND f.tar_codigo = m.tar_codigo
+                AND f.fam_codigo = m.fam_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_tpofamilia tf
+                ON tf.emp_codigo = m.emp_codigo
+                AND tf.tar_codigo = m.tar_codigo
+                AND tf.fam_codigo = m.fam_codigo
+                AND tf.tfa_codigo = m.tfa_codigo
             LEFT JOIN StockCalculado s
                 ON s.emp_codigo = cfg.emp_codigo
                 AND s.art_codigo = cfg.art_codigo
@@ -362,6 +379,9 @@ try {
         $artCodigo = trim((string) $registro['art_codigo']);
         $artNombre = trim((string) ($registro['art_nombre'] ?? ''));
         $unidadMedida = trim((string) ($registro['unidad_medida'] ?? ''));
+        $categoria = trim((string) ($registro['categoria'] ?? ''));
+        $famNombre = trim((string) ($registro['fam_nombre'] ?? ''));
+        $tfaNombre = trim((string) ($registro['tfa_nombre'] ?? ''));
         $stockActual = $registro['stock_actual'] !== null ? (float) $registro['stock_actual'] : null;
         $stockMinimo = (string) $registro['stock_minimo'];
         $disponible = (int) ($registro['disponible'] ?? 1);
@@ -558,6 +578,20 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 Stock real: <strong><?= h($stockActual !== null ? number_format((float) $stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '') : '0.000 ' . $unidadMedida) ?></strong>
                             </span>
                         </div>
+                        <div class="info-articulo-clasificacion">
+                            <div class="clasificacion-item">
+                                <span class="clasificacion-label">Categoría:</span>
+                                <span class="clasificacion-dato"><?= h($categoria !== '' ? $categoria : '—') ?></span>
+                            </div>
+                            <div class="clasificacion-item">
+                                <span class="clasificacion-label">Familia:</span>
+                                <span class="clasificacion-dato"><?= h($famNombre !== '' ? $famNombre : '—') ?></span>
+                            </div>
+                            <div class="clasificacion-item">
+                                <span class="clasificacion-label">Tipo familia:</span>
+                                <span class="clasificacion-dato"><?= h($tfaNombre !== '' ? $tfaNombre : '—') ?></span>
+                            </div>
+                        </div>
                     <?php else: ?>
                         <span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>
                         <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro. Seleccione uno válido usando el botón "Buscar en catálogo".</span>
@@ -569,17 +603,20 @@ if (isset($_GET['toggle_dark_mode'])) {
             <div class="campo">
                 <label for="stock_minimo">
                     Stock mínimo
-                </label>
-                <input
-                    type="number"
-                    id="stock_minimo"
-                    name="stock_minimo"
-                    min="0"
-                    max="999999999.99999"
-                    step="0.00001"
-                    required
-                    value="<?= h($stockMinimo) ?>"
-                >
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input
+                        type="number"
+                        id="stock_minimo"
+                        name="stock_minimo"
+                        min="0"
+                        max="999999999.99999"
+                        step="0.00001"
+                        required
+                        value="<?= h($stockMinimo) ?>"
+                        style="padding-right: 55px;"
+                    >
+                    <span id="sufijo-unidad-minimo" style="position: absolute; right: 12px; font-weight: 700; font-size: 12px; color: var(--color-texto-muted, #64748b); pointer-events: none;"><?= h($unidadMedida) ?></span>
+                </div>
             </div>
 
             <!-- Disponibilidad editable. -->
@@ -661,7 +698,7 @@ function abrirModalCatalogo() {
                 <div style="margin-bottom: 12px;">
                     <input type="search" id="swal-buscador-catalogo" class="swal2-input" placeholder="020100149 | AMARILLO HUEVO" style="width: 100%; margin: 0; font-size: 13.5px; height: 40px; box-sizing: border-box;" autocomplete="off">
                 </div>
-                <div id="swal-lista-catalogo" style="max-height: 360px; overflow-y: auto; border: 1px solid var(--color-borde); border-radius: 8px; background: var(--color-tarjeta);">
+                <div id="swal-lista-catalogo" style="max-height: 400px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--color-borde); border-radius: 8px; background: var(--color-tarjeta);">
                     <div style="padding: 30px; text-align: center; color: var(--color-texto-muted);">
                         Cargando artículos...
                     </div>
@@ -669,7 +706,8 @@ function abrirModalCatalogo() {
                 <div id="swal-contador-catalogo" style="margin-top: 8px; font-size: 12px; color: var(--color-texto-muted); text-align: right;"></div>
             </div>
         `,
-        width: '740px',
+        width: 'min(1160px, 96vw)',
+        customClass: { popup: 'swal-catalogo-ancho' },
         showConfirmButton: false,
         showCloseButton: true,
         didOpen: () => {
@@ -695,37 +733,50 @@ function abrirModalCatalogo() {
                     return;
                 }
 
-                let html = '<table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">';
+                let html = '<table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; text-align: left;">';
                 html += `
                     <thead>
                         <tr style="background: var(--color-secundario-fondo); position: sticky; top: 0; z-index: 2; border-bottom: 1.5px solid var(--color-borde);">
-                            <th style="padding: 9px 10px; width: 120px; font-size: 11.5px; text-transform: uppercase;">Código</th>
-                            <th style="padding: 9px 10px; font-size: 11.5px; text-transform: uppercase;">Artículo</th>
-                            <th style="padding: 9px 10px; width: 120px; font-size: 11.5px; text-transform: uppercase;">Stock real</th>
-                            <th style="padding: 9px 10px; text-align: center; width: 110px; font-size: 11.5px; text-transform: uppercase;">Acción</th>
+                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase;">Código</th>
+                            <th style="padding: 8px 6px; font-size: 11px; text-transform: uppercase;">Artículo</th>
+                            <th style="padding: 8px 6px; width: 140px; font-size: 11px; text-transform: uppercase;">Categoría</th>
+                            <th style="padding: 8px 6px; width: 165px; font-size: 11px; text-transform: uppercase;">Familia</th>
+                            <th style="padding: 8px 6px; width: 130px; font-size: 11px; text-transform: uppercase;">Tipo familia</th>
+                            <th style="padding: 8px 6px; width: 115px; font-size: 11px; text-transform: uppercase; text-align: right;">Stock real</th>
+                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase; text-align: center;">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                 `;
 
                 items.forEach(art => {
+                    const metaTexto = `${art.categoria || ''} ${art.fam_nombre || ''} ${art.tfa_nombre || ''}`.trim();
                     html += `
-                        <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeModalText(art.codigo)}" data-nombre="${escapeModalText(art.nombre)}">
-                            <td style="padding: 9px 10px; font-weight: 700; font-family: monospace; font-size: 13px;">
+                        <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeModalText(art.codigo)}" data-nombre="${escapeModalText(art.nombre)}" data-meta="${escapeModalText(metaTexto)}">
+                            <td style="padding: 8px 6px; font-weight: 700; font-family: monospace; font-size: 12.5px; word-break: break-all;">
                                 ${escapeModalText(art.codigo)}
                             </td>
-                            <td style="padding: 9px 10px; line-height: 1.3; font-size: 13px; font-weight: 600; color: #1e293b;">
+                            <td style="padding: 8px 6px; line-height: 1.3; font-size: 12.5px; font-weight: 600; color: #1e293b; word-break: break-word;">
                                 ${escapeModalText(art.nombre)}
                             </td>
-                            <td style="padding: 9px 10px; white-space: nowrap;">
-                                <span class="articulo-stock-tag" style="font-size: 12px; padding: 2px 8px;">
+                            <td style="padding: 8px 6px; font-size: 12px; color: #334155; word-break: break-word;">
+                                ${escapeModalText(art.categoria || '—')}
+                            </td>
+                            <td style="padding: 8px 6px; font-size: 12px; color: #334155; word-break: break-word;">
+                                ${escapeModalText(art.fam_nombre || '—')}
+                            </td>
+                            <td style="padding: 8px 6px; font-size: 12px; color: #334155; word-break: break-word;">
+                                ${escapeModalText(art.tfa_nombre || '—')}
+                            </td>
+                            <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
+                                <span class="articulo-stock-tag" style="font-size: 11.5px; padding: 2px 6px;">
                                     ${escapeModalText(art.stock_formateado || '0.000')}
                                 </span>
                             </td>
-                            <td style="padding: 9px 10px; text-align: center;">
+                            <td style="padding: 8px 6px; text-align: center; white-space: nowrap;">
                                 ${art.en_uso
-                                    ? `<span class="badge badge-activo" style="font-size: 11px; padding: 4px 8px;">Usandose actualmente</span>`
-                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeModalText(art.codigo)}" style="padding: 3px 12px; font-size: 12px; height: 28px; line-height: 28px; font-weight: 600;">Elegir</button>`
+                                    ? `<span class="badge badge-activo" style="font-size: 11px; padding: 4px 6px;">En uso</span>`
+                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeModalText(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">Elegir</button>`
                                 }
                             </td>
                         </tr>
@@ -734,7 +785,7 @@ function abrirModalCatalogo() {
 
                 html += `
                     <tr id="swal-fila-vacia" style="display: none;">
-                        <td colspan="4" style="padding: 30px 16px; text-align: center; color: var(--color-texto-muted);">
+                        <td colspan="7" style="padding: 30px 16px; text-align: center; color: var(--color-texto-muted);">
                             No se encontraron artículos que coincidan con la búsqueda.
                         </td>
                     </tr>
@@ -769,12 +820,14 @@ function abrirModalCatalogo() {
                 filasModal.forEach(fila => {
                     const c = (fila.dataset.codigo || '').toLowerCase().trim();
                     const n = (fila.dataset.nombre || '').toLowerCase().trim();
+                    const m = (fila.dataset.meta || '').toLowerCase().trim();
 
                     const coincideCodigo = c.startsWith(q) || c.replace(/^0+/, '').startsWith(q);
                     const palabrasNombre = n.split(/\s+/);
                     const coincideNombre = n.startsWith(q) || palabrasNombre.some(p => p.startsWith(q));
+                    const coincideMeta = m.includes(q);
 
-                    if (q === '' || coincideCodigo || coincideNombre) {
+                    if (q === '' || coincideCodigo || coincideNombre || coincideMeta) {
                         fila.style.display = '';
                         visibles++;
                     } else {
@@ -861,21 +914,36 @@ document.addEventListener('DOMContentLoaded', function() {
     const codigoOriginal = <?= json_encode($artOriginal, JSON_UNESCAPED_UNICODE) ?>;
     const nombreOriginal = <?= json_encode($artNombre, JSON_UNESCAPED_UNICODE) ?>;
     const stockOriginalFormateado = <?= json_encode($stockActual !== null ? number_format((float) $stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '') : '0.000 ' . $unidadMedida, JSON_UNESCAPED_UNICODE) ?>;
+    const categoriaOriginal = <?= json_encode($categoria, JSON_UNESCAPED_UNICODE) ?>;
+    const famNombreOriginal = <?= json_encode($famNombre, JSON_UNESCAPED_UNICODE) ?>;
+    const tfaNombreOriginal = <?= json_encode($tfaNombre, JSON_UNESCAPED_UNICODE) ?>;
+    const unidadMedidaOriginal = <?= json_encode($unidadMedida, JSON_UNESCAPED_UNICODE) ?>;
     let debounceTimer = null;
     let currentArtData = null;
 
     function renderInfoArticulo(data, codigo) {
         if (!infoContainer) return;
 
+        const sufijoUme = document.getElementById('sufijo-unidad-minimo');
+        const labelUme = document.getElementById('label-unidad-minimo');
+
         if (!codigo) {
             infoContainer.innerHTML = '';
+            if (sufijoUme) sufijoUme.textContent = '';
+            if (labelUme) labelUme.textContent = '';
             return;
         }
 
         if (!data || !data.encontrado) {
             infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span> <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro. Seleccione uno válido usando el botón "Buscar en catálogo".</span>';
+            if (sufijoUme) sufijoUme.textContent = '';
+            if (labelUme) labelUme.textContent = '';
             return;
         }
+
+        const umeTexto = data.unidad_medida || '';
+        if (sufijoUme) sufijoUme.textContent = umeTexto;
+        if (labelUme) labelUme.textContent = umeTexto ? `(${umeTexto})` : '';
 
         const nombreHtml = `<span class="articulo-nombre-destacado">${escapeHtml(data.art_nombre || '')}</span>`;
         const stockTexto = data.stock_actual_formateado || (data.stock_actual !== null ? `${data.stock_actual} ${data.unidad_medida || ''}` : '0.000');
@@ -892,11 +960,29 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        const catHtml = escapeHtml(data.categoria || '—');
+        const famHtml = escapeHtml(data.fam_nombre || '—');
+        const tfaHtml = escapeHtml(data.tfa_nombre || '—');
+
         infoContainer.innerHTML = `
             <div class="info-articulo-fila">
                 ${estadoBadge}
                 ${nombreHtml}
                 ${stockHtml}
+            </div>
+            <div class="info-articulo-clasificacion">
+                <div class="clasificacion-item">
+                    <span class="clasificacion-label">Categoría:</span>
+                    <span class="clasificacion-dato">${catHtml}</span>
+                </div>
+                <div class="clasificacion-item">
+                    <span class="clasificacion-label">Familia:</span>
+                    <span class="clasificacion-dato">${famHtml}</span>
+                </div>
+                <div class="clasificacion-item">
+                    <span class="clasificacion-label">Tipo familia:</span>
+                    <span class="clasificacion-dato">${tfaHtml}</span>
+                </div>
             </div>
         `;
     }
@@ -915,7 +1001,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 encontrado: true,
                 art_codigo: codigo,
                 art_nombre: nombreOriginal,
+                unidad_medida: unidadMedidaOriginal,
                 stock_actual_formateado: stockOriginalFormateado,
+                categoria: categoriaOriginal,
+                fam_nombre: famNombreOriginal,
+                tfa_nombre: tfaNombreOriginal,
                 registrado: true,
                 disponible: 1
             };
