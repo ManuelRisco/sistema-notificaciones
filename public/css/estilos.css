@@ -80,7 +80,7 @@ body {
 
 .contenedor {
     width: 95%;
-    max-width: 1280px;
+    max-width: 1250px;
     margin: 40px auto;
 }
 
@@ -139,7 +139,6 @@ body {
     padding: 38px 42px;
     border-radius: var(--radio-tarjeta);
     border: 1px solid var(--color-borde);
-    box-shadow: var(--sombra-formulario);
 }
 
 /* Distribución de campos en dos columnas */
@@ -257,7 +256,6 @@ body {
 .btn-primario {
     background-color: var(--color-primario);
     color: #ffffff;
-    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
 }
 
 .btn-primario:hover {
@@ -317,7 +315,6 @@ body {
     background-color: #059669;
     color: #ffffff;
     border: 1px solid #047857;
-    box-shadow: 0 1px 2px rgba(5, 150, 105, 0.2);
 }
 
 .btn-ejecutar:hover {
@@ -393,16 +390,14 @@ body {
     font-weight: 500;
 }
 
-/* Contenedor con desplazamiento horizontal */
+/* Contenedor compacto sin desplazamiento horizontal */
 .tabla-contenedor {
-
-    max-width: 1270px;
+    max-width: 1350px;
     margin: 0 auto;
 
     background: var(--color-tarjeta);
     border-radius: var(--radio-tarjeta);
     border: 1px solid var(--color-borde);
-    box-shadow: var(--sombra-tarjeta);
     overflow-x: auto;
 
     /* Encabezado que se mantenga */
@@ -417,37 +412,64 @@ body {
 table {
     width: 100%;
     border-spacing: 0;
-    white-space: nowrap;
     text-align: left;
+    table-layout: auto;
 }
 
 th {
     background: #1f2229;
     color: #f8fafc;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 16px 20px;
+    letter-spacing: 0.3px;
+    padding: 10px 8px;
 
     /* Encabezado que se mantenga */
     position: sticky;
     top: 0;
     z-index: 10;
 
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    white-space: nowrap;
+
+    /* Centrar encabezado */
+    text-align: center;
 }
 
 td {
-    padding: 15px 20px;
+    padding: 18px 18px;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.35;
     color: #334155;
     vertical-align: middle;
+    white-space: nowrap;
 
-    border-bottom: 1px solid #d3d3d3;
-    border-right: 1px solid #d3d3d3;
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
+}
+
+/* Columna 1 (Artículo): Permite que el nombre largo quiebre línea para no ensanchar la tabla */
+td:first-child {
+    white-space: normal;
+    min-width: 170px;
+    max-width: 220px;
+}
+
+td:first-child strong {
+    display: block;
+    font-size: 13.5px;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+/* Alineación numérica de Stock físico y Stock mínimo */
+th:nth-child(2), td:nth-child(2),
+th:nth-child(3), td:nth-child(3) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    padding-right: 12px;
 }
 
 th:last-child,
@@ -479,15 +501,15 @@ tbody tr:hover {
 .th-contenido {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
 }
 
 .btn-filtro-columna {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 4px;
@@ -507,7 +529,6 @@ tbody tr:hover {
     background: #3b82f6 !important;
     color: #ffffff !important;
     border-color: #60a5fa !important;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
 }
 
 .icono-filtro {
@@ -592,13 +613,14 @@ tbody tr:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 4px 11px;
+    padding: 3px 8px;
     border-radius: 9999px;
     font-size: 12px;
     font-weight: 600;
-    line-height: 1.25;
-    letter-spacing: 0.2px;
+    line-height: 1.2;
+    letter-spacing: 0.1px;
     text-align: center;
+    white-space: nowrap;
 }
 
 .badge-activo {
@@ -630,14 +652,16 @@ tbody tr:hover {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    white-space: nowrap;
 }
 
 .acciones-celda .btn {
-    padding: 5px;
-    font-size: 13px;
+    padding: 0 8px;
+    font-size: 12.5px;
     font-weight: 600;
-    border-radius: 6px;
-    height: 34px;
+    border-radius: 5px;
+    height: 27px;
+    line-height: 27px;
 }
 
 .form-eliminar {
@@ -648,8 +672,34 @@ tbody tr:hover {
 /* titulo del artículo */
 .articulo-titulo {
     display: block;
-    margin-top: 4px;
+    margin-top: 2px;
     color: var(--color-texto-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    white-space: normal;
+    max-width: 220px;
+}
+
+/* Fecha y hora compactas en dos líneas */
+.fecha-contenedor {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 1px;
+    line-height: 1.15;
+}
+
+.fecha-dia {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-texto);
+    white-space: nowrap;
+}
+
+.fecha-hora {
+    font-size: 10.5px;
+    color: var(--color-texto-muted);
+    white-space: nowrap;
+
     font-size: 12px;
     font-weight: 400;
     white-space: normal;
@@ -774,7 +824,6 @@ tbody tr.fila-inactiva:hover td {
 
 .busqueda-campo input:focus {
     border-color: var(--color-primario);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .busqueda-acciones {
@@ -807,8 +856,6 @@ tbody tr.fila-inactiva:hover td {
     font-family: inherit !important;
     border-radius: 14px !important;
     padding: 26px 28px !important;
-    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12),
-                0 10px 10px -5px rgba(15, 23, 42, 0.06) !important;
     border: 1px solid var(--color-borde) !important;
 }
 
@@ -836,7 +883,6 @@ tbody tr.fila-inactiva:hover td {
     font-weight: 600 !important;
     font-size: 14px !important;
     padding: 10px 22px !important;
-    box-shadow: none !important;
     transition: background-color 0.15s ease-in-out,
                 opacity 0.15s ease-in-out !important;
 }
@@ -943,15 +989,22 @@ tbody tr.fila-inactiva:hover td {
    14. MODO OSCURO
    ========================================================================== */
 
-   /* Cuando el documento tenga la clase 'dark-mode', se invierte todo */
+   /* 1. Cuando el documento tenga la clase 'dark-mode', se invierte toda la página */
     html.dark-mode {
         filter: invert(1) hue-rotate(180deg);
     }
 
-    /* Revierte el filtro para imágenes, videos y elementos multimedia */
-    html.dark-mode img,
+    /* 2. Revierte el filtro para imágenes normales y elementos multimedia (excepto iconos) */
+    html.dark-mode img:not(.icono-invertible),
     html.dark-mode video,
     html.dark-mode th,
-    html.dark-mode .no-invert {
+    html.dark-mode .no-invert
+    {
         filter: invert(1) hue-rotate(180deg);
+    }
+
+    /* 3. El ícono con .icono-invertible se invierte junto con la página para verse blanco */
+    html.dark-mode img.icono-invertible,
+    html.dark-mode .icono-invertible {
+        filter: none !important;
     }

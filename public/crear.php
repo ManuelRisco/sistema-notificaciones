@@ -209,7 +209,12 @@ $darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
 // Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
 if (isset($_GET['toggle_dark_mode'])) {
     $darkMode = !$darkMode;
-    setcookie('dark_mode', $darkMode ? 'true' : 'false', time() + (86400 * 30), "/");
+    $valorCookie = $darkMode ? 'true' : 'false';
+    $tiempoExpira = time() + (86400 * 30);
+
+    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
+    setcookie('dark_mode', $valorCookie, $tiempoExpira, dirname($_SERVER['SCRIPT_NAME']));
+    setcookie('dark_mode', $valorCookie, $tiempoExpira);
 
     $params = $_GET;
     unset($params['toggle_dark_mode']);
@@ -246,8 +251,11 @@ if (isset($_GET['toggle_dark_mode'])) {
                 ← Volver
             </a>
             <!-- Botón para alternar el modo -->
-            <a href="?toggle_dark_mode=1" style="display: grid; place-items: center;
-            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);">
+            <a href="?toggle_dark_mode=1"
+               id="btn-toggle-dark"
+               onclick="toggleDarkMode(event)"
+               style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);"
+               title="Alternar modo claro / oscuro">
                 <?php echo $darkMode ? '🌞' : '🌚'; ?>
             </a>
         </div>
@@ -315,6 +323,23 @@ if (isset($_GET['toggle_dark_mode'])) {
 </main>
 
 <script>
+// Alternar modo oscuro / claro de forma instantánea sin recargar
+function toggleDarkMode(e) {
+    if (e) e.preventDefault();
+    const html = document.documentElement;
+    const esOscuro = html.classList.toggle('dark-mode');
+    const valor = esOscuro ? 'true' : 'false';
+
+    const expira = new Date(Date.now() + 86400 * 30 * 1000).toUTCString();
+    document.cookie = `dark_mode=${valor}; path=/; expires=${expira}`;
+    document.cookie = `dark_mode=${valor}; path=${window.location.pathname}; expires=${expira}`;
+
+    const btn = document.getElementById('btn-toggle-dark');
+    if (btn) {
+        btn.textContent = esOscuro ? '🌞' : '🌚';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     <?php if ($error !== null): ?>
     Swal.fire({

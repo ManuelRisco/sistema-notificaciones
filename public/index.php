@@ -296,9 +296,14 @@ $darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
 // Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
 if (isset($_GET['toggle_dark_mode'])) {
     $darkMode = !$darkMode;
-    // Guardar la preferencia por 30 días
-    setcookie('dark_mode', $darkMode ? 'true' : 'false', time() + (86400 * 30), "/");
-    
+    $valorCookie = $darkMode ? 'true' : 'false';
+    $tiempoExpira = time() + (86400 * 30);
+
+    // Guardar en todas las rutas posibles para evitar cookies huérfanas
+    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
+    setcookie('dark_mode', $valorCookie, $tiempoExpira, dirname($_SERVER['SCRIPT_NAME']));
+    setcookie('dark_mode', $valorCookie, $tiempoExpira);
+
     // Redirigir a la misma página para limpiar la URL de la variable GET
     header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
     exit;
@@ -326,7 +331,7 @@ if (isset($_GET['toggle_dark_mode'])) {
 
         <div class="encabezado-acciones">
             <a href="index.php" class="btn btn-secundario">
-                Recargar Página
+                <img src="img/repetir.png" class="icono-invertible" alt="Imagen para actualizar pagina" style="width: 20px; height: 20px;">
             </a>
             <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
                 <input type="hidden" name="csrf_token" value="<?= escapar(generarTokenCsrf()) ?>">
@@ -341,8 +346,11 @@ if (isset($_GET['toggle_dark_mode'])) {
                 + Nuevo registro
             </a>
             <!-- Botón para alternar el modo -->
-            <a href="?toggle_dark_mode=1" style="display: grid; place-items: center;
-            width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);">
+            <a href="?toggle_dark_mode=1"
+               id="btn-toggle-dark"
+               onclick="toggleDarkMode(event)"
+               style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);"
+               title="Alternar modo claro / oscuro">
                 <?php echo $darkMode ? '🌞' : '🌚'; ?>
             </a>
         </div>
@@ -457,7 +465,7 @@ if (isset($_GET['toggle_dark_mode'])) {
             <table>
                 <thead>
                 <tr>
-                    <th>Código Artículo</th>
+                    <th>Artículo</th>
                     <th>Stock físico</th>
                     <th>Stock mínimo</th>
 
@@ -629,9 +637,10 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 <?php
                                 $fecha = $registro['fecha_actualizacion'];
                                 if ($fecha instanceof DateTimeInterface) {
-                                    echo escapar(
-                                        $fecha->format('d/m/Y H:i:s')
-                                    );
+                                    echo '<div class="fecha-contenedor">';
+                                    echo '<span class="fecha-dia">' . escapar($fecha->format('d/m/Y')) . '</span>';
+                                    echo '<span class="fecha-hora">' . escapar($fecha->format('H:i:s')) . '</span>';
+                                    echo '</div>';
                                 } else {
                                     echo escapar($fecha);
                                 }
@@ -747,6 +756,25 @@ if (isset($_GET['toggle_dark_mode'])) {
 </main>
 
 <script>
+// Alternar modo oscuro / claro de forma instantánea sin recargar
+function toggleDarkMode(e) {
+    if (e) e.preventDefault();
+    const html = document.documentElement;
+    const esOscuro = html.classList.toggle('dark-mode');
+    const valor = esOscuro ? 'true' : 'false';
+
+    // Guardar en cookie para todas las rutas y limpiar duplicados
+    const expira = new Date(Date.now() + 86400 * 30 * 1000).toUTCString();
+    document.cookie = `dark_mode=${valor}; path=/; expires=${expira}`;
+    document.cookie = `dark_mode=${valor}; path=${window.location.pathname}; expires=${expira}`;
+
+    // Actualizar el emoji del botón
+    const btn = document.getElementById('btn-toggle-dark');
+    if (btn) {
+        btn.textContent = esOscuro ? '🌞' : '🌚';
+    }
+}
+
 // Manejo del menú desplegable para filtros de columnas
 function toggleMenuFiltro(e, menuId) {
     e.stopPropagation();
