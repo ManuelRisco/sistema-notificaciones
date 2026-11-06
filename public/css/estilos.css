@@ -1,5 +1,4 @@
-/* ========================================================================== 
-   SISTEMA DE NOTIFICACIONES Y ALERTAS DE STOCK
+/* ==========================================================================
    Hoja de estilos principal
    ========================================================================== */
 
@@ -201,6 +200,44 @@ body {
     font-weight: 500;
 }
 
+/* Campo integrado con botón de búsqueda de catálogo */
+.campo-con-boton {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.campo-con-boton input {
+    flex: 1;
+}
+
+.btn-catalogo {
+    height: 44px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1.5px solid var(--color-borde-campo);
+    background-color: var(--color-secundario-fondo);
+    color: var(--color-texto);
+    border-radius: var(--radio-control);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn-catalogo:hover {
+    background-color: #e2e8f0;
+    border-color: var(--color-secundario);
+    color: #0f172a;
+}
+
+.fila-catalogo-modal:hover {
+    background-color: #f8fafc;
+}
+
 /* Información y estado de búsqueda en tiempo real del artículo */
 .info-articulo {
     display: flex;
@@ -210,6 +247,42 @@ body {
     margin-top: 6px;
     min-height: 24px;
     font-size: 13px;
+}
+
+.info-articulo-fila {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 4px;
+    padding: 6px 12px;
+    background-color: var(--color-secundario-fondo, #f8fafc);
+    border: 1px solid var(--color-borde-campo, #cbd5e1);
+    border-radius: var(--radio-control, 8px);
+}
+
+.articulo-nombre-destacado {
+    font-size: 15px; /* Mismo tamaño que el texto del código de artículo */
+    font-weight: 700;
+    color: var(--color-texto, #0f172a);
+}
+
+.articulo-stock-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13.5px;
+    font-weight: 500;
+    padding: 3px 10px;
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+    border-radius: 5px;
+}
+
+.articulo-stock-tag strong {
+    font-weight: 700;
+    color: #0284c7;
 }
 
 /* Barra de acciones de formulario */
@@ -699,11 +772,6 @@ tbody tr:hover {
     font-size: 10.5px;
     color: var(--color-texto-muted);
     white-space: nowrap;
-
-    font-size: 12px;
-    font-weight: 400;
-    white-space: normal;
-    max-width: 220px;
 }
 
 

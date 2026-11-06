@@ -14,15 +14,142 @@ require_once $raizProyecto . '/config/database.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$codigo = trim((string) ($_GET['codigo'] ?? $_POST['codigo'] ?? ''));
 $emp = '001';
 $alm = '003';
+
+// Si se solicita el catálogo de artículos para la ventana modal
+if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
+    $conexion = null;
+    $artActual = trim((string) ($_GET['art_actual'] ?? ''));
+
+    try {
+        $conexion = getSqlServerConn();
+        // Consulta basada en StockRepository: calcula el stock físico real para almacén 003
+        // y une con los artículos que tienen movimientos o configuración en dicho almacén
+        $sqlCat = "
+            ;WITH StockCalculado AS
+            (
+                SELECT
+                    a.emp_codigo,
+                    a.art_codigo,
+                    b.alm_codigo,
+                    SUM(
+                        CASE
+                            WHEN b.mov_tipo = 'I'
+                                THEN a.mov_ctdmov
+                            ELSE 0
+                        END
+                    ) -
+                    SUM(
+                        CASE
+                            WHEN b.mov_tipo = 'S'
+                                THEN a.mov_ctdmov
+                            ELSE 0
+                        END
+                    ) AS stock_actual
+                FROM TECNOTEST.dbo.log_detmov a
+                INNER JOIN TECNOTEST.dbo.log_cabmov b
+                    ON a.mov_id = b.mov_id
+                    AND b.alm_codigo = ?
+                WHERE a.emp_codigo = ?
+                  AND b.mov_flag <> 'A'
+                  AND b.mov_fecemi <= GETDATE()
+                GROUP BY
+                    a.emp_codigo,
+                    a.art_codigo,
+                    b.alm_codigo
+            ),
+            ArticulosObjetivo AS
+            (
+                SELECT emp_codigo, art_codigo, alm_codigo FROM StockCalculado
+                UNION
+                SELECT emp_codigo, art_codigo, alm_codigo FROM TECNOTEST.dbo.cfg_alerta_stock WHERE emp_codigo = ? AND alm_codigo = ?
+            )
+            SELECT 
+                RTRIM(m.art_codigo) AS art_codigo, 
+                RTRIM(m.art_nombre) AS art_nombre,
+                RTRIM(d.ume_abrv) AS unidad_medida,
+                s.stock_actual,
+                c.disponible
+            FROM ArticulosObjetivo obj
+            INNER JOIN TECNOTEST.dbo.mae_articulo m
+                ON m.emp_codigo = obj.emp_codigo
+                AND m.art_codigo = obj.art_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
+                ON m.ume_codigo = d.ume_codigo
+            LEFT JOIN StockCalculado s
+                ON s.emp_codigo = obj.emp_codigo
+                AND s.art_codigo = obj.art_codigo
+                AND s.alm_codigo = obj.alm_codigo
+            LEFT JOIN TECNOTEST.dbo.cfg_alerta_stock c
+                ON c.emp_codigo = obj.emp_codigo
+               AND c.alm_codigo = obj.alm_codigo
+               AND c.art_codigo = obj.art_codigo
+            ORDER BY m.art_nombre ASC;
+        ";
+
+        $stmtCat = sqlsrv_query($conexion, $sqlCat, [$alm, $emp, $emp, $alm]);
+        if ($stmtCat === false) {
+            throw new RuntimeException('Error al consultar el catálogo de artículos.');
+        }
+
+        $articulos = [];
+        while ($fila = sqlsrv_fetch_array($stmtCat, SQLSRV_FETCH_ASSOC)) {
+            $codigo = (string) $fila['art_codigo'];
+            $disponible = $fila['disponible'] !== null ? (int) $fila['disponible'] : null;
+            $esArticuloActual = ($artActual !== '' && $codigo === $artActual);
+
+            // Si el artículo ya está activo en cfg_alerta_stock y no es el artículo en edición, se omite
+            if ($disponible === 1 && !$esArticuloActual) {
+                continue;
+            }
+
+            $stock = $fila['stock_actual'] !== null ? (float) $fila['stock_actual'] : null;
+            $ume = trim((string) ($fila['unidad_medida'] ?? ''));
+            $stockFormateado = ($stock !== null)
+                ? number_format($stock, 3, '.', ',') . ($ume !== '' ? ' ' . $ume : '')
+                : '0.000 ' . $ume;
+
+            $articulos[] = [
+                'codigo' => $codigo,
+                'nombre' => (string) $fila['art_nombre'],
+                'unidad_medida' => $ume,
+                'stock_actual' => $stock,
+                'stock_formateado' => $stockFormateado,
+                'en_uso' => $esArticuloActual
+            ];
+        }
+
+        sqlsrv_free_stmt($stmtCat);
+        echo json_encode([
+            'exito' => true,
+            'total' => count($articulos),
+            'articulos' => $articulos
+        ], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode([
+            'exito' => false,
+            'error' => $e->getMessage()
+        ], JSON_UNESCAPED_UNICODE);
+    } finally {
+        if ($conexion !== null && $conexion !== false) {
+            sqlsrv_close($conexion);
+        }
+    }
+    exit;
+}
+
+$codigo = trim((string) ($_GET['codigo'] ?? $_POST['codigo'] ?? ''));
 
 if ($codigo === '' || strlen($codigo) > 30) {
     echo json_encode([
         'encontrado' => false,
         'art_codigo' => $codigo,
         'art_nombre' => null,
+        'unidad_medida' => null,
+        'stock_actual' => null,
+        'stock_actual_formateado' => null,
         'registrado' => false,
         'disponible' => null
     ], JSON_UNESCAPED_UNICODE);
@@ -34,20 +161,50 @@ $conexion = null;
 try {
     $conexion = getSqlServerConn();
 
-    // 1. Consultar maestro de artículos
+    // 1. Consultar maestro de artículos y calcular su stock físico real en almacén 003
     $sqlMae = "
-        SELECT RTRIM(art_nombre) AS art_nombre
-        FROM TECNOTEST.dbo.mae_articulo
-        WHERE emp_codigo = ? AND art_codigo = ?;
+        ;WITH StockCalculado AS
+        (
+            SELECT
+                SUM(CASE WHEN b.mov_tipo = 'I' THEN a.mov_ctdmov ELSE 0 END) -
+                SUM(CASE WHEN b.mov_tipo = 'S' THEN a.mov_ctdmov ELSE 0 END) AS stock_actual
+            FROM TECNOTEST.dbo.log_detmov a
+            INNER JOIN TECNOTEST.dbo.log_cabmov b
+                ON a.mov_id = b.mov_id
+                AND b.alm_codigo = ?
+            WHERE a.emp_codigo = ?
+              AND a.art_codigo = ?
+              AND b.mov_flag <> 'A'
+              AND b.mov_fecemi <= GETDATE()
+        )
+        SELECT 
+            RTRIM(m.art_nombre) AS art_nombre,
+            RTRIM(d.ume_abrv) AS unidad_medida,
+            s.stock_actual
+        FROM TECNOTEST.dbo.mae_articulo m
+        LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
+            ON m.ume_codigo = d.ume_codigo
+        LEFT JOIN StockCalculado s
+            ON 1 = 1
+        WHERE m.emp_codigo = ? AND m.art_codigo = ?;
     ";
-    $stmtMae = sqlsrv_query($conexion, $sqlMae, [$emp, $codigo]);
+
+    $stmtMae = sqlsrv_query($conexion, $sqlMae, [$alm, $emp, $codigo, $emp, $codigo]);
     $artNombre = null;
+    $unidadMedida = null;
+    $stockActual = null;
+    $stockFormateado = null;
     $encontrado = false;
 
     if ($stmtMae !== false) {
         $filaMae = sqlsrv_fetch_array($stmtMae, SQLSRV_FETCH_ASSOC);
         if ($filaMae && isset($filaMae['art_nombre'])) {
             $artNombre = trim((string) $filaMae['art_nombre']);
+            $unidadMedida = trim((string) ($filaMae['unidad_medida'] ?? ''));
+            $stockActual = $filaMae['stock_actual'] !== null ? (float) $filaMae['stock_actual'] : null;
+            $stockFormateado = ($stockActual !== null)
+                ? number_format($stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '')
+                : '0.000 ' . $unidadMedida;
             $encontrado = true;
         }
         sqlsrv_free_stmt($stmtMae);
@@ -76,6 +233,9 @@ try {
         'encontrado' => $encontrado,
         'art_codigo' => $codigo,
         'art_nombre' => $artNombre,
+        'unidad_medida' => $unidadMedida,
+        'stock_actual' => $stockActual,
+        'stock_actual_formateado' => $stockFormateado,
         'registrado' => $registrado,
         'disponible' => $disponible
     ], JSON_UNESCAPED_UNICODE);

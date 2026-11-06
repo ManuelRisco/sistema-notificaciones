@@ -186,6 +186,7 @@ class EmailService
 
             $stockActual = (float) ($articulo['stock_actual'] ?? 0);
             $stockMinimo = (float) ($articulo['stock_minimo'] ?? 0);
+            $faltante = max(0.0, $stockMinimo - $stockActual);
 
             if (
                 $codigo === ''
@@ -234,6 +235,21 @@ class EmailService
                 '.',
                 ','
             );
+
+            $faltanteFormato = number_format(
+                $faltante,
+                3,
+                '.',
+                ','
+            );
+
+            if ($faltante > 0) {
+                $faltanteValorHtml = "{$faltanteFormato} {$unidadHtml}";
+                $faltanteValorTexto = "{$faltanteFormato} {$unidad}";
+            } else {
+                $faltanteValorHtml = "{$faltanteFormato} {$unidadHtml} <span style='font-size:12px;font-weight:normal;color:#666666;'>(En el límite)</span>";
+                $faltanteValorTexto = "{$faltanteFormato} {$unidad} (En el límite)";
+            }
 
             $tarjetasHtml .= "
 <table
@@ -287,7 +303,7 @@ class EmailService
     </tr>
 
     <tr>
-        <td style='padding:0 14px 12px 14px;'>
+        <td style='padding:12px 14px 10px 14px;'>
             <div style='font-size:13px;color:#666666;'>
                 Stock físico actual
             </div>
@@ -304,12 +320,29 @@ class EmailService
     </tr>
 
     <tr>
-        <td style='padding:0 14px 14px 14px;'>
+        <td style='padding:0 14px 10px 14px;'>
             <div style='font-size:13px;color:#666666;'>
                 Stock mínimo configurado
             </div>
             <div style='font-size:14px;color:#222222;margin-top:3px;'>
                 {$minimoFormato} {$unidadHtml}
+            </div>
+        </td>
+    </tr>
+    
+    <tr>
+        <td style='padding:0 14px 14px 14px;'>
+            <div style='font-size:13px;color:#666666;'>
+                Stock a reponer
+            </div>
+            <div style='
+                font-size:15px;
+                font-weight:bold;
+                color:#b71c1c;
+                margin-top:3px;
+                overflow-wrap:anywhere;
+            '>
+                {$faltanteValorHtml}
             </div>
         </td>
     </tr>
@@ -320,7 +353,8 @@ class EmailService
                 "Código: {$codigo}\n"
                 . "Descripción: {$descripcion}\n"
                 . "Stock actual: {$stockFormato} {$unidad}\n"
-                . "Stock mínimo: {$minimoFormato} {$unidad}\n";
+                . "Stock mínimo: {$minimoFormato} {$unidad}\n"
+                . "Stock a reponer: {$faltanteValorTexto}\n";
         }
 
         $cantidad = count($articulos);

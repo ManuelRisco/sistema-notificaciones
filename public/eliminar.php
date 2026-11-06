@@ -54,6 +54,25 @@ try {
     // 4. Conectar con SQL Server.
     $conexion = getSqlServerConn();
 
+    // 4.1 Si la acción es reactivar, verificar que el artículo exista en el catálogo maestro
+    if ($accion === 'reactivar') {
+        $sqlVerifMae = "
+            SELECT 1 FROM TECNOTEST.dbo.mae_articulo
+            WHERE emp_codigo = ? AND art_codigo = ?;
+        ";
+        $stmtVerifMae = sqlsrv_query($conexion, $sqlVerifMae, [$empCodigo, $artCodigo]);
+        $existeEnMae = false;
+        if ($stmtVerifMae !== false) {
+            $existeEnMae = (sqlsrv_fetch_array($stmtVerifMae, SQLSRV_FETCH_NUMERIC) !== null);
+            sqlsrv_free_stmt($stmtVerifMae);
+        }
+        if (!$existeEnMae) {
+            throw new RuntimeException(
+                "No se puede reactivar la alerta porque el artículo '{$artCodigo}' no existe en el catálogo maestro. Puede editarlo para asignarle un código válido."
+            );
+        }
+    }
+
     // 5. Borrado Lógico: en lugar de DELETE físico, actualizamos "disponible".
     // Si la acción es reactivar, disponible = 1; si es eliminar, disponible = 0.
     $nuevoEstado = ($accion === 'reactivar') ? 1 : 0;

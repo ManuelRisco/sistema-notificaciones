@@ -20,10 +20,6 @@ $conexion = null;
 $registros = [];
 $error = null;
 // Filtros recibidos por GET (consultados directamente a la base de datos)
-$busqueda = isset($_GET['articulo']) && is_string($_GET['articulo'])
-    ? trim($_GET['articulo'])
-    : '';
-
 $filtroDisponible = isset($_GET['disponible']) && in_array((string)$_GET['disponible'], ['0', '1'], true)
     ? (string)$_GET['disponible']
     : '';
@@ -36,6 +32,10 @@ $filtroCorreo = isset($_GET['correo']) && in_array((string)$_GET['correo'], ['0'
     ? (string)$_GET['correo']
     : '';
 
+$filtroCatalogo = isset($_GET['catalogo']) && $_GET['catalogo'] === 'no_encontrado'
+    ? 'no_encontrado'
+    : '';
+
 $totales = [
     'total' => 0,
     'disponibles' => 0,
@@ -43,7 +43,8 @@ $totales = [
     'con_stock' => 0,
     'sin_stock' => 0,
     'correo_enviado' => 0,
-    'correo_no_enviado' => 0
+    'correo_no_enviado' => 0,
+    'no_encontrados' => 0
 ];
 
 try {
@@ -52,16 +53,21 @@ try {
     $conexion = getSqlServerConn();
 
     // 5. Consultar los totales generales directamente en la base de datos
+    // Se excluyen los artículos no encontrados de las métricas de stock y correo
     $sqlTotales = "
         SELECT
             COUNT(*) AS total,
-            SUM(CASE WHEN disponible = 1 THEN 1 ELSE 0 END) AS disponibles,
-            SUM(CASE WHEN disponible = 0 THEN 1 ELSE 0 END) AS no_disponibles,
-            SUM(CASE WHEN band_stock = 0 THEN 1 ELSE 0 END) AS con_stock,
-            SUM(CASE WHEN band_stock = 1 THEN 1 ELSE 0 END) AS sin_stock,
-            SUM(CASE WHEN band_correo = 1 THEN 1 ELSE 0 END) AS correo_enviado,
-            SUM(CASE WHEN band_correo = 0 THEN 1 ELSE 0 END) AS correo_no_enviado
-        FROM dbo.cfg_alerta_stock;
+            SUM(CASE WHEN cfg.disponible = 1 THEN 1 ELSE 0 END) AS disponibles,
+            SUM(CASE WHEN cfg.disponible = 0 THEN 1 ELSE 0 END) AS no_disponibles,
+            SUM(CASE WHEN m.art_codigo IS NOT NULL AND cfg.band_stock = 0 THEN 1 ELSE 0 END) AS con_stock,
+            SUM(CASE WHEN m.art_codigo IS NOT NULL AND cfg.band_stock = 1 THEN 1 ELSE 0 END) AS sin_stock,
+            SUM(CASE WHEN m.art_codigo IS NOT NULL AND cfg.band_correo = 1 THEN 1 ELSE 0 END) AS correo_enviado,
+            SUM(CASE WHEN m.art_codigo IS NOT NULL AND cfg.band_correo = 0 THEN 1 ELSE 0 END) AS correo_no_enviado,
+            SUM(CASE WHEN m.art_codigo IS NULL THEN 1 ELSE 0 END) AS no_encontrados
+        FROM dbo.cfg_alerta_stock cfg
+        LEFT JOIN dbo.mae_articulo m
+            ON m.emp_codigo = cfg.emp_codigo
+            AND m.art_codigo = cfg.art_codigo;
     ";
 
     $stmtTotales = sqlsrv_query($conexion, $sqlTotales);
@@ -75,7 +81,8 @@ try {
                 'con_stock' => (int) ($filaTotales['con_stock'] ?? 0),
                 'sin_stock' => (int) ($filaTotales['sin_stock'] ?? 0),
                 'correo_enviado' => (int) ($filaTotales['correo_enviado'] ?? 0),
-                'correo_no_enviado' => (int) ($filaTotales['correo_no_enviado'] ?? 0)
+                'correo_no_enviado' => (int) ($filaTotales['correo_no_enviado'] ?? 0),
+                'no_encontrados' => (int) ($filaTotales['no_encontrados'] ?? 0)
             ];
         }
         sqlsrv_free_stmt($stmtTotales);
@@ -85,26 +92,22 @@ try {
     $condiciones = [];
     $params = [];
 
-    // YA NO SE USA ESTO, IGUAL SE DEJA POR SI ACASO
-    if ($busqueda !== '') {
-        $condiciones[] = "(cfg.art_codigo LIKE ? OR m.art_nombre LIKE ?)";
-        $parametroBusqueda = $busqueda . '%';
-        $params[] = $parametroBusqueda;
-        $params[] = $parametroBusqueda;
-    }
-
     if ($filtroDisponible !== '') {
         $condiciones[] = "cfg.disponible = ?";
         $params[] = (int) $filtroDisponible;
     }
 
+    if ($filtroCatalogo === 'no_encontrado') {
+        $condiciones[] = "m.art_codigo IS NULL";
+    }
+
     if ($filtroStock !== '') {
-        $condiciones[] = "cfg.band_stock = ?";
+        $condiciones[] = "cfg.band_stock = ? AND m.art_codigo IS NOT NULL";
         $params[] = (int) $filtroStock;
     }
 
     if ($filtroCorreo !== '') {
-        $condiciones[] = "cfg.band_correo = ?";
+        $condiciones[] = "cfg.band_correo = ? AND m.art_codigo IS NOT NULL";
         $params[] = (int) $filtroCorreo;
     }
 
@@ -162,6 +165,7 @@ try {
             cfg.band_correo,
             cfg.disponible,
 
+            m.art_codigo AS mae_art_codigo,
             RTRIM(m.art_nombre) AS art_nombre,
 
             s.stock_actual AS stock_actual,
@@ -255,7 +259,7 @@ if (!function_exists('urlConFiltros')) {
     }
 }
 
-$hayFiltrosActivos = ($busqueda !== '' || $filtroDisponible !== '' || $filtroStock !== '' || $filtroCorreo !== '');
+$hayFiltrosActivos = ($filtroDisponible !== '' || $filtroStock !== '' || $filtroCorreo !== '' || $filtroCatalogo !== '');
 
 // Gestión de mensajes de notificación (éxito o error)
 $mensajeExito = null;
@@ -299,10 +303,11 @@ if (isset($_GET['toggle_dark_mode'])) {
     $valorCookie = $darkMode ? 'true' : 'false';
     $tiempoExpira = time() + (86400 * 30);
 
-    // Guardar en todas las rutas posibles para evitar cookies huérfanas
+    // Guardar ÚNICAMENTE en la raíz "/" para compartir con todas las páginas
     setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
-    setcookie('dark_mode', $valorCookie, $tiempoExpira, dirname($_SERVER['SCRIPT_NAME']));
-    setcookie('dark_mode', $valorCookie, $tiempoExpira);
+    // Limpiar posibles cookies antiguas en subrutas
+    setcookie('dark_mode', '', time() - 3600, dirname($_SERVER['SCRIPT_NAME']));
+    setcookie('dark_mode', '', time() - 3600);
 
     // Redirigir a la misma página para limpiar la URL de la variable GET
     header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
@@ -319,6 +324,19 @@ if (isset($_GET['toggle_dark_mode'])) {
         content="width=device-width, initial-scale=1.0"
     >
     <title>Sistema de Notificaciones</title>
+    <script>
+        // Sincronizar modo oscuro antes de renderizar para evitar parpadeos
+        (function() {
+            try {
+                const modo = localStorage.getItem('dark_mode');
+                if (modo === 'true') {
+                    document.documentElement.classList.add('dark-mode');
+                } else if (modo === 'false') {
+                    document.documentElement.classList.remove('dark-mode');
+                }
+            } catch (_) {}
+        })();
+    </script>
     <link rel="stylesheet" href="css/estilos.css">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
@@ -326,7 +344,7 @@ if (isset($_GET['toggle_dark_mode'])) {
 <main class="contenedor">
     <header class="encabezado">
         <div>
-            <h1>Sistema de Notificaciones</h1>
+            <h1>Sistema de Notificaciones - TINTAS Y SOLVENTES</h1>
         </div>
 
         <div class="encabezado-acciones">
@@ -407,6 +425,10 @@ if (isset($_GET['toggle_dark_mode'])) {
                     <strong><?= $totales['correo_no_enviado'] ?></strong>
                 </div>
             </div>
+
+            <?php if ($totales['no_encontrados'] > 0): ?>
+                <div class="resumen-separador"></div>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
@@ -426,6 +448,9 @@ if (isset($_GET['toggle_dark_mode'])) {
             <?php if ($filtroCorreo !== ''): ?>
                 <input type="hidden" name="correo" value="<?= escapar($filtroCorreo) ?>">
             <?php endif; ?>
+            <?php if ($filtroCatalogo !== ''): ?>
+                <input type="hidden" name="catalogo" value="<?= escapar($filtroCatalogo) ?>">
+            <?php endif; ?>
 
             <div class="busqueda-campo busqueda-campo-texto">
                 <label for="articulo">
@@ -434,10 +459,9 @@ if (isset($_GET['toggle_dark_mode'])) {
                 <input
                         type="search"
                         id="articulo"
-                        name="articulo"
                         maxlength="50"
-                        value="<?= escapar($busqueda) ?>"
                         placeholder="020100427 | ROJO BANDERA 409"
+                        autocomplete="off"
                 >
             </div>
             <div class="busqueda-acciones">
@@ -452,7 +476,7 @@ if (isset($_GET['toggle_dark_mode'])) {
             </div>
         </form>
 
-        <p id="busqueda-resultados" class="busqueda-resultados" style="<?= ($hayFiltrosActivos || $busqueda !== '') ? '' : 'display: none;' ?>">
+        <p id="busqueda-resultados" class="busqueda-resultados" style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>">
             <?php if ($hayFiltrosActivos): ?>
                 Filtros activos en base de datos — <strong><?= count($registros) ?></strong> <?= count($registros) === 1 ? 'registro encontrado' : 'registros encontrados' ?>.
                 <a href="index.php" style="margin-left: 8px; color: var(--color-primario); text-decoration: underline;">Quitar todos los filtros</a>
@@ -475,7 +499,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                             <span>Band. stock</span>
                             <button
                                 type="button"
-                                class="btn-filtro-columna <?= ($filtroStock !== '') ? 'filtro-activo' : '' ?>"
+                                class="btn-filtro-columna <?= ($filtroStock !== '' || $filtroCatalogo === 'no_encontrado') ? 'filtro-activo' : '' ?>"
                                 title="Filtrar por Stock"
                                 onclick="toggleMenuFiltro(event, 'menu-filtro-stock')"
                             >
@@ -485,15 +509,20 @@ if (isset($_GET['toggle_dark_mode'])) {
                             </button>
                         </div>
                         <div id="menu-filtro-stock" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['stock' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroStock === '') ? '✓' : '' ?></span> Todas las opciones
+                            <a href="<?= urlConFiltros(['stock' => '', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '' && $filtroCatalogo === '') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($filtroStock === '' && $filtroCatalogo === '') ? '✓' : '' ?></span> Todas las opciones
                             </a>
-                            <a href="<?= urlConFiltros(['stock' => '0']) ?>" class="opcion-filtro <?= ($filtroStock === '0') ? 'seleccionada' : '' ?>">
+                            <a href="<?= urlConFiltros(['stock' => '0', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '0') ? 'seleccionada' : '' ?>">
                                 <span class="indicador-check"><?= ($filtroStock === '0') ? '✓' : '' ?></span> Con Stock
                             </a>
-                            <a href="<?= urlConFiltros(['stock' => '1']) ?>" class="opcion-filtro <?= ($filtroStock === '1') ? 'seleccionada' : '' ?>">
+                            <a href="<?= urlConFiltros(['stock' => '1', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '1') ? 'seleccionada' : '' ?>">
                                 <span class="indicador-check"><?= ($filtroStock === '1') ? '✓' : '' ?></span> Sin Stock
                             </a>
+                            <?php if ($totales['no_encontrados'] > 0): ?>
+                                <a href="<?= urlConFiltros(['catalogo' => 'no_encontrado', 'stock' => '', 'correo' => '']) ?>" class="opcion-filtro <?= ($filtroCatalogo === 'no_encontrado') ? 'seleccionada' : '' ?>">
+                                    <span class="indicador-check"><?= ($filtroCatalogo === 'no_encontrado') ? '✓' : '' ?></span> No encontrado en catálogo
+                                </a>
+                            <?php endif; ?>
                         </div>
                     </th>
 
@@ -513,13 +542,13 @@ if (isset($_GET['toggle_dark_mode'])) {
                             </button>
                         </div>
                         <div id="menu-filtro-correo" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['correo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '') ? 'seleccionada' : '' ?>">
+                            <a href="<?= urlConFiltros(['correo' => '', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '') ? 'seleccionada' : '' ?>">
                                 <span class="indicador-check"><?= ($filtroCorreo === '') ? '✓' : '' ?></span> Todas las opciones
                             </a>
-                            <a href="<?= urlConFiltros(['correo' => '1']) ?>" class="opcion-filtro <?= ($filtroCorreo === '1') ? 'seleccionada' : '' ?>">
+                            <a href="<?= urlConFiltros(['correo' => '1', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '1') ? 'seleccionada' : '' ?>">
                                 <span class="indicador-check"><?= ($filtroCorreo === '1') ? '✓' : '' ?></span> Correo enviado
                             </a>
-                            <a href="<?= urlConFiltros(['correo' => '0']) ?>" class="opcion-filtro <?= ($filtroCorreo === '0') ? 'seleccionada' : '' ?>">
+                            <a href="<?= urlConFiltros(['correo' => '0', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '0') ? 'seleccionada' : '' ?>">
                                 <span class="indicador-check"><?= ($filtroCorreo === '0') ? '✓' : '' ?></span> Correo no enviado
                             </a>
                         </div>
@@ -572,20 +601,23 @@ if (isset($_GET['toggle_dark_mode'])) {
                         $estaDisponible = ((int) ($registro['disponible'] ?? 1) === 1);
                         $artCodigo = trim((string) ($registro['art_codigo'] ?? ''));
                         $artNombre = trim((string) ($registro['art_nombre'] ?? ''));
+                        $artEncontrado = !empty($registro['mae_art_codigo']);
                         ?>
                         <tr class="<?= $estaDisponible ? '' : 'fila-inactiva' ?>"
                             data-codigo="<?= escapar($artCodigo) ?>"
                             data-nombre="<?= escapar($artNombre) ?>">
                             <td>
                                 <strong>
-                                    <?= escapar($artNombre) ?: '<span class="badge badge-alerta">No encontrado</span>' ?>
+                                    <?= $artEncontrado ? escapar($artNombre) : '<span class="badge badge-alerta" title="El artículo no existe en el catálogo maestro (mae_articulo)">No encontrado</span>' ?>
                                 </strong>
                                 <span class="articulo-titulo">
                                     <?= escapar($artCodigo) ?>
                                 </span>
                             </td>
                             <td>
-                                <?php if ($registro['stock_actual'] === null): ?>
+                                <?php if (!$artEncontrado): ?>
+                                    <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
+                                <?php elseif ($registro['stock_actual'] === null): ?>
                                     <span class="badge badge-sin-datos">
                                     NULL
                                     </span>
@@ -613,14 +645,18 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 ) ?>
                             </td>
                             <td>
-                                <?php if ($registro['band_stock']): ?>
+                                <?php if (!$artEncontrado): ?>
+                                    <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
+                                <?php elseif ($registro['band_stock']): ?>
                                     <span class="badge badge-alerta">Alerta de stock</span>
                                 <?php else: ?>
                                     <span class="badge badge-activo">Con Stock</span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($registro['band_correo']): ?>
+                                <?php if (!$artEncontrado): ?>
+                                    <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
+                                <?php elseif ($registro['band_correo']): ?>
                                     <span class="badge badge-alerta">Correo enviado</span>
                                 <?php else: ?>
                                     <span class="badge badge-inactivo">Correo no enviado</span>
@@ -756,19 +792,30 @@ if (isset($_GET['toggle_dark_mode'])) {
 </main>
 
 <script>
-// Alternar modo oscuro / claro de forma instantánea sin recargar
+// Alternar modo oscuro / claro compartido globalmente en todas las páginas
 function toggleDarkMode(e) {
     if (e) e.preventDefault();
     const html = document.documentElement;
     const esOscuro = html.classList.toggle('dark-mode');
     const valor = esOscuro ? 'true' : 'false';
 
-    // Guardar en cookie para todas las rutas y limpiar duplicados
-    const expira = new Date(Date.now() + 86400 * 30 * 1000).toUTCString();
-    document.cookie = `dark_mode=${valor}; path=/; expires=${expira}`;
-    document.cookie = `dark_mode=${valor}; path=${window.location.pathname}; expires=${expira}`;
+    // 1. Limpiar cualquier cookie residual con ruta específica
+    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+    if (subpath) {
+        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    }
 
-    // Actualizar el emoji del botón
+    // 2. Guardar UNA sola cookie global en la raíz "/" (accesible por index, crear, editar, etc.)
+    document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
+
+    // 3. Guardar en localStorage (sincronización instantánea entre pestañas y páginas)
+    try {
+        localStorage.setItem('dark_mode', valor);
+    } catch (_) {}
+
+    // 4. Actualizar el emoji del botón
     const btn = document.getElementById('btn-toggle-dark');
     if (btn) {
         btn.textContent = esOscuro ? '🌞' : '🌚';
@@ -820,6 +867,12 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+
+    // 0. Sincronizar el emoji del botón según el estado activo de la página
+    const btnDark = document.getElementById('btn-toggle-dark');
+    if (btnDark) {
+        btnDark.textContent = document.documentElement.classList.contains('dark-mode') ? '🌞' : '🌚';
+    }
 
     // 1. Mostrar modales animados para mensajes de sesión o URL (sin incrustar alertas estáticas en el HTML)
     <?php if ($mensajeExito !== null): ?>
