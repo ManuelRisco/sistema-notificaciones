@@ -108,186 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         })();
     </script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
+    <link rel="stylesheet" href="css/login.css?v=<?= file_exists(__DIR__ . '/css/login.css') ? filemtime(__DIR__ . '/css/login.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
-    <style>
-        .login-wrapper {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px 16px;
-            background-color: var(--color-fondo);
-            position: relative;
-        }
-
-        .login-card {
-            width: 100%;
-            max-width: 420px;
-            background-color: var(--color-tarjeta);
-            border-radius: var(--radio-tarjeta);
-            border: 1px solid var(--color-borde);
-            box-shadow: var(--sombra-formulario);
-            padding: 28px 28px 32px 28px;
-            box-sizing: border-box;
-            animation: fadeIn 0.25s ease-out;
-            position: relative;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .login-top-bar {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 8px;
-        }
-
-        .login-header {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-
-        .login-logo {
-            display: inline-block;
-            max-width: 220px;
-            width: 100%;
-            height: auto;
-            margin-bottom: 18px;
-        }
-
-        .login-header h1 {
-            font-size: 19px;
-            margin: 0 0 6px 0;
-            color: var(--color-texto);
-            font-weight: 700;
-        }
-
-        .login-header p {
-            margin: 0;
-            font-size: 13px;
-            color: var(--color-texto-muted);
-        }
-
-        .login-form .campo {
-            margin-bottom: 18px;
-        }
-
-        .login-form label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--color-texto);
-        }
-
-        .password-container {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .password-container input {
-            width: 100%;
-            padding-right: 42px;
-        }
-
-        .btn-toggle-pass {
-            position: absolute;
-            right: 8px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: var(--color-texto-muted);
-            padding: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            border-radius: 4px;
-        }
-
-        .btn-toggle-pass:hover {
-            color: var(--color-texto);
-        }
-
-        .btn-login-submit {
-            width: 100%;
-            padding: 12px;
-            font-size: 14.5px;
-            font-weight: 600;
-            margin-top: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .alerta-login {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 11px 14px;
-            border-radius: var(--radio-control);
-            font-size: 13px;
-            margin-bottom: 18px;
-            line-height: 1.4;
-            opacity: 1;
-            max-height: 120px;
-            overflow: hidden;
-            transition: opacity 0.4s ease, max-height 0.4s ease, margin 0.4s ease, padding 0.4s ease;
-        }
-
-        .alerta-login.oculta {
-            opacity: 0 !important;
-            max-height: 0 !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            border-top-width: 0 !important;
-            border-bottom-width: 0 !important;
-            pointer-events: none;
-        }
-
-        .alerta-login-cerrar {
-            background: none;
-            border: none;
-            font-size: 18px;
-            line-height: 1;
-            cursor: pointer;
-            padding: 0 4px;
-            opacity: 0.7;
-            color: inherit;
-        }
-
-        .alerta-login-cerrar:hover {
-            opacity: 1;
-        }
-
-        .alerta-login-error {
-            background-color: var(--color-peligro-fondo);
-            color: var(--color-peligro-texto);
-            border: 1px solid var(--color-peligro-borde);
-        }
-
-        .alerta-login-info {
-            background-color: var(--color-exito-fondo);
-            color: var(--color-exito-texto);
-            border: 1px solid var(--color-exito-borde);
-        }
-
-        .login-footer {
-            margin-top: 24px;
-            text-align: center;
-            font-size: 11.5px;
-            color: var(--color-texto-muted);
-            border-top: 1px solid var(--color-borde);
-            padding-top: 14px;
-        }
-    </style>
 </head>
 <body>
 <div class="login-wrapper">
@@ -304,17 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="login-header">
-            <img src="img/tecnofilm.png" alt="Tecnofilm" class="login-logo">
+            <img src="img/tecnofilm.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm.png') ? filemtime(__DIR__ . '/img/tecnofilm.png') : time() ?>" alt="Tecnofilm" class="login-logo logo-claro">
+            <img src="img/tecnofilm_dark.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm_dark.png') ? filemtime(__DIR__ . '/img/tecnofilm_dark.png') : time() ?>" alt="Tecnofilm" class="login-logo logo-oscuro">
             <h1>Sistema de Notificaciones</h1>
             <p>Login de Acceso</p>
         </div>
-
-        <?php if ($esLogout): ?>
-            <div id="alerta-logout" class="alerta-login alerta-login-info">
-                <span>Has cerrado sesión correctamente.</span>
-                <button type="button" class="alerta-login-cerrar" onclick="cerrarAlerta(this.parentElement)" title="Cerrar">&times;</button>
-            </div>
-        <?php endif; ?>
 
         <div id="mensaje-error" class="alerta-login alerta-login-error" style="<?= $error !== null ? '' : 'display: none;' ?>">
             <span id="mensaje-error-texto"><?= htmlspecialchars((string) $error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>

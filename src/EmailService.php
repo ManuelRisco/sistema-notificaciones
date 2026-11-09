@@ -11,11 +11,12 @@ use RuntimeException;
 
 class EmailService
 {
-    private string $host = 'smtp.gmail.com';
-    private int $port = 587;
+    private string $host;
+    private int $port;
 
     private string $username;
     private string $password;
+    private string $fromEmail;
     private string $fromName;
     private string $rutaLogoFooter;
 
@@ -23,31 +24,47 @@ class EmailService
     {
         $raizProyecto = dirname(__DIR__);
 
-        if (
-            file_exists($raizProyecto . '/.env')
-            && class_exists(Dotenv::class)
-        ) {
-            $dotenv = Dotenv::createImmutable($raizProyecto);
-            $dotenv->safeLoad();
+        if (!class_exists(Dotenv::class)) {
+            throw new RuntimeException(
+                'No está instalada la dependencia vlucas/phpdotenv. Ejecuta composer require vlucas/phpdotenv.'
+            );
         }
 
-        $zonaHoraria = !empty($_ENV['APP_TIMEZONE'])
-            ? (string)$_ENV['APP_TIMEZONE']
-            : ((string)getenv('APP_TIMEZONE') ?: 'America/Lima');
-
-        if (trim($zonaHoraria) === '') {
-            $zonaHoraria = 'America/Lima';
+        if (!is_file($raizProyecto . '/.env')) {
+            throw new RuntimeException(
+                'No se encontró el archivo .env en la raíz del proyecto.'
+            );
         }
 
-        date_default_timezone_set($zonaHoraria);
+        // Cargar obligatoriamente la configuración desde el archivo .env.
+        $dotenv = Dotenv::createImmutable($raizProyecto);
+        $dotenv->load();
 
-        $this->username = $this->obtenerVariable('SMTP_USER');
-        $this->password = $this->obtenerVariable('SMTP_PASSWORD');
+        $dotenv->required([
+            'APP_TIMEZONE',
+            'SISTEMAS_MAIL_HOST',
+            'SISTEMAS_MAIL_PORT',
+            'SISTEMAS_MAIL_USERNAME',
+            'SISTEMAS_MAIL_PASSWORD',
+            'SISTEMAS_MAIL_FROM',
+            'SISTEMAS_MAIL_DESTINO',
+            'SISTEMAS_MAIL_FROM_NAME',
+        ])->notEmpty();
 
-        $this->fromName = $this->obtenerVariable(
-            'SMTP_FROM_NAME',
-            'Sistema de Alertas de Stock'
+        date_default_timezone_set(
+            $this->obtenerVariable('APP_TIMEZONE')
         );
+
+        $this->host = $this->obtenerVariable('SISTEMAS_MAIL_HOST');
+        $this->port = (int) $this->obtenerVariable('SISTEMAS_MAIL_PORT');
+        $this->username = $this->obtenerVariable('SISTEMAS_MAIL_USERNAME');
+        // No aplicar trim a la contraseña: debe conservarse exactamente.
+        $this->password = $this->obtenerVariable(
+            'SISTEMAS_MAIL_PASSWORD',
+            false
+        );
+        $this->fromEmail = $this->obtenerVariable('SISTEMAS_MAIL_FROM');
+        $this->fromName = $this->obtenerVariable('SISTEMAS_MAIL_FROM_NAME');
 
         // Ruta del logo del footer (relativa a la raíz del proyecto).
         $this->rutaLogoFooter = $raizProyecto
@@ -58,27 +75,23 @@ class EmailService
 
     private function obtenerVariable(
         string $nombre,
-        ?string $predeterminado = null
+        bool $recortar = true
     ): string {
-        $valor = $_ENV[$nombre]
-            ?? $_SERVER[$nombre]
-            ?? getenv($nombre);
-
-        if (
-            $valor === false
-            || $valor === null
-            || trim((string) $valor) === ''
-        ) {
-            if ($predeterminado !== null) {
-                return $predeterminado;
-            }
-
+        if (!array_key_exists($nombre, $_ENV) || !is_string($_ENV[$nombre])) {
             throw new RuntimeException(
                 "No se configuró la variable {$nombre} en el archivo .env."
             );
         }
 
-        return trim((string) $valor);
+        $valor = $_ENV[$nombre];
+
+        if ($recortar && trim($valor) === '') {
+            throw new RuntimeException(
+                "La variable {$nombre} del archivo .env está vacía."
+            );
+        }
+
+        return $recortar ? trim($valor) : $valor;
     }
 
     /**
@@ -105,15 +118,7 @@ class EmailService
      */
     public function obtenerDestinatariosPredeterminados(): array
     {
-        $cadena = $_ENV['SMTP_TO_EMAIL']
-            ?? $_ENV['SMTP_TO_EMAILS']
-            ?? $_SERVER['SMTP_TO_EMAIL']
-            ?? $_SERVER['SMTP_TO_EMAILS']
-            ?? getenv('SMTP_TO_EMAIL');
-
-        if (!is_string($cadena) || trim($cadena) === '') {
-            return [];
-        }
+        $cadena = $this->obtenerVariable('SISTEMAS_MAIL_DESTINO');
 
         $correos = preg_split('/[,;]+/', $cadena) ?: [];
 
@@ -167,7 +172,7 @@ class EmailService
 
         if (empty($listaDestinatarios)) {
             throw new RuntimeException(
-                'No hay destinatarios configurados en SMTP_TO_EMAIL.'
+                'No hay destinatarios configurados en SISTEMAS_MAIL_DESTINO.'
             );
         }
 
@@ -524,7 +529,7 @@ class EmailService
     }
 
     /**
-     * Envía un correo mediante Gmail SMTP.
+     * Envía un correo mediante SMTP de Microsoft 365 / Outlook.
      */
     public function enviarCorreo(
         string|array $destinatarios,
@@ -562,7 +567,7 @@ class EmailService
 
             // No desactivar la validación de certificados TLS.
             $mail->setFrom(
-                $this->username,
+                $this->fromEmail,
                 $this->fromName
             );
 
@@ -602,7 +607,7 @@ class EmailService
         } catch (PHPMailerException $e) {
 
             throw new RuntimeException(
-                'Error al enviar correo mediante Gmail: '
+                'Error al enviar correo mediante Microsoft 365 / Outlook: '
                 . $mail->ErrorInfo,
                 0,
                 $e
