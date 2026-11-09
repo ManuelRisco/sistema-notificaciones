@@ -75,6 +75,7 @@ try {
 
     // 5. Borrado Lógico: en lugar de DELETE físico, actualizamos "disponible".
     // Si la acción es reactivar, disponible = 1; si es eliminar, disponible = 0.
+    // Al cambiar de estado, se conservan las banderas de stock y correo intactas.
     $nuevoEstado = ($accion === 'reactivar') ? 1 : 0;
 
     $sql = "
@@ -188,7 +189,7 @@ if ($esAjax && $error !== null) {
 <head>
     <meta charset="UTF-8">
     <title>Error</title>
-    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
 </head>
 <body>
 <main class="contenedor">

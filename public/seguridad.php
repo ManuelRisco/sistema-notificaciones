@@ -6,6 +6,13 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+require_once __DIR__ . '/autenticacion.php';
+
+// Si no es una página pública (como login.php o logout.php), exigir sesión
+if (!defined('PAGINA_PUBLICA') || PAGINA_PUBLICA !== true) {
+    requerirAutenticacion();
+}
+
 /**
  * Genera un token de seguridad para los formularios.
  */

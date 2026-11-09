@@ -17,6 +17,7 @@ class EmailService
     private string $username;
     private string $password;
     private string $fromName;
+    private string $rutaLogoFooter;
 
     public function __construct()
     {
@@ -47,6 +48,12 @@ class EmailService
             'SMTP_FROM_NAME',
             'Sistema de Alertas de Stock'
         );
+
+        // Ruta del logo del footer (relativa a la raíz del proyecto).
+        $this->rutaLogoFooter = $raizProyecto
+            . DIRECTORY_SEPARATOR . 'public'
+            . DIRECTORY_SEPARATOR . 'img'
+            . DIRECTORY_SEPARATOR . 'tecnofilm.png';
     }
 
     private function obtenerVariable(
@@ -90,17 +97,7 @@ class EmailService
             $destinatarios = preg_split('/[,;]+/', $destinatarios) ?: [];
         }
 
-        $limpios = [];
-
-        foreach ($destinatarios as $correo) {
-            $correo = trim((string) $correo);
-
-            if ($correo !== '') {
-                $limpios[] = $correo;
-            }
-        }
-
-        return array_values(array_unique($limpios));
+        return $this->normalizarLista($destinatarios);
     }
 
     /**
@@ -328,10 +325,16 @@ class EmailService
 
     <tr>
         <td style='padding:9px 14px;background-color:#fafafa;border-bottom:1px solid #eeeeee;'>
-            <div style='font-size:12px;color:#555555;line-height:1.5;'>
-                <span style='margin-right:12px;'><strong style='color:#333333;'>Categoría:</strong> {$categoriaHtml}</span>
-                <span style='margin-right:12px;'><strong style='color:#333333;'>Familia:</strong> {$famNombreHtml}</span>
-                <span><strong style='color:#333333;'>Tipo familia:</strong> {$tfaNombreHtml}</span>
+            <div style='font-size:12px;color:#555555;line-height:1.6;'>
+                <div style='margin-bottom:3px;'>
+                    <strong style='color:#333333;display:inline-block;min-width:85px;'>Categoría:</strong> {$categoriaHtml}
+                </div>
+                <div style='margin-bottom:3px;'>
+                    <strong style='color:#333333;display:inline-block;min-width:85px;'>Familia:</strong> {$famNombreHtml}
+                </div>
+                <div>
+                    <strong style='color:#333333;display:inline-block;min-width:85px;'>Tipo familia:</strong> {$tfaNombreHtml}
+                </div>
             </div>
         </td>
     </tr>
@@ -363,7 +366,7 @@ class EmailService
             </div>
         </td>
     </tr>
-    
+
     <tr>
         <td style='padding:0 14px 14px 14px;'>
             <div style='font-size:13px;color:#666666;'>
@@ -386,7 +389,9 @@ class EmailService
             $lineasTexto[] =
                 "Código: {$codigo}\n"
                 . "Descripción: {$descripcion}\n"
-                . "Categoría: " . ($categoria !== '' ? $categoria : '—') . " | Familia: " . ($famNombre !== '' ? $famNombre : '—') . " | Tipo familia: " . ($tfaNombre !== '' ? $tfaNombre : '—') . "\n"
+                . "Categoría: " . ($categoria !== '' ? $categoria : '—') . "\n"
+                . "Familia: " . ($famNombre !== '' ? $famNombre : '—') . "\n"
+                . "Tipo familia: " . ($tfaNombre !== '' ? $tfaNombre : '—') . "\n"
                 . "Stock actual: {$stockFormato} {$unidad}\n"
                 . "Stock mínimo: {$minimoFormato} {$unidad}\n"
                 . "Stock a reponer: {$faltanteValorTexto}\n";
@@ -395,7 +400,46 @@ class EmailService
         $cantidad = count($articulos);
         $fecha = date('d/m/Y H:i:s');
 
-        $asunto = "ALERTA DE STOCK: {$cantidad} artículos requieren atención";
+        $textoCantidad = $cantidad === 1
+            ? '1 artículo requiere atención'
+            : "{$cantidad} artículos requieren atención";
+
+        $asunto = "ALERTA DE STOCK: {$textoCantidad}";
+
+        // Logo y aviso en el pie de página
+        $logoImgHtml = '';
+
+        if (is_file($this->rutaLogoFooter)) {
+            $logoImgHtml = "
+        <img
+            src='cid:tecnofilm'
+            alt='Tecnofilm'
+            width='260'
+            style='display:inline-block;max-width:260px;width:100%;height:auto;border:0;'
+        >";
+        } else {
+            error_log(
+                'Logo del footer no encontrado: ' . $this->rutaLogoFooter
+            );
+        }
+
+        $footerHtml = "
+    <div style='
+        border-top:1px solid #e2e8f0;
+        padding:18px 12px;
+        text-align:center;
+        background-color:#ffffff;
+    '>
+        {$logoImgHtml}
+        <p style='
+            margin:" . ($logoImgHtml !== '' ? '12px' : '0') . " 0 0 0;
+            font-size:11.5px;
+            color:#888888;
+            line-height:1.4;
+        '>
+            Este es un correo automático, no mande una respuesta por aquí.
+        </p>
+    </div>";
 
         $cuerpoHtml = "
 <div style='
@@ -425,7 +469,7 @@ class EmailService
             margin:10px 0 0 0;
             font-size:14px;
         '>
-            {$cantidad} artículos requieren atención.
+            {$textoCantidad}.
         </p>
     </div>
 
@@ -455,7 +499,7 @@ class EmailService
         </p>
 
     </div>
-
+{$footerHtml}
 </div>";
 
         $cuerpoTexto =
@@ -468,7 +512,8 @@ class EmailService
                 "\n------------------------------------\n",
                 $lineasTexto
             )
-            . "\nSe requiere gestionar la reposición de estos artículos.";
+            . "\nSe requiere gestionar la reposición de estos artículos.\n\n"
+            . "Este es un correo automático, no mande una respuesta por aquí.";
 
         return $this->enviarCorreo(
             $listaDestinatarios,
@@ -540,6 +585,15 @@ class EmailService
             $mail->AltBody = $cuerpoTexto !== ''
                 ? $cuerpoTexto
                 : strip_tags($cuerpoHtml);
+
+            // Logo embebido: el cid debe coincidir con src='cid:tecnofilm'.
+            if (is_file($this->rutaLogoFooter)) {
+                $mail->addEmbeddedImage(
+                    $this->rutaLogoFooter,
+                    'tecnofilm',
+                    basename($this->rutaLogoFooter)
+                );
+            }
 
             $mail->send();
 

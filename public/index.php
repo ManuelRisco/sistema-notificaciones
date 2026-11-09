@@ -120,7 +120,7 @@ try {
     }
 
     if ($filtroCategoria !== '') {
-        $condiciones[] = "RTRIM(ta.tar_nombre) = ?";
+        $condiciones[] = "RTRIM(l.lin_nombre) = ?";
         $params[] = $filtroCategoria;
     }
 
@@ -191,7 +191,7 @@ try {
             m.art_codigo AS mae_art_codigo,
             RTRIM(m.art_nombre) AS art_nombre,
             RTRIM(d.ume_abrv) AS unidad_medida,
-            RTRIM(ta.tar_nombre) AS categoria,
+            RTRIM(l.lin_nombre) AS categoria,
             RTRIM(f.fam_nombre) AS fam_nombre,
             RTRIM(tf.tfa_nombre) AS tfa_nombre,
 
@@ -212,8 +212,8 @@ try {
         LEFT JOIN dbo.mae_cabumedida d
             ON d.ume_codigo = m.ume_codigo
 
-        LEFT JOIN dbo.mae_tpoarticulo ta
-            ON ta.tar_codigo = m.tar_codigo
+        LEFT JOIN dbo.mae_linea l
+            ON l.lin_codigo = m.lin_codigo
 
         LEFT JOIN dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
@@ -259,15 +259,15 @@ try {
     // 9. Consultar opciones distintas de Detalle (Categoría, Familia, Tipo familia)
     $sqlOpcionesDetalle = "
         SELECT DISTINCT
-            RTRIM(ta.tar_nombre) AS categoria,
+            RTRIM(l.lin_nombre) AS categoria,
             RTRIM(f.fam_nombre) AS fam_nombre,
             RTRIM(tf.tfa_nombre) AS tfa_nombre
         FROM dbo.cfg_alerta_stock cfg
         INNER JOIN dbo.mae_articulo m
             ON m.emp_codigo = cfg.emp_codigo
             AND m.art_codigo = cfg.art_codigo
-        LEFT JOIN dbo.mae_tpoarticulo ta
-            ON ta.tar_codigo = m.tar_codigo
+        LEFT JOIN dbo.mae_linea l
+            ON l.lin_codigo = m.lin_codigo
         LEFT JOIN dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
             AND f.tar_codigo = m.tar_codigo
@@ -439,40 +439,57 @@ if (isset($_GET['toggle_dark_mode'])) {
             } catch (_) {}
         })();
     </script>
-    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
 <body>
 <main class="contenedor">
     <header class="encabezado">
-        <div>
-            <h1>Sistema de Notificaciones - TINTAS Y SOLVENTES</h1>
+        <div class="encabezado-info">
+            <h1>ALMACÉN - TINTAS Y SOLVENTES</h1>
+            <p>Sistema de Alertas y Monitoreo de Stock Mínimo</p>
         </div>
 
-        <div class="encabezado-acciones">
-            <a href="index.php" class="btn btn-secundario">
-                <img src="img/repetir.png" class="icono-invertible" alt="Imagen para actualizar pagina" style="width: 20px; height: 20px;">
-            </a>
-            <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
-                <input type="hidden" name="csrf_token" value="<?= escapar(generarTokenCsrf()) ?>">
-                <button
-                    type="submit"
-                    class="btn btn-ejecutar"
-                >
-                    Revisar Stock
-                </button>
-            </form>
-            <a href="crear.php" class="btn btn-primario">
-                + Nuevo registro
-            </a>
-            <!-- Botón para alternar el modo -->
-            <a href="?toggle_dark_mode=1"
-               id="btn-toggle-dark"
-               onclick="toggleDarkMode(event)"
-               style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);"
-               title="Alternar modo claro / oscuro">
-                <?php echo $darkMode ? '🌞' : '🌚'; ?>
-            </a>
+        <div class="encabezado-derecha">
+            <div class="encabezado-usuario-barra">
+                <?php
+                $usuarioSesion = obtenerUsuarioAutenticado();
+                if (!empty($usuarioSesion)):
+                ?>
+                    <div class="usuario-sesion-pill" title="Usuario: <?= escapar($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= escapar($usuarioSesion['pus_codigo'] ?? '') ?>">
+                        <span class="usuario-sesion-nombre"><?= escapar($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                    </div>
+                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
+                        Salir
+                    </a>
+                <?php endif; ?>
+                <!-- Botón para alternar el modo -->
+                <a href="?toggle_dark_mode=1"
+                   id="btn-toggle-dark"
+                   onclick="toggleDarkMode(event)"
+                   class="btn-toggle-dark"
+                   title="Alternar modo claro / oscuro">
+                    <?php echo $darkMode ? '🌞' : '🌚'; ?>
+                </a>
+            </div>
+
+            <div class="encabezado-acciones">
+                <a href="index.php" class="btn btn-secundario btn-icono-actualizar" title="Actualizar datos">
+                    <img src="img/repetir.png" class="icono-invertible" alt="Actualizar" style="width: 18px; height: 18px;">
+                </a>
+                <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
+                    <input type="hidden" name="csrf_token" value="<?= escapar(generarTokenCsrf()) ?>">
+                    <button
+                        type="submit"
+                        class="btn btn-ejecutar"
+                    >
+                        Revisar Stock
+                    </button>
+                </form>
+                <a href="crear.php" class="btn btn-primario">
+                    + Nuevo registro
+                </a>
+            </div>
         </div>
     </header>
 
@@ -906,7 +923,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                                     <?php if ($estaDisponible): ?>
                                         <!-- Borrado lógico (Desactivar) -->
                                         <form
-                                            action="eliminar.php"
+                                            action="cambiar_estado.php"
                                             method="POST"
                                             class="form-eliminar"
                                         >
@@ -965,7 +982,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                                     <?php else: ?>
                                         <!-- Reactivar registro -->
                                         <form
-                                            action="eliminar.php"
+                                            action="cambiar_estado.php"
                                             method="POST"
                                             class="form-eliminar"
                                         >
@@ -1309,7 +1326,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const formData = new FormData(form);
                     formData.append('formato', 'json');
 
-                    fetch('eliminar.php', {
+                    fetch('cambiar_estado.php', {
                         method: 'POST',
                         headers: {
                             'Accept': 'application/json',

@@ -74,7 +74,7 @@ class StockRepository
                 cfg.alm_codigo,
                 RTRIM(d.ume_abrv) AS unidad_medida,
 
-                RTRIM(ta.tar_nombre) AS categoria,
+                RTRIM(l.lin_nombre) AS categoria,
                 RTRIM(f.fam_nombre) AS fam_nombre,
                 RTRIM(tf.tfa_nombre) AS tfa_nombre,
 
@@ -94,8 +94,8 @@ class StockRepository
             LEFT JOIN dbo.mae_cabumedida d
                 ON c.ume_codigo = d.ume_codigo
 
-            LEFT JOIN dbo.mae_tpoarticulo ta
-                ON ta.tar_codigo = c.tar_codigo
+            LEFT JOIN dbo.mae_linea l
+                ON l.lin_codigo = c.lin_codigo
 
             LEFT JOIN dbo.mae_familia f
                 ON f.emp_codigo = c.emp_codigo

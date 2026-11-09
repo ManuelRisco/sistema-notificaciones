@@ -69,7 +69,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 RTRIM(m.art_codigo) AS art_codigo, 
                 RTRIM(m.art_nombre) AS art_nombre,
                 RTRIM(d.ume_abrv) AS unidad_medida,
-                RTRIM(ta.tar_nombre) AS categoria,
+                RTRIM(l.lin_nombre) AS categoria,
                 RTRIM(f.fam_nombre) AS fam_nombre,
                 RTRIM(tf.tfa_nombre) AS tfa_nombre,
                 s.stock_actual,
@@ -80,8 +80,8 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 AND m.art_codigo = obj.art_codigo
             LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
                 ON m.ume_codigo = d.ume_codigo
-            LEFT JOIN TECNOTEST.dbo.mae_tpoarticulo ta
-                ON ta.tar_codigo = m.tar_codigo
+            LEFT JOIN TECNOTEST.dbo.mae_linea l
+                ON l.lin_codigo = m.lin_codigo
             LEFT JOIN TECNOTEST.dbo.mae_familia f
                 ON f.emp_codigo = m.emp_codigo
                 AND f.tar_codigo = m.tar_codigo
@@ -97,8 +97,8 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 AND s.alm_codigo = obj.alm_codigo
             LEFT JOIN TECNOTEST.dbo.cfg_alerta_stock c
                 ON c.emp_codigo = obj.emp_codigo
-               AND c.alm_codigo = obj.alm_codigo
-               AND c.art_codigo = obj.art_codigo
+                AND c.alm_codigo = obj.alm_codigo
+                AND c.art_codigo = obj.art_codigo
             ORDER BY m.art_nombre ASC;
         ";
 
@@ -200,15 +200,15 @@ try {
         SELECT 
             RTRIM(m.art_nombre) AS art_nombre,
             RTRIM(d.ume_abrv) AS unidad_medida,
-            RTRIM(ta.tar_nombre) AS categoria,
+            RTRIM(l.lin_nombre) AS categoria,
             RTRIM(f.fam_nombre) AS fam_nombre,
             RTRIM(tf.tfa_nombre) AS tfa_nombre,
             s.stock_actual
         FROM TECNOTEST.dbo.mae_articulo m
         LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
             ON m.ume_codigo = d.ume_codigo
-        LEFT JOIN TECNOTEST.dbo.mae_tpoarticulo ta
-            ON ta.tar_codigo = m.tar_codigo
+        LEFT JOIN TECNOTEST.dbo.mae_linea l
+            ON l.lin_codigo = m.lin_codigo
         LEFT JOIN TECNOTEST.dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
             AND f.tar_codigo = m.tar_codigo

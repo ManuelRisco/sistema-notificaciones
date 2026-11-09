@@ -20,6 +20,9 @@ $almCodigo = '003';
 $artCodigo = '';
 $artNombre = '';
 $stockMinimo = '';
+$categoria = '';
+$famNombre = '';
+$tfaNombre = '';
 
 $error = null;
 $guardado = false;
@@ -36,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 2. Recibir los datos editables.
         $artCodigo = trim($_POST['art_codigo'] ?? '');
         $stockMinimo = trim($_POST['stock_minimo'] ?? '');
+        $categoria = trim($_POST['categoria'] ?? '');
+        $famNombre = trim($_POST['fam_nombre'] ?? '');
+        $tfaNombre = trim($_POST['tfa_nombre'] ?? '');
 
         // 3. Validar campos.
         if ($artCodigo === '' || $stockMinimo === '') {
@@ -256,28 +262,43 @@ if (isset($_GET['toggle_dark_mode'])) {
             } catch (_) {}
         })();
     </script>
-    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
 <body>
 <main class="contenedor contenedor-formulario">
     <header class="encabezado">
-        <div>
+        <div class="encabezado-info">
             <h1>Nuevo registro</h1>
             <p>Agregar una configuración de stock mínimo.</p>
         </div>
-        <div class="encabezado-acciones">
-            <a href="index.php" class="btn btn-secundario">
-                ← Volver
-            </a>
-            <!-- Botón para alternar el modo -->
-            <a href="?toggle_dark_mode=1"
-               id="btn-toggle-dark"
-               onclick="toggleDarkMode(event)"
-               style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 24px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);"
-               title="Alternar modo claro / oscuro">
-                <?php echo $darkMode ? '🌞' : '🌚'; ?>
-            </a>
+        <div class="encabezado-derecha">
+            <div class="encabezado-usuario-barra">
+                <?php
+                $usuarioSesion = obtenerUsuarioAutenticado();
+                if (!empty($usuarioSesion)):
+                ?>
+                    <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
+                        <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                    </div>
+                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
+                        Salir
+                    </a>
+                <?php endif; ?>
+                <!-- Botón para alternar el modo -->
+                <a href="?toggle_dark_mode=1"
+                   id="btn-toggle-dark"
+                   onclick="toggleDarkMode(event)"
+                   class="btn-toggle-dark"
+                   title="Alternar modo claro / oscuro">
+                    <?php echo $darkMode ? '🌞' : '🌚'; ?>
+                </a>
+            </div>
+            <div class="encabezado-acciones">
+                <a href="index.php" class="btn btn-secundario">
+                    ← Volver
+                </a>
+            </div>
         </div>
     </header>
 
@@ -316,6 +337,54 @@ if (isset($_GET['toggle_dark_mode'])) {
                 </button>
             </div>
             <div id="info_articulo" class="info-articulo"></div>
+        </div>
+
+        <!-- Categoría -->
+        <div class="campo">
+            <label for="art_categoria">
+                Categoría
+            </label>
+            <input
+                type="text"
+                id="art_categoria"
+                name="categoria"
+                value="<?= h($categoria) ?>"
+                autocomplete="off"
+                readonly
+                placeholder="—"
+            >
+        </div>
+
+        <!-- Familia -->
+        <div class="campo">
+            <label for="art_familia">
+                Familia
+            </label>
+            <input
+                type="text"
+                id="art_familia"
+                name="fam_nombre"
+                value="<?= h($famNombre) ?>"
+                autocomplete="off"
+                readonly
+                placeholder="—"
+            >
+        </div>
+
+        <!-- Tipo familia -->
+        <div class="campo">
+            <label for="art_tipo_familia">
+                Tipo familia
+            </label>
+            <input
+                type="text"
+                id="art_tipo_familia"
+                name="tfa_nombre"
+                value="<?= h($tfaNombre) ?>"
+                autocomplete="off"
+                readonly
+                placeholder="—"
+            >
         </div>
 
         <!-- Stock mínimo -->
@@ -437,17 +506,18 @@ function abrirModalCatalogo() {
                     return;
                 }
 
+                // Código del artículo que actualmente está seleccionado en el formulario
+                const codigoActualEnFormulario = (document.getElementById('art_codigo')?.value || '').trim();
+
                 let html = '<table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; text-align: left;">';
                 html += `
                     <thead>
                         <tr style="background: var(--color-secundario-fondo); position: sticky; top: 0; z-index: 2; border-bottom: 1.5px solid var(--color-borde);">
                             <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase;">Código</th>
                             <th style="padding: 8px 6px; font-size: 11px; text-transform: uppercase;">Artículo</th>
-                            <th style="padding: 8px 6px; width: 140px; font-size: 11px; text-transform: uppercase;">Categoría</th>
-                            <th style="padding: 8px 6px; width: 165px; font-size: 11px; text-transform: uppercase;">Familia</th>
-                            <th style="padding: 8px 6px; width: 130px; font-size: 11px; text-transform: uppercase;">Tipo familia</th>
+                            <th style="padding: 8px 6px; width: 230px; font-size: 11px; text-transform: uppercase;">Clasificación</th>
                             <th style="padding: 8px 6px; width: 115px; font-size: 11px; text-transform: uppercase; text-align: right;">Stock real</th>
-                            <th style="padding: 8px 6px; width: 85px; font-size: 11px; text-transform: uppercase; text-align: center;">Acción</th>
+                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase; text-align: center;">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -455,6 +525,8 @@ function abrirModalCatalogo() {
 
                 items.forEach(art => {
                     const metaTexto = `${art.categoria || ''} ${art.fam_nombre || ''} ${art.tfa_nombre || ''}`.trim();
+                    const esEnUso = (codigoActualEnFormulario !== '' && art.codigo === codigoActualEnFormulario);
+
                     html += `
                         <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeModalText(art.codigo)}" data-nombre="${escapeModalText(art.nombre)}" data-meta="${escapeModalText(metaTexto)}">
                             <td style="padding: 8px 6px; font-weight: 700; font-family: monospace; font-size: 12.5px; word-break: break-all;">
@@ -463,14 +535,12 @@ function abrirModalCatalogo() {
                             <td style="padding: 8px 6px; line-height: 1.3; font-size: 12.5px; font-weight: 600; color: #1e293b; word-break: break-word;">
                                 ${escapeModalText(art.nombre)}
                             </td>
-                            <td style="padding: 8px 6px; font-size: 12px; color: #334155; word-break: break-word;">
-                                ${escapeModalText(art.categoria || '—')}
-                            </td>
-                            <td style="padding: 8px 6px; font-size: 12px; color: #334155; word-break: break-word;">
-                                ${escapeModalText(art.fam_nombre || '—')}
-                            </td>
-                            <td style="padding: 8px 6px; font-size: 12px; color: #334155; word-break: break-word;">
-                                ${escapeModalText(art.tfa_nombre || '—')}
+                            <td style="padding: 6px; font-size: 12px; line-height: 1.35; color: #334155;">
+                                <div style="display: flex; flex-direction: column; gap: 2px;">
+                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Categoría:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.categoria || '—')}</strong></div>
+                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Familia:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.fam_nombre || '—')}</strong></div>
+                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Tipo fam:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.tfa_nombre || '—')}</strong></div>
+                                </div>
                             </td>
                             <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
                                 <span class="articulo-stock-tag" style="font-size: 11.5px; padding: 2px 6px;">
@@ -478,9 +548,10 @@ function abrirModalCatalogo() {
                                 </span>
                             </td>
                             <td style="padding: 8px 6px; text-align: center; white-space: nowrap;">
-                                <button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeModalText(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">
-                                    Elegir
-                                </button>
+                                ${esEnUso
+                                    ? `<span class="badge badge-activo" style="font-size: 11px; padding: 4px 6px;">En uso</span>`
+                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeModalText(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">Elegir</button>`
+                                }
                             </td>
                         </tr>
                     `;
@@ -502,6 +573,15 @@ function abrirModalCatalogo() {
                     b.addEventListener('click', function() {
                         const cod = this.getAttribute('data-codigo');
                         const inp = document.getElementById('art_codigo');
+                        const artObj = catalogoCache ? catalogoCache.find(x => x.codigo === cod) : null;
+                        if (artObj) {
+                            const inputCat = document.getElementById('art_categoria');
+                            const inputFam = document.getElementById('art_familia');
+                            const inputTfa = document.getElementById('art_tipo_familia');
+                            if (inputCat) inputCat.value = artObj.categoria || '';
+                            if (inputFam) inputFam.value = artObj.fam_nombre || '';
+                            if (inputTfa) inputTfa.value = artObj.tfa_nombre || '';
+                        }
                         if (inp) {
                             inp.value = cod;
                             inp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -556,6 +636,13 @@ function abrirModalCatalogo() {
                 });
             }
 
+            // Si el catálogo ya está en caché, renderizarlo inmediatamente con el artículo actual
+            if (catalogoCache) {
+                renderizar(catalogoCache);
+                if (buscador) setTimeout(() => buscador.focus(), 80);
+                return;
+            }
+
             // Consultar catálogo en tiempo real
             fetch('consultar_articulo.php?catalogo=1')
                 .then(r => r.json())
@@ -608,10 +695,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const sufijoUme = document.getElementById('sufijo-unidad-minimo');
         const labelUme = document.getElementById('label-unidad-minimo');
 
+        const inputCat = document.getElementById('art_categoria');
+        const inputFam = document.getElementById('art_familia');
+        const inputTfa = document.getElementById('art_tipo_familia');
+
         if (!data || !infoContainer) {
             if (infoContainer) infoContainer.innerHTML = '';
             if (sufijoUme) sufijoUme.textContent = '';
             if (labelUme) labelUme.textContent = '';
+            if (inputCat) inputCat.value = '';
+            if (inputFam) inputFam.value = '';
+            if (inputTfa) inputTfa.value = '';
             return;
         }
 
@@ -619,8 +713,15 @@ document.addEventListener('DOMContentLoaded', function() {
             infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>';
             if (sufijoUme) sufijoUme.textContent = '';
             if (labelUme) labelUme.textContent = '';
+            if (inputCat) inputCat.value = '';
+            if (inputFam) inputFam.value = '';
+            if (inputTfa) inputTfa.value = '';
             return;
         }
+
+        if (inputCat) inputCat.value = data.categoria || '';
+        if (inputFam) inputFam.value = data.fam_nombre || '';
+        if (inputTfa) inputTfa.value = data.tfa_nombre || '';
 
         const umeTexto = data.unidad_medida || '';
         if (sufijoUme) sufijoUme.textContent = umeTexto;
@@ -639,29 +740,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        const catHtml = escapeHtml(data.categoria || '—');
-        const famHtml = escapeHtml(data.fam_nombre || '—');
-        const tfaHtml = escapeHtml(data.tfa_nombre || '—');
-
         infoContainer.innerHTML = `
             <div class="info-articulo-fila">
                 ${estadoBadge}
                 ${nombreHtml}
                 ${stockHtml}
-            </div>
-            <div class="info-articulo-clasificacion">
-                <div class="clasificacion-item">
-                    <span class="clasificacion-label">Categoría:</span>
-                    <span class="clasificacion-dato">${catHtml}</span>
-                </div>
-                <div class="clasificacion-item">
-                    <span class="clasificacion-label">Familia:</span>
-                    <span class="clasificacion-dato">${famHtml}</span>
-                </div>
-                <div class="clasificacion-item">
-                    <span class="clasificacion-label">Tipo familia:</span>
-                    <span class="clasificacion-dato">${tfaHtml}</span>
-                </div>
             </div>
         `;
     }
@@ -670,6 +753,12 @@ document.addEventListener('DOMContentLoaded', function() {
         codigo = codigo.trim();
         if (!codigo) {
             if (infoContainer) infoContainer.innerHTML = '';
+            const inputCat = document.getElementById('art_categoria');
+            const inputFam = document.getElementById('art_familia');
+            const inputTfa = document.getElementById('art_tipo_familia');
+            if (inputCat) inputCat.value = '';
+            if (inputFam) inputFam.value = '';
+            if (inputTfa) inputTfa.value = '';
             currentArtData = null;
             return;
         }
