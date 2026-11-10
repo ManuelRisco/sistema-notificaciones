@@ -8,6 +8,7 @@ use Manue\SistemaNotificaciones\EmailService;
 $raiz = dirname(__DIR__, 2);
 
 require_once $raiz . '/vendor/autoload.php';
+require_once $raiz . '/config/almacenes.php';
 
 if (file_exists($raiz . '/.env')) {
     $dotenv = Dotenv::createImmutable($raiz);
@@ -17,19 +18,32 @@ if (file_exists($raiz . '/.env')) {
 try {
     $emailService = new EmailService();
 
+    $almacenesSoportados = function_exists('getAlmacenesSoportados') ? getAlmacenesSoportados() : [];
+    $almCodigoDefecto = !empty($almacenesSoportados) ? (string) array_key_first($almacenesSoportados) : '';
+
+    // Permite pasar el código de almacén por argumento (ej: php probar_correo.php 001) o usar el primero de la configuración
+    $almCodigo = isset($argv[1]) && trim((string)$argv[1]) !== '' ? trim((string)$argv[1]) : $almCodigoDefecto;
+
+    if ($almCodigo === '') {
+        throw new RuntimeException('No hay almacenes configurados en config/almacenes.php');
+    }
+
+    $nombreAlmacen = function_exists('getNombreAlmacen') ? getNombreAlmacen($almCodigo) : "Almacén {$almCodigo}";
+
     // Artículo simulado en alerta para la prueba
     $articulo = [
-        'art_codigo'    => '020100149',
-        'descripcion'   => 'AMARILLO HUEVO 21',
-        'alm_codigo'    => '003',
-        'unidad_medida' => 'KGS',
-        'stock_actual'  => 250,
-        'stock_minimo'  => 260
+        'art_codigo'    => 'PRUEBA-TEST',
+        'descripcion'   => "ARTÍCULO DE PRUEBA ({$nombreAlmacen})",
+        'alm_codigo'    => $almCodigo,
+        'unidad_medida' => 'UND',
+        'stock_actual'  => 10,
+        'stock_minimo'  => 25
     ];
 
-    $destinatarios = $emailService->obtenerDestinatariosPorAlmacen('003');
+    $destinatarios = $emailService->obtenerDestinatariosPorAlmacen($almCodigo);
 
-    echo "Destinatarios detectados en .env (Almacén 003):\n";
+    echo "Almacén evaluado: [{$almCodigo}] {$nombreAlmacen}\n";
+    echo "Destinatarios detectados en .env (SISTEMAS_MAIL_DESTINO_{$almCodigo}):\n";
     foreach ($destinatarios as $correo) {
         echo "  - [{$correo}]\n";
     }

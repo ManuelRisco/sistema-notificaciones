@@ -4,19 +4,26 @@ use Manue\SistemaNotificaciones\StockRepository;
 
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once dirname(__DIR__, 2) . '/config/database.php';
+require_once dirname(__DIR__, 2) . '/config/almacenes.php';
 
 try {
-
     // Obtener la conexión existente
     $conexion = getSqlServerConn();
 
     // Crear el repositorio
     $repository = new StockRepository($conexion);
 
-    // Obtener los artículos y sus existencias
-    $articulos = $repository->obtenerStockConfigurado();
+    // Permite filtrar por almacén vía CLI (ej: php probar_stock_repository.php 001) o mostrar todos
+    $almFiltro = isset($argv[1]) && trim((string)$argv[1]) !== '' ? trim((string)$argv[1]) : null;
 
-    echo "RESULTADO DEL INVENTARIO\n";
+    // Obtener los artículos y sus existencias
+    $articulos = $repository->obtenerStockConfigurado($almFiltro);
+
+    $tituloAlmacen = $almFiltro !== null
+        ? " (Almacén: {$almFiltro} - " . (function_exists('getNombreAlmacen') ? getNombreAlmacen($almFiltro) : '') . ")"
+        : " (Todos los almacenes)";
+
+    echo "RESULTADO DEL INVENTARIO{$tituloAlmacen}\n";
     echo "====================================\n";
 
     if (empty($articulos)) {
@@ -25,6 +32,8 @@ try {
     }
 
     foreach ($articulos as $articulo) {
+        $almCod = $articulo['alm_codigo'] ?? '';
+        $almNom = function_exists('getNombreAlmacen') ? getNombreAlmacen($almCod) : '';
 
         echo "Artículo: "
             . $articulo['art_codigo'] . "\n";
@@ -33,7 +42,7 @@ try {
             . $articulo['descripcion'] . "\n";
 
         echo "Almacén: "
-            . $articulo['alm_codigo'] . "\n";
+            . $almCod . ($almNom !== '' ? " ({$almNom})" : '') . "\n";
 
         echo "Stock físico: "
             . number_format(
@@ -55,11 +64,9 @@ try {
     }
 
 } catch (Throwable $e) {
-
     fwrite(
         STDERR,
         "ERROR: " . $e->getMessage() . PHP_EOL
     );
-
     exit(1);
 }

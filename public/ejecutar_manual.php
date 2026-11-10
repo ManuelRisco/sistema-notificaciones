@@ -94,7 +94,7 @@ try {
         $salida = (string) ob_get_clean();
     }
 
-    // 5. El registro en el log correspondiente (logs/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log)
+    // 5. El registro en el log correspondiente (logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log)
     // es gestionado automáticamente por bin/procesar_alertas.php según el almacén procesado.
 
     if ($codigoSalida !== 0) {

@@ -16,7 +16,7 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 REM Entrar al directorio del proyecto
 cd /d "%APP_DIR%"
 
-REM Ejecutar el sistema (cada almacen registra su propio log en logs\<almacen>\<YYYY-MM>\)
+REM Ejecutar el sistema (cada BD y almacen registra su propio log en logs\<base_de_datos>\<almacen>\<YYYY-MM>\)
 "%PHP_EXE%" "%APP_DIR%\bin\procesar_alertas.php" >nul 2> "%LOG_DIR%\errores_ejecucion.log"
 
 REM Capturar el codigo de salida

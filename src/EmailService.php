@@ -36,21 +36,34 @@ class EmailService
             );
         }
 
+        // Cargar catálogo de almacenes desde config/almacenes.php si existe
+        $archivoAlmacenes = $raizProyecto . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'almacenes.php';
+        if (is_file($archivoAlmacenes)) {
+            require_once $archivoAlmacenes;
+        }
+
         // Cargar obligatoriamente la configuración desde el archivo .env.
         $dotenv = Dotenv::createImmutable($raizProyecto);
         $dotenv->load();
 
-        $dotenv->required([
+        $variablesRequeridas = [
             'APP_TIMEZONE',
             'SISTEMAS_MAIL_HOST',
             'SISTEMAS_MAIL_PORT',
             'SISTEMAS_MAIL_USERNAME',
             'SISTEMAS_MAIL_PASSWORD',
             'SISTEMAS_MAIL_FROM',
-            'SISTEMAS_MAIL_DESTINO_003',
-            'SISTEMAS_MAIL_DESTINO_001',
             'SISTEMAS_MAIL_FROM_NAME',
-        ])->notEmpty();
+        ];
+
+        // Requerir dinámicamente las variables de destinatarios para cada almacén configurado
+        if (function_exists('getAlmacenesSoportados')) {
+            foreach (array_keys(getAlmacenesSoportados()) as $codAlm) {
+                $variablesRequeridas[] = 'SISTEMAS_MAIL_DESTINO_' . $codAlm;
+            }
+        }
+
+        $dotenv->required($variablesRequeridas)->notEmpty();
 
         date_default_timezone_set(
             $this->obtenerVariable('APP_TIMEZONE')
@@ -116,7 +129,7 @@ class EmailService
 
     /**
      * Lee los destinatarios predeterminados.
-     * Si no existe SISTEMAS_MAIL_DESTINO en .env, utiliza los del almacén principal (003).
+     * Si no existe SISTEMAS_MAIL_DESTINO en .env, utiliza los del primer almacén configurado.
      */
     public function obtenerDestinatariosPredeterminados(): array
     {
@@ -127,13 +140,19 @@ class EmailService
             return $this->normalizarLista($correos);
         }
 
-        return $this->obtenerDestinatariosPorAlmacen('003');
+        $almacenes = function_exists('getAlmacenesSoportados') ? getAlmacenesSoportados() : [];
+        $primerAlmacen = !empty($almacenes) ? (string) array_key_first($almacenes) : '';
+
+        if ($primerAlmacen !== '') {
+            return $this->obtenerDestinatariosPorAlmacen($primerAlmacen);
+        }
+
+        return [];
     }
 
     /**
      * Lee los destinatarios configurados para un almacén específico desde .env.
-     * Almacén 003 utiliza exclusivamente SISTEMAS_MAIL_DESTINO_003.
-     * Almacén 001 utiliza exclusivamente SISTEMAS_MAIL_DESTINO_001.
+     * Consulta dinámicamente SISTEMAS_MAIL_DESTINO_{CODIGO}.
      *
      * @throws RuntimeException Si falta configurar la variable específica del almacén o está vacía.
      */
@@ -472,7 +491,7 @@ class EmailService
 
         $nombreAlmacen = function_exists('getNombreAlmacen')
             ? getNombreAlmacen($almCodigo)
-            : ($almCodigo === '001' ? 'Materia Prima' : ($almCodigo === '003' ? 'Tintas y Solventes' : "Almacén {$almCodigo}"));
+            : "Almacén {$almCodigo}";
 
         $nombreAlmacenHtml = htmlspecialchars($nombreAlmacen, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $almCodigoHtml = htmlspecialchars($almCodigo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

@@ -13,10 +13,10 @@ if (class_exists(\Dotenv\Dotenv::class) && file_exists($raizProyecto . '/.env') 
     $dotenv->safeLoad();
 }
 
-// Configurar zona horaria de la aplicación con fallback seguro a America/Lima
+// Configurar zona horaria de la aplicación con fallback
 $zonaHoraria = !empty($_ENV['APP_TIMEZONE'])
     ? (string)$_ENV['APP_TIMEZONE']
-    : ((string)getenv('APP_TIMEZONE') ?: 'America/Lima');
+    : ((string)getenv('APP_TIMEZONE'));
 
 if (trim($zonaHoraria) === '') {
     $zonaHoraria = 'America/Lima';

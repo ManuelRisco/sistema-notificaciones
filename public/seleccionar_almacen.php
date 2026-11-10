@@ -160,7 +160,7 @@ if (isset($_GET['alm'])) {
             <div style="font-size: 42px; margin-bottom: 16px;">⚠️</div>
             <h2 style="font-size: 19px; color: var(--color-peligro-texto); margin-bottom: 8px;">Sin almacenes asignados</h2>
             <p style="color: var(--color-texto-muted); font-size: 14.5px; line-height: 1.5; margin-bottom: 24px;">
-                No tiene autorización para ingresar a ningún almacén registrado en el sistema. Comuníquese con el administrador para solicitar asignación en el ERP.
+                No tiene autorización para ingresar a ningún almacén registrado en el sistema. Comuníquese con el administrador para solicitar asignación en el sistema.
             </p>
             <a href="logout.php" class="btn btn-secundario">
                 Cerrar Sesión

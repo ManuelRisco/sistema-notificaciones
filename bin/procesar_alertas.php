@@ -16,6 +16,7 @@ $dotenv = Dotenv::createImmutable($raizProyecto);
 $dotenv->safeLoad();
 
 require_once $raizProyecto . '/config/database.php';
+require_once $raizProyecto . '/config/almacenes.php';
 
 $zonaHoraria = !empty($_ENV['APP_TIMEZONE']) ? (string)$_ENV['APP_TIMEZONE'] : ((string)getenv('APP_TIMEZONE'));
 date_default_timezone_set($zonaHoraria);
@@ -65,21 +66,29 @@ if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
 @fflush($lockHandle);
 
 /**
- * Registra una entrada en el log del almacén correspondiente según la estructura:
- * logs/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log
+ * Registra una entrada en el log según la estructura jerárquica:
+ * logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log
  */
-function registrarLogAlmacen(string $raizProyecto, string $almCodigo, string $contenido): void
-{
+function registrarLogAlmacen(
+    string $raizProyecto,
+    string $dbNombre,
+    string $almCodigo,
+    string $contenido
+): void {
     $contenido = trim($contenido);
     if ($contenido === '') {
         return;
     }
 
+    $dbSegura = preg_replace('/[^A-Za-z0-9_]/', '', trim($dbNombre)) ?: 'DEFAULT';
+    $almSeguro = preg_replace('/[^A-Za-z0-9_]/', '', trim($almCodigo)) ?: 'SIN_ALMACEN';
+
     $fecha = date('Y-m-d');
     $anioMes = date('Y-m');
     $dirLog = $raizProyecto
         . DIRECTORY_SEPARATOR . 'logs'
-        . DIRECTORY_SEPARATOR . $almCodigo
+        . DIRECTORY_SEPARATOR . $dbSegura
+        . DIRECTORY_SEPARATOR . $almSeguro
         . DIRECTORY_SEPARATOR . $anioMes;
 
     if (!is_dir($dirLog)) {
@@ -102,7 +111,8 @@ function formatearSalidaAlmacen(
     array $articulos,
     bool $modoSimulacion,
     bool $mostrarDetalleCompleto,
-    string $fechaHora
+    string $fechaHora,
+    string $dbNombre = ''
 ): string {
     $total = count($articulos);
     $articulosEnAlerta = array_filter(
@@ -119,7 +129,7 @@ function formatearSalidaAlmacen(
     $prefijoModo = $modoSimulacion ? '[SIMULACION] ' : '';
     $nombreAlmacen = function_exists('getNombreAlmacen')
         ? getNombreAlmacen($almCodigo)
-        : ($almCodigo === '001' ? 'Materia Prima' : ($almCodigo === '003' ? 'Tintas y Solventes' : "Almacén {$almCodigo}"));
+        : "Almacén {$almCodigo}";
 
     $requiereDetalle =
         $articulosPendientes > 0
@@ -128,6 +138,10 @@ function formatearSalidaAlmacen(
         || $erroresBanderas > 0;
 
     if (!$requiereDetalle && !$mostrarDetalleCompleto) {
+        if ($total === 0) {
+            return "[{$fechaHora}] {$prefijoModo}[{$almCodigo} - {$nombreAlmacen}] "
+                . "OK: 0 articulos configurados. Sin alertas.";
+        }
         if ($cantidadAlertasActivas > 0) {
             return "[{$fechaHora}] {$prefijoModo}[{$almCodigo} - {$nombreAlmacen}] "
                 . "{$total} articulos revisados. Alertas activas: {$cantidadAlertasActivas}. "
@@ -142,6 +156,9 @@ function formatearSalidaAlmacen(
     $lineas[] = "========================================";
     $lineas[] = " SISTEMA DE ALERTAS - " . strtoupper($nombreAlmacen) . " ({$almCodigo})";
     $lineas[] = "========================================";
+    if ($dbNombre !== '') {
+        $lineas[] = "Base de datos: {$dbNombre}";
+    }
     $lineas[] = "Fecha: {$fechaHora}";
     $lineas[] = "Modo: " . ($modoSimulacion ? "SIMULACION" : "PRODUCCION");
     $lineas[] = "Articulos procesados: {$total}";
@@ -215,13 +232,25 @@ try {
 
     $fechaHora = date('d/m/Y H:i:s');
 
-    // Agrupar los resultados por almacén
+    // Agrupar los resultados por almacén, inicializando todos los soportados para que
+    // cada almacén configurado tenga su seguimiento y carpeta de logs propia aunque no tenga artículos aún.
     $porAlmacen = [];
-    foreach ($resultado['resultados'] as $art) {
-        $alm = trim((string) ($art['alm_codigo'] ?? '003'));
-        $porAlmacen[$alm][] = $art;
+    if ($almacenFiltro !== null) {
+        $porAlmacen[$almacenFiltro] = [];
+    } elseif (function_exists('getAlmacenesSoportados')) {
+        foreach (array_keys(getAlmacenesSoportados()) as $codAlm) {
+            $porAlmacen[$codAlm] = [];
+        }
     }
 
+    foreach ($resultado['resultados'] as $art) {
+        $alm = trim((string) ($art['alm_codigo'] ?? ''));
+        if ($alm !== '') {
+            $porAlmacen[$alm][] = $art;
+        }
+    }
+
+    $dbActual = function_exists('getDatabaseName') ? getDatabaseName() : 'DEFAULT';
     $salidasFormateadas = [];
 
     foreach ($porAlmacen as $almCodigo => $articulosAlm) {
@@ -230,13 +259,14 @@ try {
             $articulosAlm,
             $modoSimulacion,
             $mostrarDetalleCompleto,
-            $fechaHora
+            $fechaHora,
+            $dbActual
         );
 
-        // Guardar en el log correspondiente a este almacén:
-        // logs/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log
+        // Guardar en el log correspondiente a esta base de datos y almacén:
+        // logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log
         if (!$modoSimulacion) {
-            registrarLogAlmacen($raizProyecto, $almCodigo, $textoAlmacen);
+            registrarLogAlmacen($raizProyecto, $dbActual, $almCodigo, $textoAlmacen);
         }
 
         $salidasFormateadas[] = $textoAlmacen;
