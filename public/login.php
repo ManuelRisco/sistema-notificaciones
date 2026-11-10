@@ -6,9 +6,9 @@ const PAGINA_PUBLICA = true;
 
 require_once __DIR__ . '/seguridad.php';
 
-// Si el usuario ya está autenticado, redirigir directamente al panel principal
+// Si el usuario ya está autenticado, redirigir a la selección de almacén
 if (estaAutenticado()) {
-    header('Location: index.php');
+    header('Location: seleccionar_almacen.php');
     exit;
 }
 
@@ -63,12 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([
                 'exito' => true,
-                'redirigir' => 'index.php'
+                'redirigir' => 'seleccionar_almacen.php'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
-        header('Location: index.php');
+        header('Location: seleccionar_almacen.php');
         exit;
 
     } catch (Throwable $e) {

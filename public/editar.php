@@ -40,10 +40,14 @@ $esPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 
 try {
 
+    // Validar autorización del usuario para el almacén
+    requerirAlmacenAutorizado($almOriginal);
+    $almNombre = getNombreAlmacen($almOriginal);
+
     // 1. Validar identificación original.
     if (
         $empOriginal !== '001'
-        || $almOriginal !== '003'
+        || !esAlmacenSoportado($almOriginal)
         || $artOriginal === ''
         || strlen($artOriginal) > 30
     ) {
@@ -248,7 +252,7 @@ try {
                     if ($codigo === 2601 || $codigo === 2627) {
 
                         throw new RuntimeException(
-                            'El nuevo código de artículo ya tiene una configuración registrada para la empresa 001 y el almacén 003.'
+                            'El nuevo código de artículo ya tiene una configuración registrada para la empresa 001 y el almacén ' . $almOriginal . ' (' . $almNombre . ').'
                         );
                     }
                 }
@@ -500,8 +504,8 @@ if (isset($_GET['toggle_dark_mode'])) {
 <main class="contenedor contenedor-formulario">
     <header class="encabezado">
         <div class="encabezado-info">
-            <h1>Editar Stock Mínimo</h1>
-            <p>Modificar stock mínimo y disponibilidad.</p>
+            <h1>Editar Stock Mínimo - <?= h($almNombre) ?></h1>
+            <p>Modificar stock mínimo y disponibilidad en <?= h($almNombre) ?> (Almacén <?= h($almOriginal) ?>).</p>
         </div>
         <div class="encabezado-derecha">
             <div class="encabezado-usuario-barra">
@@ -743,7 +747,7 @@ let ordenStockModal = 'defecto';
 // Modal interactivo de catálogo de artículos con búsqueda en tiempo real
 function abrirModalCatalogo() {
     Swal.fire({
-        title: 'Catálogo de Artículos (Almacén 003)',
+        title: 'Catálogo de Artículos (Almacén <?= $almOriginal ?> - <?= h($almNombre) ?>)',
         html: `
             <div style="text-align: left; font-size: 13px;">
                 <p style="color: var(--color-texto-muted); margin-bottom: 12px;">
@@ -995,8 +999,8 @@ function abrirModalCatalogo() {
                 return;
             }
 
-            // Consultar catálogo indicando el artículo original en edición
-            const urlCatalogo = 'consultar_articulo.php?catalogo=1&art_actual=' + encodeURIComponent(codigoOriginalLocal);
+            // Consultar catálogo indicando el artículo original en edición y filtrado por almacén
+            const urlCatalogo = 'consultar_articulo.php?catalogo=1&art_actual=' + encodeURIComponent(codigoOriginalLocal) + '&alm=' + encodeURIComponent('<?= $almOriginal ?>');
             fetch(urlCatalogo)
                 .then(r => r.json())
                 .then(res => {
@@ -1168,7 +1172,7 @@ document.addEventListener('DOMContentLoaded', function() {
             infoContainer.innerHTML = '<span style="color: #64748b; font-size: 13px;">Buscando artículo...</span>';
         }
 
-        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}`)
+        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}&alm=${encodeURIComponent('<?= $almOriginal ?>')}`)
             .then(res => res.json())
             .then(data => {
                 if (artInput && artInput.value.trim() !== codigo) {

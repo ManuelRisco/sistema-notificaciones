@@ -13,9 +13,10 @@ $dotenv->safeLoad();
 
 require_once $raizProyecto . '/config/database.php';
 
-// Estos valores son fijos y no dependen del formulario.
+// Validar autorización y obtener el almacén activo
+$almCodigo = requerirAlmacenAutorizado($_GET['alm'] ?? null);
+$almNombre = getNombreAlmacen($almCodigo);
 $empCodigo = '001';
-$almCodigo = '003';
 
 $artCodigo = '';
 $artNombre = '';
@@ -115,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $detalleNombre = $artNombre !== '' ? " ({$artNombre})" : '';
             if ((int) ($existente['disponible'] ?? 0) === 1) {
                 throw new RuntimeException(
-                    "El artículo {$artCodigo}{$detalleNombre} ya tiene una configuración activa para la empresa 001 y el almacén 003."
+                    "El artículo {$artCodigo}{$detalleNombre} ya tiene una configuración activa para la empresa 001 y el almacén {$almCodigo} ({$almNombre})."
                 );
             }
 
@@ -270,8 +271,8 @@ if (isset($_GET['toggle_dark_mode'])) {
 <main class="contenedor contenedor-formulario">
     <header class="encabezado">
         <div class="encabezado-info">
-            <h1>Nuevo registro</h1>
-            <p>Agregar una configuración de stock mínimo.</p>
+            <h1>Nuevo registro - <?= h($almNombre) ?></h1>
+            <p>Agregar una configuración de stock mínimo en <?= h($almNombre) ?> (Almacén <?= h($almCodigo) ?>).</p>
         </div>
         <div class="encabezado-derecha">
             <div class="encabezado-usuario-barra">
@@ -465,7 +466,7 @@ let ordenStockModal = 'defecto';
 // Modal interactivo de catálogo de artículos con búsqueda en tiempo real
 function abrirModalCatalogo() {
     Swal.fire({
-        title: 'Catálogo de Artículos (Almacén 003)',
+        title: 'Catálogo de Artículos (Almacén <?= $almCodigo ?> - <?= h($almNombre) ?>)',
         html: `
             <div style="text-align: left; font-size: 13px;">
                 <p style="color: var(--color-texto-muted); margin-bottom: 12px;">
@@ -716,8 +717,8 @@ function abrirModalCatalogo() {
                 return;
             }
 
-            // Consultar catálogo en tiempo real
-            fetch('consultar_articulo.php?catalogo=1')
+            // Consultar catálogo en tiempo real filtrado por el almacén actual
+            fetch('consultar_articulo.php?catalogo=1&alm=' + encodeURIComponent('<?= $almCodigo ?>'))
                 .then(r => r.json())
                 .then(res => {
                     if (res && res.exito && Array.isArray(res.articulos)) {
@@ -840,7 +841,7 @@ document.addEventListener('DOMContentLoaded', function() {
             infoContainer.innerHTML = '<span style="color: #64748b; font-size: 13px;">Buscando artículo...</span>';
         }
 
-        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}`)
+        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}&alm=${encodeURIComponent('<?= $almCodigo ?>')}`)
             .then(res => res.json())
             .then(data => {
                 if (artInput && artInput.value.trim() !== codigo) {

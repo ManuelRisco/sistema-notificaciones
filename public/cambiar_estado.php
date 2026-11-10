@@ -37,7 +37,7 @@ try {
     $artNombre = trim($_POST['art_nombre'] ?? '');
     $accion = trim($_POST['accion'] ?? 'eliminar');
 
-    // 3. Validar los valores.
+    // 3. Validar los valores y autorización.
     if (
         $empCodigo === ''
         || $artCodigo === ''
@@ -45,11 +45,14 @@ try {
         || strlen($empCodigo) > 3
         || strlen($artCodigo) > 30
         || strlen($almCodigo) > 3
+        || !esAlmacenSoportado($almCodigo)
     ) {
         throw new RuntimeException(
             'La identificación del registro no es válida.'
         );
     }
+
+    requerirAlmacenAutorizado($almCodigo);
 
     // 4. Conectar con SQL Server.
     $conexion = getSqlServerConn();

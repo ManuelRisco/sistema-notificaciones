@@ -1,0 +1,155 @@
+        .seleccion-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--color-fondo);
+        }
+        .seleccion-header {
+            background-color: var(--color-tarjeta);
+            border-bottom: 1px solid var(--color-borde);
+            padding: 16px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+        }
+        .seleccion-header-logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .seleccion-header-logo img {
+            height: 38px;
+            width: auto;
+            object-fit: contain;
+        }
+        .seleccion-header-usuario {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .seleccion-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        .seleccion-titulo {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+        .seleccion-titulo h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--color-texto);
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+        .seleccion-titulo p {
+            color: var(--color-texto-muted);
+            font-size: 14.5px;
+            max-width: 540px;
+        }
+        .seleccion-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            max-width: 780px;
+            width: 100%;
+        }
+        .tarjeta-almacen {
+            background-color: var(--color-tarjeta);
+            border: 2px solid var(--color-borde);
+            border-radius: 12px;
+            padding: 28px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: var(--sombra-tarjeta);
+        }
+        .tarjeta-almacen:hover {
+            border-color: var(--color-primario);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 20px -5px rgba(37, 99, 235, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .almacen-badge-codigo {
+            display: inline-flex;
+            align-items: center;
+            background-color: var(--color-secundario-fondo);
+            color: var(--color-primario);
+            border: 1px solid var(--color-borde);
+            padding: 3px 10px;
+            border-radius: 9999px;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-bottom: 14px;
+        }
+        .almacen-icono {
+            width: 52px;
+            height: 52px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(37, 99, 235, 0.04) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 26px;
+        }
+        .almacen-nombre {
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--color-texto);
+            margin-bottom: 6px;
+        }
+        .almacen-erp {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--color-texto-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 12px;
+        }
+        .almacen-descripcion {
+            font-size: 13.5px;
+            color: var(--color-texto-muted);
+            line-height: 1.5;
+            margin-bottom: 24px;
+            flex-grow: 1;
+        }
+        .almacen-btn-ingresar {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--color-primario);
+            color: #ffffff;
+            border: none;
+            border-radius: var(--radio-btn);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .almacen-btn-ingresar:hover {
+            background-color: var(--color-primario-hover);
+        }
+        .sin-almacenes {
+            max-width: 500px;
+            background: var(--color-tarjeta);
+            border: 1px solid var(--color-borde);
+            border-radius: 12px;
+            padding: 36px;
+            text-align: center;
+            box-shadow: var(--sombra-tarjeta);
+        }

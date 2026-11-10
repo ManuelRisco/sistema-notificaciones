@@ -48,6 +48,8 @@ class EmailService
             'SISTEMAS_MAIL_PASSWORD',
             'SISTEMAS_MAIL_FROM',
             'SISTEMAS_MAIL_DESTINO',
+            'SISTEMAS_MAIL_DESTINO_003',
+            'SISTEMAS_MAIL_DESTINO_001',
             'SISTEMAS_MAIL_FROM_NAME',
         ])->notEmpty();
 
@@ -125,6 +127,41 @@ class EmailService
         return $this->normalizarLista($correos);
     }
 
+    /**
+     * Lee los destinatarios configurados para un almacén específico desde .env.
+     * Almacén 003 utiliza exclusivamente SISTEMAS_MAIL_DESTINO_003.
+     * Almacén 001 utiliza exclusivamente SISTEMAS_MAIL_DESTINO_001.
+     *
+     * @throws RuntimeException Si falta configurar la variable específica del almacén o está vacía.
+     */
+    public function obtenerDestinatariosPorAlmacen(string $almCodigo): array
+    {
+        $almCodigo = trim($almCodigo);
+        if ($almCodigo === '') {
+            throw new RuntimeException('No se especificó un código de almacén para obtener los destinatarios.');
+        }
+
+        $variableAlmacen = 'SISTEMAS_MAIL_DESTINO_' . $almCodigo;
+        $cadena = $_ENV[$variableAlmacen] ?? $_SERVER[$variableAlmacen] ?? getenv($variableAlmacen);
+
+        if (!is_string($cadena) || trim($cadena) === '') {
+            throw new RuntimeException(
+                "No se configuraron destinatarios para el almacén {$almCodigo} en el archivo .env (variable {$variableAlmacen})."
+            );
+        }
+
+        $correos = preg_split('/[,;]+/', $cadena) ?: [];
+        $limpios = $this->normalizarLista($correos);
+
+        if (empty($limpios)) {
+            throw new RuntimeException(
+                "La lista de destinatarios para el almacén {$almCodigo} ({$variableAlmacen}) en el archivo .env está vacía."
+            );
+        }
+
+        return $limpios;
+    }
+
     private function normalizarLista(array $correos): array
     {
         $limpios = [];
@@ -154,11 +191,23 @@ class EmailService
     }
 
     /**
+     * Envía un correo con los artículos en alerta correspondientes a un almacén específico.
+     */
+    public function enviarAlertasPorAlmacen(
+        string $almCodigo,
+        array $articulos,
+        string|array|null $destinatarios = null
+    ): bool {
+        return $this->enviarAlertas($articulos, $destinatarios, $almCodigo);
+    }
+
+    /**
      * Envía UN SOLO correo con todos los artículos en alerta.
      */
     public function enviarAlertas(
         array $articulos,
-        string|array|null $destinatarios = null
+        string|array|null $destinatarios = null,
+        ?string $almCodigo = null
     ): bool {
         if (empty($articulos)) {
             throw new RuntimeException(
@@ -166,13 +215,22 @@ class EmailService
             );
         }
 
-        $listaDestinatarios = $this->normalizarDestinatarios(
-            $destinatarios
-        );
+        // Determinar el almacén si no fue provisto
+        if ($almCodigo === null || trim($almCodigo) === '') {
+            $almCodigo = trim((string) ($articulos[0]['alm_codigo'] ?? ''));
+        }
+
+        if ($almCodigo === '') {
+            throw new RuntimeException('No se especificó el almacén para el envío de alertas.');
+        }
+
+        $listaDestinatarios = ($destinatarios === null || $destinatarios === '')
+            ? $this->obtenerDestinatariosPorAlmacen($almCodigo)
+            : $this->normalizarDestinatarios($destinatarios);
 
         if (empty($listaDestinatarios)) {
             throw new RuntimeException(
-                'No hay destinatarios configurados en SISTEMAS_MAIL_DESTINO.'
+                "No hay destinatarios configurados para el almacén {$almCodigo}."
             );
         }
 
@@ -409,7 +467,14 @@ class EmailService
             ? '1 artículo requiere atención'
             : "{$cantidad} artículos requieren atención";
 
-        $asunto = "ALERTA DE STOCK: {$textoCantidad}";
+        $nombreAlmacen = function_exists('getNombreAlmacen')
+            ? getNombreAlmacen($almCodigo)
+            : ($almCodigo === '001' ? 'Materia Prima' : ($almCodigo === '003' ? 'Tintas y Solventes' : "Almacén {$almCodigo}"));
+
+        $nombreAlmacenHtml = htmlspecialchars($nombreAlmacen, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $almCodigoHtml = htmlspecialchars($almCodigo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $asunto = "[ALERTA DE STOCK] {$nombreAlmacen} - TECNOFILM";
 
         // Logo y aviso en el pie de página
         $logoImgHtml = '';
@@ -470,9 +535,20 @@ class EmailService
             ALERTA DE STOCK MÍNIMO
         </h2>
 
+        <div style='
+            margin-top:8px;
+            font-size:15px;
+            font-weight:bold;
+            letter-spacing:0.02em;
+            text-transform:uppercase;
+        '>
+            Almacén: {$almCodigoHtml} - {$nombreAlmacenHtml}
+        </div>
+
         <p style='
-            margin:10px 0 0 0;
-            font-size:14px;
+            margin:8px 0 0 0;
+            font-size:13.5px;
+            opacity:0.95;
         '>
             {$textoCantidad}.
         </p>
@@ -508,7 +584,7 @@ class EmailService
 </div>";
 
         $cuerpoTexto =
-            "ALERTA DE STOCK MÍNIMO\n"
+            "ALERTA DE STOCK MÍNIMO - {$nombreAlmacen} (Almacén {$almCodigo})\n"
             . "====================================\n"
             . "Artículos que requieren atención: {$cantidad}\n"
             . "Fecha: {$fecha}\n"

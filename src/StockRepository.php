@@ -41,9 +41,21 @@ class StockRepository
     /**
      * Obtiene el stock físico total de los artículos configurados y DISPONIBLES (disponible = 1).
      * Suma todos los lotes de cada artículo y almacén.
+     * Puede filtrar por un almacén específico o retornar todos los configurados si $almCodigo es null.
      */
-    public function obtenerStockConfigurado(): array
+    public function obtenerStockConfigurado(?string $almCodigo = null): array
     {
+        $condicionAlmCte = '';
+        $condicionAlmMain = '';
+        $params = [];
+
+        if ($almCodigo !== null && trim($almCodigo) !== '') {
+            $almLimpio = trim($almCodigo);
+            $condicionAlmCte = 'AND cfg.alm_codigo = ?';
+            $condicionAlmMain = 'AND cfg.alm_codigo = ?';
+            $params = [$almLimpio, $almLimpio];
+        }
+
         $sql = "
             ;WITH StockCalculado AS
             (
@@ -80,6 +92,7 @@ class StockRepository
                 WHERE b.mov_flag <> 'A'
                   AND b.mov_fecemi <= GETDATE()
                   AND cfg.disponible = 1
+                  {$condicionAlmCte}
 
                 GROUP BY
                     cfg.emp_codigo,
@@ -134,11 +147,12 @@ class StockRepository
                 AND s.alm_codigo = cfg.alm_codigo
 
             WHERE cfg.disponible = 1
+              {$condicionAlmMain}
 
-            ORDER BY cfg.art_codigo;
+            ORDER BY cfg.alm_codigo, cfg.art_codigo;
         ";
 
-        $stmt = sqlsrv_query($this->connection, $sql);
+        $stmt = sqlsrv_query($this->connection, $sql, $params);
 
         if ($stmt === false) {
             throw $this->crearErrorSql(

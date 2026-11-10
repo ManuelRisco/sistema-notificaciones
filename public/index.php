@@ -16,6 +16,10 @@ $dotenv->safeLoad();
 // 3. Cargar la conexión a SQL Server.
 require_once $raizProyecto . '/config/database.php';
 
+// Validar autorización y recuperar almacén activo
+$almActivo = requerirAlmacenAutorizado($_GET['alm'] ?? null);
+$nombreAlmacen = getNombreAlmacen($almActivo);
+
 $conexion = null;
 $registros = [];
 $error = null;
@@ -66,7 +70,7 @@ try {
     $conexion = getSqlServerConn();
     $db = getDatabaseName();
 
-    // 5. Consultar los totales generales directamente en la base de datos
+    // 5. Consultar los totales generales directamente en la base de datos para el almacén activo
     // Se excluyen los artículos no encontrados de las métricas de stock y correo
     $sqlTotales = "
         SELECT
@@ -81,10 +85,11 @@ try {
         FROM [{$db}].dbo.cfg_alerta_stock cfg
         LEFT JOIN [{$db}].dbo.mae_articulo m
             ON m.emp_codigo = cfg.emp_codigo
-            AND m.art_codigo = cfg.art_codigo;
+            AND m.art_codigo = cfg.art_codigo
+        WHERE cfg.alm_codigo = ?;
     ";
 
-    $stmtTotales = sqlsrv_query($conexion, $sqlTotales);
+    $stmtTotales = sqlsrv_query($conexion, $sqlTotales, [$almActivo]);
     if ($stmtTotales !== false) {
         $filaTotales = sqlsrv_fetch_array($stmtTotales, SQLSRV_FETCH_ASSOC);
         if ($filaTotales) {
@@ -102,9 +107,9 @@ try {
         sqlsrv_free_stmt($stmtTotales);
     }
 
-    // 6. Construir condiciones WHERE dinámicas para filtrar en SQL Server
-    $condiciones = [];
-    $params = [];
+    // 6. Construir condiciones WHERE dinámicas para filtrar en SQL Server (por almacén activo)
+    $condiciones = ["cfg.alm_codigo = ?"];
+    $params = [$almActivo];
 
     if ($filtroDisponible !== '') {
         $condiciones[] = "cfg.disponible = ?";
@@ -186,6 +191,7 @@ try {
 
             WHERE b.mov_flag <> 'A'
               AND b.mov_fecemi <= GETDATE()
+              AND cfg.alm_codigo = ?
 
             GROUP BY
                 cfg.emp_codigo,
@@ -245,7 +251,8 @@ try {
         {$clausulaOrderBy};
     ";
 
-    $stmt = sqlsrv_query($conexion, $sql, $params);
+    $sqlParams = array_merge([$almActivo], $params);
+    $stmt = sqlsrv_query($conexion, $sql, $sqlParams);
 
     if ($stmt === false) {
         $errores = sqlsrv_errors(SQLSRV_ERR_ALL);
@@ -266,7 +273,7 @@ try {
 
     sqlsrv_free_stmt($stmt);
 
-    // 9. Consultar opciones distintas de Detalle (Categoría, Familia, Tipo familia)
+    // 9. Consultar opciones distintas de Detalle (Categoría, Familia, Tipo familia) para el almacén activo
     $sqlOpcionesDetalle = "
         SELECT DISTINCT
             RTRIM(l.lin_nombre) AS categoria,
@@ -286,10 +293,11 @@ try {
             ON tf.emp_codigo = m.emp_codigo
             AND tf.tar_codigo = m.tar_codigo
             AND tf.fam_codigo = m.fam_codigo
-            AND tf.tfa_codigo = m.tfa_codigo;
+            AND tf.tfa_codigo = m.tfa_codigo
+        WHERE cfg.alm_codigo = ?;
     ";
 
-    $stmtOpciones = sqlsrv_query($conexion, $sqlOpcionesDetalle);
+    $stmtOpciones = sqlsrv_query($conexion, $sqlOpcionesDetalle, [$almActivo]);
     if ($stmtOpciones !== false) {
         while ($rowOp = sqlsrv_fetch_array($stmtOpciones, SQLSRV_FETCH_ASSOC)) {
             $cat = trim((string)($rowOp['categoria'] ?? ''));
@@ -436,7 +444,7 @@ if (isset($_GET['toggle_dark_mode'])) {
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
-    <title>Sistema de Notificaciones</title>
+    <title>Almacén <?= htmlspecialchars(getNombreAlmacen($almActivo), ENT_QUOTES, 'UTF-8') ?> - Alertas de Stock</title>
     <script>
         // Sincronizar modo oscuro antes de renderizar para evitar parpadeos
         (function() {
@@ -457,8 +465,8 @@ if (isset($_GET['toggle_dark_mode'])) {
 <main class="contenedor">
     <header class="encabezado">
         <div class="encabezado-info">
-            <h1>ALMACÉN - TINTAS Y SOLVENTES</h1>
-            <p>Sistema de Alertas y Monitoreo de Stock Mínimo</p>
+            <h1>ALMACÉN - <?= htmlspecialchars(strtoupper(getNombreAlmacen($almActivo)), ENT_QUOTES, 'UTF-8') ?></h1>
+            <p>Sistema de Alertas y Monitoreo de Stock Mínimo (Almacén <?= htmlspecialchars($almActivo, ENT_QUOTES, 'UTF-8') ?>)</p>
         </div>
 
         <div class="encabezado-derecha">
@@ -485,6 +493,13 @@ if (isset($_GET['toggle_dark_mode'])) {
             </div>
 
             <div class="encabezado-acciones">
+                <a href="seleccionar_almacen.php" class="btn btn-secundario" title="Cambiar de almacén" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    Cambiar Almacén
+                </a>
                 <a href="index.php" class="btn btn-secundario btn-icono-actualizar" title="Actualizar datos">
                     <img src="img/repetir.png" class="icono-invertible" alt="Actualizar" style="width: 18px; height: 18px;">
                 </a>

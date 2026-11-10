@@ -20,10 +20,13 @@ class StockAlertService
      * @param bool $aplicarCambios
      * false = solamente simular
      * true  = actualizar SQL Server
+     * @param string|null $almCodigo
+     * null = procesa todos los almacenes configurados
+     * string = procesa únicamente el almacén indicado
      */
-    public function procesar(bool $aplicarCambios = false): array
+    public function procesar(bool $aplicarCambios = false, ?string $almCodigo = null): array
     {
-        $articulos = $this->repository->obtenerStockConfigurado();
+        $articulos = $this->repository->obtenerStockConfigurado($almCodigo);
 
         $resultados = [];
 

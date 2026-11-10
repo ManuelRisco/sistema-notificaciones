@@ -24,6 +24,8 @@ if (trim($zonaHoraria) === '') {
 
 date_default_timezone_set($zonaHoraria);
 
+require_once __DIR__ . '/almacenes.php';
+
 /**
  * Retorna el nombre de la base de datos configurada en las variables de entorno (.env).
  *

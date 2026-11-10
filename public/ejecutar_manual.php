@@ -13,6 +13,11 @@ $dotenv->safeLoad();
 
 require_once $raizProyecto . '/config/database.php';
 
+// Proteger endpoint: requiere sesión activa y almacén activo autorizado
+$almActivo = requerirAlmacenAutorizado();
+$usuario = obtenerUsuarioAutenticado();
+$esAdminGlobal = usuarioEsAdministradorGlobal($usuario);
+
 // Permitir únicamente solicitudes POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: index.php');
@@ -23,7 +28,34 @@ try {
     // 1. Validar el token de seguridad CSRF
     validarTokenCsrf();
 
-    // 2. Liberar de inmediato el archivo de sesión de PHP
+    // 2. Determinar alcance de ejecución y bloquear manipulación de parámetros:
+    // - Un usuario normal solamente puede procesar su almacén activo y autorizado.
+    // - Si existe un perfil administrador con permisos globales, podrá procesar todos los almacenes.
+    $almacenParam = null;
+    if (isset($_POST['almacen']) && trim((string)$_POST['almacen']) !== '') {
+        $almacenParam = trim((string)$_POST['almacen']);
+    }
+
+    $almacenAProcesar = null;
+
+    if (!$esAdminGlobal) {
+        // Usuario normal: si intenta enviar otro almacén en el parámetro POST, rechazar
+        if ($almacenParam !== null && $almacenParam !== $almActivo) {
+            throw new RuntimeException('No tiene autorización para ejecutar el procesamiento de otro almacén.');
+        }
+        $almacenAProcesar = $almActivo;
+    } else {
+        // Administrador global: procesa todos los almacenes por defecto,
+        // o el almacén solicitado si envía un parámetro válido.
+        if ($almacenParam !== null) {
+            if (!esAlmacenSoportado($almacenParam)) {
+                throw new RuntimeException('Almacén especificado no válido.');
+            }
+            $almacenAProcesar = $almacenParam;
+        }
+    }
+
+    // 3. Liberar de inmediato el archivo de sesión de PHP
     // Si un usuario abre dos pestañas o ventanas en el mismo navegador,
     // PHP por defecto bloquea la segunda hasta que termine la primera.
     // Al cerrar la sesión aquí, permitimos concurrencia real para que
@@ -38,13 +70,14 @@ try {
     }
 
     $scriptProcesar = $raizProyecto . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'procesar_alertas.php';
+    $argAlmacen = $almacenAProcesar !== null ? " \"--almacen={$almacenAProcesar}\"" : '';
 
     $salida = '';
     $codigoSalida = 0;
 
-    // 2. Ejecutar mediante el CLI de PHP (misma funcionalidad de ejecutar_alertas.bat)
+    // 4. Ejecutar mediante el CLI de PHP (misma funcionalidad de ejecutar_alertas.bat)
     if (function_exists('exec')) {
-        $comando = "\"{$phpExe}\" \"{$scriptProcesar}\" 2>&1";
+        $comando = "\"{$phpExe}\" \"{$scriptProcesar}\"{$argAlmacen} 2>&1";
         $lineas = [];
         exec($comando, $lineas, $codigoSalida);
         $salida = implode(PHP_EOL, $lineas);
@@ -52,27 +85,17 @@ try {
 
     // Fallback: Si exec no estuviera disponible, ejecutar en el mismo hilo de PHP
     if (empty($salida) && $codigoSalida === 0) {
+        $argv = ['procesar_alertas.php'];
+        if ($almacenAProcesar !== null) {
+            $argv[] = "--almacen={$almacenAProcesar}";
+        }
         ob_start();
         require $scriptProcesar;
         $salida = (string) ob_get_clean();
     }
 
-    // 3. Registrar la salida en el archivo de log diario organizado por mes (YYYY-MM)
-    $fecha = date('Y-m-d');
-    $anioMes = date('Y-m');
-    $logSubDir = $raizProyecto . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . $anioMes;
-    if (!is_dir($logSubDir)) {
-        @mkdir($logSubDir, 0777, true);
-    }
-    $logFile = $logSubDir . DIRECTORY_SEPARATOR . "procesamiento_{$fecha}.log";
-
-    if (!empty($salida)) {
-        @file_put_contents(
-            $logFile,
-            trim($salida) . PHP_EOL,
-            FILE_APPEND | LOCK_EX
-        );
-    }
+    // 5. El registro en el log correspondiente (logs/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log)
+    // es gestionado automáticamente por bin/procesar_alertas.php según el almacén procesado.
 
     if ($codigoSalida !== 0) {
         throw new RuntimeException(

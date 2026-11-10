@@ -25,24 +25,38 @@ class StockNotificationService
 
     /**
      * Procesa el inventario y agrupa las alertas
-     * en un solo correo.
+     * en un solo correo por cada almacén independiente.
      *
      * @param bool $modoSimulacion
      * true  = no modifica SQL ni envía correos.
      * false = actualiza SQL y envía el correo agrupado.
+     * @param string|null $almacenFiltro
+     * null = procesa todos los almacenes configurados.
+     * string = procesa exclusivamente el almacén indicado.
      */
-    public function ejecutar(bool $modoSimulacion = false): array
+    public function ejecutar(bool $modoSimulacion = false, ?string $almacenFiltro = null): array
     {
+        if ($almacenFiltro !== null && trim($almacenFiltro) !== '') {
+            $almacenFiltro = trim($almacenFiltro);
+            if (function_exists('esAlmacenSoportado') && !esAlmacenSoportado($almacenFiltro)) {
+                throw new RuntimeException("El almacén '{$almacenFiltro}' no está soportado en la configuración.");
+            }
+        } else {
+            $almacenFiltro = null;
+        }
+
         // Analizar los artículos y actualizar banderas
         // solamente cuando no estamos simulando.
         $resultados = $this->stockAlertService->procesar(
-            !$modoSimulacion
+            !$modoSimulacion,
+            $almacenFiltro
         );
 
         $articulosPendientes = [];
         $indicesPendientes = [];
+        $pendientesPorAlmacen = [];
 
-        // Preparar los artículos que necesitan notificación.
+        // Preparar los artículos que necesitan notificación agrupados por almacén.
         foreach ($resultados as $indice => $articulo) {
 
             $resultados[$indice]['correo_enviado'] = false;
@@ -51,6 +65,13 @@ class StockNotificationService
             $resultados[$indice]['band_correo_actualizada'] = false;
 
             if ($articulo['correo_pendiente']) {
+                $alm = trim((string) ($articulo['alm_codigo'] ?? ''));
+                if ($alm !== '') {
+                    $pendientesPorAlmacen[$alm][] = [
+                        'indice' => $indice,
+                        'articulo' => $articulo
+                    ];
+                }
                 $articulosPendientes[] = $articulo;
                 $indicesPendientes[] = $indice;
             }
@@ -61,64 +82,65 @@ class StockNotificationService
         $articulosNotificados = 0;
         $erroresActualizacionBanderas = 0;
 
-        // En producción, enviar un solo correo con todos los pendientes.
-        if (!$modoSimulacion && !empty($articulosPendientes)) {
+        // En producción, enviar un correo agrupado por cada almacén que tenga artículos pendientes.
+        if (!$modoSimulacion && !empty($pendientesPorAlmacen)) {
 
-            try {
+            foreach ($pendientesPorAlmacen as $almCodigo => $itemsAlmacen) {
 
-                $enviado = $this->emailService->enviarAlertas(
-                    $articulosPendientes
-                );
+                $articulosDelAlmacen = array_column($itemsAlmacen, 'articulo');
+                $indicesDelAlmacen = array_column($itemsAlmacen, 'indice');
 
-                if (!$enviado) {
-                    throw new RuntimeException(
-                        'No se confirmó el envío del correo agrupado.'
+                try {
+
+                    $enviado = $this->emailService->enviarAlertasPorAlmacen(
+                        $almCodigo,
+                        $articulosDelAlmacen
                     );
-                }
 
-                // El correo agrupado fue aceptado por el servidor SMTP.
-                $correosEnviados = 1;
-                $articulosNotificados = count($articulosPendientes);
-
-                // Marcar individualmente los artículos como notificados.
-                foreach ($indicesPendientes as $indice) {
-
-                    $articulo = $resultados[$indice];
-
-                    $resultados[$indice]['correo_enviado'] = true;
-                    $resultados[$indice]['correo_pendiente'] = false;
-
-                    try {
-
-                        $this->repository->marcarCorreoEnviado(
-                            $articulo['emp_codigo'],
-                            $articulo['art_codigo'],
-                            $articulo['alm_codigo']
+                    if (!$enviado) {
+                        throw new RuntimeException(
+                            "No se confirmó el envío del correo agrupado para el almacén {$almCodigo}."
                         );
-
-                        $resultados[$indice]['band_correo_actualizada'] = true;
-
-                    } catch (Throwable $e) {
-
-                        // El correo sí se envió, pero no se pudo
-                        // actualizar la bandera en SQL Server.
-                        $resultados[$indice]['error_actualizacion_bandera']
-                            = $e->getMessage();
-
-                        $erroresActualizacionBanderas++;
                     }
-                }
 
-            } catch (Throwable $e) {
+                    $correosEnviados++;
+                    $articulosNotificados += count($articulosDelAlmacen);
 
-                // Si falla el envío agrupado, ninguno de los artículos
-                // se marca como correo enviado.
-                $correosFallidos = 1;
+                    // Marcar individualmente los artículos de este almacén como notificados
+                    foreach ($indicesDelAlmacen as $indice) {
 
-                foreach ($indicesPendientes as $indice) {
+                        $articulo = $resultados[$indice];
 
-                    $resultados[$indice]['error_correo'] =
-                        $e->getMessage();
+                        $resultados[$indice]['correo_enviado'] = true;
+                        $resultados[$indice]['correo_pendiente'] = false;
+
+                        try {
+
+                            $this->repository->marcarCorreoEnviado(
+                                $articulo['emp_codigo'],
+                                $articulo['art_codigo'],
+                                $articulo['alm_codigo']
+                            );
+
+                            $resultados[$indice]['band_correo_actualizada'] = true;
+
+                        } catch (Throwable $e) {
+
+                            $resultados[$indice]['error_actualizacion_bandera']
+                                = $e->getMessage();
+
+                            $erroresActualizacionBanderas++;
+                        }
+                    }
+
+                } catch (Throwable $e) {
+
+                    $correosFallidos++;
+
+                    foreach ($indicesDelAlmacen as $indice) {
+                        $resultados[$indice]['error_correo'] =
+                            $e->getMessage();
+                    }
                 }
             }
         }

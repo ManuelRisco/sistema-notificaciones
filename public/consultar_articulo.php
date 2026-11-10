@@ -15,7 +15,8 @@ require_once $raizProyecto . '/config/database.php';
 header('Content-Type: application/json; charset=utf-8');
 
 $emp = '001';
-$alm = '003';
+$almParam = trim((string) ($_GET['alm'] ?? ''));
+$alm = requerirAlmacenAutorizado($almParam !== '' ? $almParam : null);
 
 // Si se solicita el catálogo de artículos para la ventana modal
 if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
@@ -100,7 +101,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 ON c.emp_codigo = obj.emp_codigo
                 AND c.alm_codigo = obj.alm_codigo
                 AND c.art_codigo = obj.art_codigo
-            ORDER BY m.art_nombre ASC;
+            ORDER BY m.art_codigo DESC;
         ";
 
         $stmtCat = sqlsrv_query($conexion, $sqlCat, [$alm, $emp, $emp, $alm]);

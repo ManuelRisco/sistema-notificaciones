@@ -21,11 +21,11 @@ for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') d
 if "%FECHA%"=="" set "FECHA=actual"
 set "ANIO_MES=%FECHA:~0,7%"
 
-REM Crear subcarpeta por mes si no existe
-set "LOG_SUBDIR=%LOG_DIR%\%ANIO_MES%"
+REM Crear subcarpeta global por mes si no existe
+set "LOG_SUBDIR=%LOG_DIR%\global\%ANIO_MES%"
 if not exist "%LOG_SUBDIR%" mkdir "%LOG_SUBDIR%"
 
-REM Archivo de log diario (se acumula por dia, sin borrar historicos)
+REM Archivo de log diario global (se acumula por dia, sin borrar historicos)
 set "LOG_FILE=%LOG_SUBDIR%\procesamiento_%FECHA%.log"
 
 REM Ejecutar el sistema y registrar salida y errores
