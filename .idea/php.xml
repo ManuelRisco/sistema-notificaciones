@@ -20,6 +20,9 @@
       <path value="$PROJECT_DIR$/vendor/markbaker/matrix" />
       <path value="$PROJECT_DIR$/vendor/markbaker/complex" />
       <path value="$PROJECT_DIR$/vendor/psr/simple-cache" />
+      <path value="$PROJECT_DIR$/sistema-notificaciones-test/vendor/composer" />
+      <path value="$PROJECT_DIR$/sistema-notificaciones-test/vendor/graham-campbell/result-type" />
+      <path value="$PROJECT_DIR$/sistema-notificaciones-test/vendor/maennchen/zipstream-php" />
     </include_path>
   </component>
   <component name="PhpUnit">

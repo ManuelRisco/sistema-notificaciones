@@ -47,8 +47,8 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                             ELSE 0
                         END
                     ) AS stock_actual
-                FROM TECNOTEST.dbo.log_detmov a
-                INNER JOIN TECNOTEST.dbo.log_cabmov b
+                FROM ERPTECNOFILM.dbo.log_detmov a
+                INNER JOIN ERPTECNOFILM.dbo.log_cabmov b
                     ON a.mov_id = b.mov_id
                     AND b.alm_codigo = ?
                 WHERE a.emp_codigo = ?
@@ -63,7 +63,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
             (
                 SELECT emp_codigo, art_codigo, alm_codigo FROM StockCalculado
                 UNION
-                SELECT emp_codigo, art_codigo, alm_codigo FROM TECNOTEST.dbo.cfg_alerta_stock WHERE emp_codigo = ? AND alm_codigo = ?
+                SELECT emp_codigo, art_codigo, alm_codigo FROM ERPTECNOFILM.dbo.cfg_alerta_stock WHERE emp_codigo = ? AND alm_codigo = ?
             )
             SELECT 
                 RTRIM(m.art_codigo) AS art_codigo, 
@@ -75,18 +75,18 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 s.stock_actual,
                 c.disponible
             FROM ArticulosObjetivo obj
-            INNER JOIN TECNOTEST.dbo.mae_articulo m
+            INNER JOIN ERPTECNOFILM.dbo.mae_articulo m
                 ON m.emp_codigo = obj.emp_codigo
                 AND m.art_codigo = obj.art_codigo
-            LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
+            LEFT JOIN ERPTECNOFILM.dbo.mae_cabumedida d
                 ON m.ume_codigo = d.ume_codigo
-            LEFT JOIN TECNOTEST.dbo.mae_linea l
+            LEFT JOIN ERPTECNOFILM.dbo.mae_linea l
                 ON l.lin_codigo = m.lin_codigo
-            LEFT JOIN TECNOTEST.dbo.mae_familia f
+            LEFT JOIN ERPTECNOFILM.dbo.mae_familia f
                 ON f.emp_codigo = m.emp_codigo
                 AND f.tar_codigo = m.tar_codigo
                 AND f.fam_codigo = m.fam_codigo
-            LEFT JOIN TECNOTEST.dbo.mae_tpofamilia tf
+            LEFT JOIN ERPTECNOFILM.dbo.mae_tpofamilia tf
                 ON tf.emp_codigo = m.emp_codigo
                 AND tf.tar_codigo = m.tar_codigo
                 AND tf.fam_codigo = m.fam_codigo
@@ -95,7 +95,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 ON s.emp_codigo = obj.emp_codigo
                 AND s.art_codigo = obj.art_codigo
                 AND s.alm_codigo = obj.alm_codigo
-            LEFT JOIN TECNOTEST.dbo.cfg_alerta_stock c
+            LEFT JOIN ERPTECNOFILM.dbo.cfg_alerta_stock c
                 ON c.emp_codigo = obj.emp_codigo
                 AND c.alm_codigo = obj.alm_codigo
                 AND c.art_codigo = obj.art_codigo
@@ -188,8 +188,8 @@ try {
             SELECT
                 SUM(CASE WHEN b.mov_tipo = 'I' THEN a.mov_ctdmov ELSE 0 END) -
                 SUM(CASE WHEN b.mov_tipo = 'S' THEN a.mov_ctdmov ELSE 0 END) AS stock_actual
-            FROM TECNOTEST.dbo.log_detmov a
-            INNER JOIN TECNOTEST.dbo.log_cabmov b
+            FROM ERPTECNOFILM.dbo.log_detmov a
+            INNER JOIN ERPTECNOFILM.dbo.log_cabmov b
                 ON a.mov_id = b.mov_id
                 AND b.alm_codigo = ?
             WHERE a.emp_codigo = ?
@@ -204,16 +204,16 @@ try {
             RTRIM(f.fam_nombre) AS fam_nombre,
             RTRIM(tf.tfa_nombre) AS tfa_nombre,
             s.stock_actual
-        FROM TECNOTEST.dbo.mae_articulo m
-        LEFT JOIN TECNOTEST.dbo.mae_cabumedida d
+        FROM ERPTECNOFILM.dbo.mae_articulo m
+        LEFT JOIN ERPTECNOFILM.dbo.mae_cabumedida d
             ON m.ume_codigo = d.ume_codigo
-        LEFT JOIN TECNOTEST.dbo.mae_linea l
+        LEFT JOIN ERPTECNOFILM.dbo.mae_linea l
             ON l.lin_codigo = m.lin_codigo
-        LEFT JOIN TECNOTEST.dbo.mae_familia f
+        LEFT JOIN ERPTECNOFILM.dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
             AND f.tar_codigo = m.tar_codigo
             AND f.fam_codigo = m.fam_codigo
-        LEFT JOIN TECNOTEST.dbo.mae_tpofamilia tf
+        LEFT JOIN ERPTECNOFILM.dbo.mae_tpofamilia tf
             ON tf.emp_codigo = m.emp_codigo
             AND tf.tar_codigo = m.tar_codigo
             AND tf.fam_codigo = m.fam_codigo
@@ -253,7 +253,7 @@ try {
     // 2. Consultar si ya tiene configuración en cfg_alerta_stock
     $sqlCfg = "
         SELECT disponible
-        FROM TECNOTEST.dbo.cfg_alerta_stock
+        FROM ERPTECNOFILM.dbo.cfg_alerta_stock
         WHERE emp_codigo = ? AND alm_codigo = ? AND art_codigo = ?;
     ";
     $stmtCfg = sqlsrv_query($conexion, $sqlCfg, [$emp, $alm, $codigo]);

@@ -16,7 +16,7 @@ if (class_exists(\Dotenv\Dotenv::class) && file_exists($raizProyecto . '/.env') 
 require_once $raizProyecto . '/config/database.php';
 
 /**
- * Codifica una contraseña utilizando el algoritmo de TECNOTEST.
+ * Codifica una contraseña utilizando el algoritmo de ERPTECNOFILM.
  * Codificación compatible con Windows-1252 (CP1252).
  */
 function encodePassword(string $text): string
@@ -73,7 +73,7 @@ function obtenerSecretoAuth(): string
         return trim($secreto);
     }
 
-    return hash('sha256', 'sistema-notificaciones-tecnofilm-auth-secret-key-2026');
+    return hash('sha256', 'sistema-notificaciones-ERPTECNOFILM-auth-secret-key-2026');
 }
 
 /**
@@ -150,7 +150,7 @@ function validarTokenAuth(string $token): ?array
 }
 
 /**
- * Consulta la base de datos de test (TECNOTEST.dbo.adm_usuario) para verificar
+ * Consulta la base de datos de (ERPTECNOFILM.dbo.adm_usuario) para verificar
  * el usuario y su contraseña codificada.
  */
 function autenticarUsuario(string $usuario, string $clave): ?array
@@ -168,7 +168,7 @@ function autenticarUsuario(string $usuario, string $clave): ?array
             RTRIM(usr_nombre) AS usr_nombre,
             usr_clave,
             usr_status
-        FROM TECNOTEST.dbo.adm_usuario
+        FROM ERPTECNOFILM.dbo.adm_usuario
         WHERE UPPER(RTRIM(usr_codigo)) = ?;
     ";
 
@@ -189,7 +189,7 @@ function autenticarUsuario(string $usuario, string $clave): ?array
         return null;
     }
 
-    // Verificar contraseña con el algoritmo de TECNOTEST
+    // Verificar contraseña con el algoritmo de ERPTECNOFILM
     if (!verifyPassword($clave, (string) ($fila['usr_clave'] ?? ''))) {
         return null;
     }

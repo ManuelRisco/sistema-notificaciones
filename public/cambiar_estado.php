@@ -57,7 +57,7 @@ try {
     // 4.1 Si la acción es reactivar, verificar que el artículo exista en el catálogo maestro
     if ($accion === 'reactivar') {
         $sqlVerifMae = "
-            SELECT 1 FROM TECNOTEST.dbo.mae_articulo
+            SELECT 1 FROM ERPTECNOFILM.dbo.mae_articulo
             WHERE emp_codigo = ? AND art_codigo = ?;
         ";
         $stmtVerifMae = sqlsrv_query($conexion, $sqlVerifMae, [$empCodigo, $artCodigo]);
@@ -79,7 +79,7 @@ try {
     $nuevoEstado = ($accion === 'reactivar') ? 1 : 0;
 
     $sql = "
-        UPDATE TECNOTEST.dbo.cfg_alerta_stock
+        UPDATE ERPTECNOFILM.dbo.cfg_alerta_stock
         SET
             disponible = ?,
             fecha_actualizacion = SYSDATETIME()
@@ -118,7 +118,7 @@ try {
     if ($artNombre === '' && $artCodigo !== '') {
         $sqlNom = "
             SELECT RTRIM(art_nombre) AS art_nombre
-            FROM TECNOTEST.dbo.mae_articulo
+            FROM ERPTECNOFILM.dbo.mae_articulo
             WHERE emp_codigo = ? AND art_codigo = ?;
         ";
         $stmtNom = sqlsrv_query($conexion, $sqlNom, [$empCodigo, $artCodigo]);

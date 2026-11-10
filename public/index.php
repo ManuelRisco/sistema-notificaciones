@@ -40,6 +40,11 @@ $filtroCategoria = isset($_GET['categoria']) ? trim((string)$_GET['categoria']) 
 $filtroFamilia = isset($_GET['familia']) ? trim((string)$_GET['familia']) : '';
 $filtroTfa = isset($_GET['tfa']) ? trim((string)$_GET['tfa']) : '';
 
+$ordenValidos = ['stock_desc', 'stock_asc', 'minimo_desc', 'minimo_asc'];
+$orden = isset($_GET['orden']) && in_array((string)$_GET['orden'], $ordenValidos, true)
+    ? (string)$_GET['orden']
+    : '';
+
 $opcionesCategoria = [];
 $opcionesFamilia = [];
 $opcionesTfa = [];
@@ -136,6 +141,14 @@ try {
 
     $clausulaWhere = !empty($condiciones) ? 'WHERE ' . implode(' AND ', $condiciones) : '';
 
+    $clausulaOrderBy = match ($orden) {
+        'stock_desc'  => 'ORDER BY ISNULL(s.stock_actual, 0) DESC, cfg.disponible DESC, cfg.art_codigo ASC',
+        'stock_asc'   => 'ORDER BY ISNULL(s.stock_actual, 0) ASC, cfg.disponible DESC, cfg.art_codigo ASC',
+        'minimo_desc' => 'ORDER BY ISNULL(cfg.stock_minimo, 0) DESC, cfg.disponible DESC, cfg.art_codigo ASC',
+        'minimo_asc'  => 'ORDER BY ISNULL(cfg.stock_minimo, 0) ASC, cfg.disponible DESC, cfg.art_codigo ASC',
+        default       => 'ORDER BY cfg.disponible DESC, cfg.emp_codigo, cfg.art_codigo, cfg.alm_codigo',
+    };
+
     // 7. Calcular el stock físico de cada artículo configurado (filtrado en BD)
     $sql = "
         ;WITH StockCalculado AS
@@ -228,11 +241,7 @@ try {
 
         {$clausulaWhere}
 
-        ORDER BY
-            cfg.disponible DESC,
-            cfg.emp_codigo,
-            cfg.art_codigo,
-            cfg.alm_codigo;
+        {$clausulaOrderBy};
     ";
 
     $stmt = sqlsrv_query($conexion, $sql, $params);
@@ -360,7 +369,8 @@ $hayFiltrosActivos = (
     $filtroCatalogo !== '' ||
     $filtroCategoria !== '' ||
     $filtroFamilia !== '' ||
-    $filtroTfa !== ''
+    $filtroTfa !== '' ||
+    $orden !== ''
 );
 
 // Gestión de mensajes de notificación (éxito o error)
@@ -496,8 +506,9 @@ if (isset($_GET['toggle_dark_mode'])) {
     <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
         <!-- PANEL RESUMEN CON LOS TOTALES DE LOS ARTICULOS -->
         <div class="resumen">
-            <div class="resumen-grupo" style="font-size: 16px">
-                Total: <strong><?= $totales['total'] ?></strong>
+            <div class="resumen-grupo resumen-total">
+                <span class="resumen-total-label">Total:</span>
+                <strong><?= $totales['total'] ?></strong>
             </div>
 
             <div class="resumen-separador"></div>
@@ -508,7 +519,6 @@ if (isset($_GET['toggle_dark_mode'])) {
                     <span>Disponibles</span>
                     <strong><?= $totales['disponibles'] ?></strong>
                 </div>
-                <div class="resumen-separador"></div>
                 <div class="resumen-item">
                     <span>No disponibles</span>
                     <strong><?= $totales['no_disponibles'] ?></strong>
@@ -523,7 +533,6 @@ if (isset($_GET['toggle_dark_mode'])) {
                     <span>Con stock</span>
                     <strong><?= $totales['con_stock'] ?></strong>
                 </div>
-                <div class="resumen-separador"></div>
                 <div class="resumen-item">
                     <span>Sin stock</span>
                     <strong><?= $totales['sin_stock'] ?></strong>
@@ -535,18 +544,24 @@ if (isset($_GET['toggle_dark_mode'])) {
             <div class="resumen-grupo">
                 <span class="resumen-grupo-titulo">Correo:</span>
                 <div class="resumen-item">
-                    <span>Correo enviado</span>
+                    <span>Enviado</span>
                     <strong><?= $totales['correo_enviado'] ?></strong>
                 </div>
-                <div class="resumen-separador"></div>
                 <div class="resumen-item">
-                    <span>Correo no enviado</span>
+                    <span>No enviado</span>
                     <strong><?= $totales['correo_no_enviado'] ?></strong>
                 </div>
             </div>
 
             <?php if ($totales['no_encontrados'] > 0): ?>
                 <div class="resumen-separador"></div>
+                <div class="resumen-grupo">
+                    <span class="resumen-grupo-titulo">Catálogo:</span>
+                    <div class="resumen-item">
+                        <span>No encontrados</span>
+                        <strong><?= $totales['no_encontrados'] ?></strong>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
     <?php endif; ?>
@@ -578,6 +593,9 @@ if (isset($_GET['toggle_dark_mode'])) {
             <?php endif; ?>
             <?php if ($filtroTfa !== ''): ?>
                 <input type="hidden" name="tfa" value="<?= escapar($filtroTfa) ?>">
+            <?php endif; ?>
+            <?php if ($orden !== ''): ?>
+                <input type="hidden" name="orden" value="<?= escapar($orden) ?>">
             <?php endif; ?>
 
             <div class="busqueda-campo busqueda-campo-texto">
@@ -698,8 +716,61 @@ if (isset($_GET['toggle_dark_mode'])) {
                             <?php endforeach; ?>
                         </div>
                     </th>
-                    <th>Stock físico</th>
-                    <th>Stock mínimo</th>
+                    <!-- FILTRO / ORDEN: STOCK FÍSICO -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Stock físico</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= in_array($orden, ['stock_desc', 'stock_asc'], true) ? 'filtro-activo' : '' ?>"
+                                title="Ordenar por Stock físico"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-stock-fisico')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-stock-fisico" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['orden' => '']) ?>" class="opcion-filtro <?= !in_array($orden, ['stock_desc', 'stock_asc'], true) ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= !in_array($orden, ['stock_desc', 'stock_asc'], true) ? '✓' : '' ?></span> Por defecto
+                            </a>
+                            <a href="<?= urlConFiltros(['orden' => ($orden === 'stock_desc' ? '' : 'stock_desc')]) ?>" class="opcion-filtro <?= ($orden === 'stock_desc') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($orden === 'stock_desc') ? '✓' : '' ?></span> De mayor a menor (↓)
+                            </a>
+                            <a href="<?= urlConFiltros(['orden' => ($orden === 'stock_asc' ? '' : 'stock_asc')]) ?>" class="opcion-filtro <?= ($orden === 'stock_asc') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($orden === 'stock_asc') ? '✓' : '' ?></span> De menor a mayor (↑)
+                            </a>
+                        </div>
+                    </th>
+
+                    <!-- FILTRO / ORDEN: STOCK MÍNIMO -->
+                    <th class="th-filtrable">
+                        <div class="th-contenido">
+                            <span>Stock mínimo</span>
+                            <button
+                                type="button"
+                                class="btn-filtro-columna <?= in_array($orden, ['minimo_desc', 'minimo_asc'], true) ? 'filtro-activo' : '' ?>"
+                                title="Ordenar por Stock mínimo"
+                                onclick="toggleMenuFiltro(event, 'menu-filtro-stock-minimo')"
+                            >
+                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="menu-filtro-stock-minimo" class="menu-filtro">
+                            <a href="<?= urlConFiltros(['orden' => '']) ?>" class="opcion-filtro <?= !in_array($orden, ['minimo_desc', 'minimo_asc'], true) ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= !in_array($orden, ['minimo_desc', 'minimo_asc'], true) ? '✓' : '' ?></span> Por defecto
+                            </a>
+                            <a href="<?= urlConFiltros(['orden' => ($orden === 'minimo_desc' ? '' : 'minimo_desc')]) ?>" class="opcion-filtro <?= ($orden === 'minimo_desc') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($orden === 'minimo_desc') ? '✓' : '' ?></span> De mayor a menor (↓)
+                            </a>
+                            <a href="<?= urlConFiltros(['orden' => ($orden === 'minimo_asc' ? '' : 'minimo_asc')]) ?>" class="opcion-filtro <?= ($orden === 'minimo_asc') ? 'seleccionada' : '' ?>">
+                                <span class="indicador-check"><?= ($orden === 'minimo_asc') ? '✓' : '' ?></span> De menor a mayor (↑)
+                            </a>
+                        </div>
+                    </th>
 
                     <!-- FILTRO TIPO: BAND. STOCK -->
                     <th class="th-filtrable">

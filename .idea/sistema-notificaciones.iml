@@ -3,6 +3,7 @@
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
     <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/sistema-notificaciones-test/src" isTestSource="false" packagePrefix="Manue\SistemaNotificaciones\" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="Manue\SistemaNotificaciones\" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/graham-campbell/result-type" />
@@ -17,6 +18,9 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/markbaker/matrix" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/phpoffice/phpspreadsheet" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/psr/simple-cache" />
+      <excludeFolder url="file://$MODULE_DIR$/sistema-notificaciones-test/vendor/composer" />
+      <excludeFolder url="file://$MODULE_DIR$/sistema-notificaciones-test/vendor/graham-campbell/result-type" />
+      <excludeFolder url="file://$MODULE_DIR$/sistema-notificaciones-test/vendor/maennchen/zipstream-php" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

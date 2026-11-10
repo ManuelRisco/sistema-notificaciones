@@ -126,8 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="login-header">
-            <img src="img/tecnofilm.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm.png') ? filemtime(__DIR__ . '/img/tecnofilm.png') : time() ?>" alt="Tecnofilm" class="login-logo logo-claro">
-            <img src="img/tecnofilm_dark.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm_dark.png') ? filemtime(__DIR__ . '/img/tecnofilm_dark.png') : time() ?>" alt="Tecnofilm" class="login-logo logo-oscuro">
+            <img src="img/tecnofilm.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm.png') ? filemtime(__DIR__ . '/img/tecnofilm.png') : time() ?>" alt="tecnofilm" class="login-logo logo-claro">
+            <img src="img/tecnofilm_dark.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm_dark.png') ? filemtime(__DIR__ . '/img/tecnofilm_dark.png') : time() ?>" alt="tecnofilm" class="login-logo logo-oscuro">
             <h1>Sistema de Notificaciones</h1>
             <p>Login de Acceso</p>
         </div>
