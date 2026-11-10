@@ -163,6 +163,7 @@ function autenticarUsuario(string $usuario, string $clave, string $almCodigo = '
     }
 
     $conn = getSqlServerConn();
+    $db = getDatabaseName();
     $sql = "
        SELECT TOP 1
             RTRIM(u.usr_codigo) AS usr_codigo,
@@ -173,13 +174,13 @@ function autenticarUsuario(string $usuario, string $clave, string $almCodigo = '
             CASE
                 WHEN EXISTS (
                     SELECT 1
-                    FROM ERPTECNOFILM.dbo.log_almusr a
+                    FROM [{$db}].dbo.log_almusr a
                     WHERE RTRIM(a.usr_codigo) = RTRIM(u.usr_codigo)
                       AND RTRIM(a.alm_codigo) = ?
                 ) THEN 1
                 ELSE 0
             END AS es_encargado_almacen
-        FROM ERPTECNOFILM.dbo.adm_usuario u
+        FROM [{$db}].dbo.adm_usuario u
         WHERE UPPER(RTRIM(u.usr_codigo)) = ?;
     ";
 

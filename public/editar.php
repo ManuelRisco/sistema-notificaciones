@@ -54,6 +54,7 @@ try {
 
     // 2. Conectar con SQL Server.
     $conexion = getSqlServerConn();
+    $db = getDatabaseName();
 
     if ($esPost) {
 
@@ -103,8 +104,8 @@ try {
                 cfg.stock_minimo,
                 cfg.disponible,
                 RTRIM(m.art_nombre) AS art_nombre
-            FROM ERPTECNOFILM.dbo.cfg_alerta_stock cfg
-            LEFT JOIN ERPTECNOFILM.dbo.mae_articulo m
+            FROM [{$db}].dbo.cfg_alerta_stock cfg
+            LEFT JOIN [{$db}].dbo.mae_articulo m
                 ON m.emp_codigo = cfg.emp_codigo
                 AND m.art_codigo = cfg.art_codigo
             WHERE cfg.emp_codigo = ?
@@ -153,7 +154,7 @@ try {
         if ($articuloCambio && $artCodigo !== '') {
             $sqlNom = "
                 SELECT RTRIM(art_nombre) AS art_nombre
-                FROM ERPTECNOFILM.dbo.mae_articulo
+                FROM [{$db}].dbo.mae_articulo
                 WHERE emp_codigo = ?
                   AND art_codigo = ?;
             ";
@@ -191,7 +192,7 @@ try {
             // Las banderas se conservan tal como están al cambiar stock o disponibilidad.
             // Solamente se reinician si cambia el código de artículo.
             $sql = "
-                UPDATE ERPTECNOFILM.dbo.cfg_alerta_stock
+                UPDATE [{$db}].dbo.cfg_alerta_stock
                 SET
                     art_codigo = ?,
                     stock_minimo = CAST(? AS NUMERIC(14,5)),
@@ -294,8 +295,8 @@ try {
                             ELSE 0
                         END
                     ) AS stock_actual
-                FROM ERPTECNOFILM.dbo.log_detmov a
-                INNER JOIN ERPTECNOFILM.dbo.log_cabmov b
+                FROM [{$db}].dbo.log_detmov a
+                INNER JOIN [{$db}].dbo.log_cabmov b
                     ON a.mov_id = b.mov_id
                     AND b.alm_codigo = ?
                 WHERE a.emp_codigo = ?
@@ -319,19 +320,19 @@ try {
                 RTRIM(f.fam_nombre) AS fam_nombre,
                 RTRIM(tf.tfa_nombre) AS tfa_nombre,
                 s.stock_actual
-            FROM ERPTECNOFILM.dbo.cfg_alerta_stock cfg
-            LEFT JOIN ERPTECNOFILM.dbo.mae_articulo m
+            FROM [{$db}].dbo.cfg_alerta_stock cfg
+            LEFT JOIN [{$db}].dbo.mae_articulo m
                 ON m.emp_codigo = cfg.emp_codigo
                 AND m.art_codigo = cfg.art_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_cabumedida d
+            LEFT JOIN [{$db}].dbo.mae_cabumedida d
                 ON m.ume_codigo = d.ume_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_linea l
+            LEFT JOIN [{$db}].dbo.mae_linea l
                 ON l.lin_codigo = m.lin_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_familia f
+            LEFT JOIN [{$db}].dbo.mae_familia f
                 ON f.emp_codigo = m.emp_codigo
                 AND f.tar_codigo = m.tar_codigo
                 AND f.fam_codigo = m.fam_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_tpofamilia tf
+            LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
                 ON tf.emp_codigo = m.emp_codigo
                 AND tf.tar_codigo = m.tar_codigo
                 AND tf.fam_codigo = m.fam_codigo

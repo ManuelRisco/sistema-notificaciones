@@ -9,13 +9,33 @@ use RuntimeException;
 class StockRepository
 {
     private mixed $connection;
+    private string $database;
 
     /**
-     * Recibe la conexión existente de SQL Server.
+     * Recibe la conexión existente de SQL Server y opcionalmente el nombre de la BD.
      */
-    public function __construct(mixed $connection)
+    public function __construct(mixed $connection, ?string $database = null)
     {
         $this->connection = $connection;
+        if ($database !== null && trim($database) !== '') {
+            $cleaned = trim($database);
+            if (!preg_match('/\A[A-Za-z0-9_]+\z/', $cleaned)) {
+                throw new RuntimeException("El nombre de la base de datos '{$cleaned}' contiene caracteres no permitidos.");
+            }
+            $this->database = $cleaned;
+        } elseif (function_exists('getDatabaseName')) {
+            $this->database = getDatabaseName();
+        } else {
+            $rawDb = $_ENV['DB_DATABASE'] ?? $_SERVER['DB_DATABASE'] ?? getenv('DB_DATABASE');
+            if (!is_string($rawDb) || trim($rawDb) === '') {
+                throw new RuntimeException('Falta configurar la variable DB_DATABASE en el archivo .env.');
+            }
+            $cleaned = trim($rawDb);
+            if (!preg_match('/\A[A-Za-z0-9_]+\z/', $cleaned)) {
+                throw new RuntimeException("El nombre de la base de datos '{$cleaned}' contiene caracteres no permitidos.");
+            }
+            $this->database = $cleaned;
+        }
     }
 
     /**
@@ -47,13 +67,13 @@ class StockRepository
                         END
                     ) AS stock_actual
 
-                FROM dbo.cfg_alerta_stock cfg
+                FROM [{$this->database}].dbo.cfg_alerta_stock cfg
 
-                INNER JOIN dbo.log_detmov a
+                INNER JOIN [{$this->database}].dbo.log_detmov a
                     ON a.emp_codigo = cfg.emp_codigo
                     AND a.art_codigo = cfg.art_codigo
 
-                INNER JOIN dbo.log_cabmov b
+                INNER JOIN [{$this->database}].dbo.log_cabmov b
                     ON a.mov_id = b.mov_id
                     AND b.alm_codigo = cfg.alm_codigo
 
@@ -85,24 +105,24 @@ class StockRepository
                 cfg.band_correo,
                 cfg.disponible
 
-            FROM dbo.cfg_alerta_stock cfg
+            FROM [{$this->database}].dbo.cfg_alerta_stock cfg
 
-            INNER JOIN dbo.mae_articulo c
+            INNER JOIN [{$this->database}].dbo.mae_articulo c
                 ON c.emp_codigo = cfg.emp_codigo
                 AND c.art_codigo = cfg.art_codigo
 
-            LEFT JOIN dbo.mae_cabumedida d
+            LEFT JOIN [{$this->database}].dbo.mae_cabumedida d
                 ON c.ume_codigo = d.ume_codigo
 
-            LEFT JOIN dbo.mae_linea l
+            LEFT JOIN [{$this->database}].dbo.mae_linea l
                 ON l.lin_codigo = c.lin_codigo
 
-            LEFT JOIN dbo.mae_familia f
+            LEFT JOIN [{$this->database}].dbo.mae_familia f
                 ON f.emp_codigo = c.emp_codigo
                 AND f.tar_codigo = c.tar_codigo
                 AND f.fam_codigo = c.fam_codigo
 
-            LEFT JOIN dbo.mae_tpofamilia tf
+            LEFT JOIN [{$this->database}].dbo.mae_tpofamilia tf
                 ON tf.emp_codigo = c.emp_codigo
                 AND tf.tar_codigo = c.tar_codigo
                 AND tf.fam_codigo = c.fam_codigo
@@ -176,7 +196,7 @@ class StockRepository
         }
 
         $sql = "
-            UPDATE dbo.cfg_alerta_stock
+            UPDATE [{$this->database}].dbo.cfg_alerta_stock
             SET
                 band_stock = ?,
                 band_correo = ?,
@@ -245,7 +265,7 @@ class StockRepository
         }
 
         $sql = "
-            UPDATE dbo.cfg_alerta_stock
+            UPDATE [{$this->database}].dbo.cfg_alerta_stock
             SET
                 disponible = ?,
                 fecha_actualizacion = SYSDATETIME()
@@ -283,7 +303,7 @@ class StockRepository
     ): void {
 
         $sql = "
-            UPDATE dbo.cfg_alerta_stock
+            UPDATE [{$this->database}].dbo.cfg_alerta_stock
             SET
                 band_correo = 1,
                 fecha_actualizacion = SYSDATETIME()

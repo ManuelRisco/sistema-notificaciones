@@ -64,11 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 4. Conectar con SQL Server.
         $conexion = getSqlServerConn();
+        $db = getDatabaseName();
 
         // 4.1 Consultar nombre del artículo en el maestro de artículos
         $sqlMae = "
             SELECT RTRIM(art_nombre) AS art_nombre
-            FROM ERPTECNOFILM.dbo.mae_articulo
+            FROM [{$db}].dbo.mae_articulo
             WHERE emp_codigo = ? AND art_codigo = ?;
         ";
         $stmtMae = sqlsrv_query($conexion, $sqlMae, [$empCodigo, $artCodigo]);
@@ -89,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 5. Comprobar si ya existe en la base de datos (incluso si fue borrado lógicamente)
         $sqlCheck = "
             SELECT disponible
-            FROM ERPTECNOFILM.dbo.cfg_alerta_stock
+            FROM [{$db}].dbo.cfg_alerta_stock
             WHERE emp_codigo = ?
               AND art_codigo = ?
               AND alm_codigo = ?;
@@ -120,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Si existía con borrado lógico (disponible = 0), se reactiva conservando sus banderas
             $sqlReactivar = "
-                UPDATE ERPTECNOFILM.dbo.cfg_alerta_stock
+                UPDATE [{$db}].dbo.cfg_alerta_stock
                 SET stock_minimo = CAST(? AS NUMERIC(14,5)),
                     disponible = 1,
                     fecha_actualizacion = SYSDATETIME()
@@ -147,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 6. Nuevo registro con disponible = 1
             $sql = "
-                INSERT INTO ERPTECNOFILM.dbo.cfg_alerta_stock
+                INSERT INTO [{$db}].dbo.cfg_alerta_stock
                 (
                     emp_codigo,
                     art_codigo,

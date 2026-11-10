@@ -64,6 +64,7 @@ try {
 
     // 4. Obtener la conexión.
     $conexion = getSqlServerConn();
+    $db = getDatabaseName();
 
     // 5. Consultar los totales generales directamente en la base de datos
     // Se excluyen los artículos no encontrados de las métricas de stock y correo
@@ -77,8 +78,8 @@ try {
             SUM(CASE WHEN m.art_codigo IS NOT NULL AND cfg.band_correo = 1 THEN 1 ELSE 0 END) AS correo_enviado,
             SUM(CASE WHEN m.art_codigo IS NOT NULL AND cfg.band_correo = 0 THEN 1 ELSE 0 END) AS correo_no_enviado,
             SUM(CASE WHEN m.art_codigo IS NULL THEN 1 ELSE 0 END) AS no_encontrados
-        FROM dbo.cfg_alerta_stock cfg
-        LEFT JOIN dbo.mae_articulo m
+        FROM [{$db}].dbo.cfg_alerta_stock cfg
+        LEFT JOIN [{$db}].dbo.mae_articulo m
             ON m.emp_codigo = cfg.emp_codigo
             AND m.art_codigo = cfg.art_codigo;
     ";
@@ -173,13 +174,13 @@ try {
                     END
                 ) AS stock_actual
 
-            FROM dbo.cfg_alerta_stock cfg
+            FROM [{$db}].dbo.cfg_alerta_stock cfg
 
-            INNER JOIN dbo.log_detmov a
+            INNER JOIN [{$db}].dbo.log_detmov a
                 ON a.emp_codigo = cfg.emp_codigo
                 AND a.art_codigo = cfg.art_codigo
 
-            INNER JOIN dbo.log_cabmov b
+            INNER JOIN [{$db}].dbo.log_cabmov b
                 ON a.mov_id = b.mov_id
                 AND b.alm_codigo = cfg.alm_codigo
 
@@ -211,29 +212,29 @@ try {
             s.stock_actual AS stock_actual,
             cfg.fecha_actualizacion
 
-        FROM dbo.cfg_alerta_stock cfg
+        FROM [{$db}].dbo.cfg_alerta_stock cfg
 
         LEFT JOIN StockCalculado s
             ON s.emp_codigo = cfg.emp_codigo
             AND s.art_codigo = cfg.art_codigo
             AND s.alm_codigo = cfg.alm_codigo
 
-        LEFT JOIN dbo.mae_articulo m
+        LEFT JOIN [{$db}].dbo.mae_articulo m
             ON m.emp_codigo = cfg.emp_codigo
             AND m.art_codigo = cfg.art_codigo
 
-        LEFT JOIN dbo.mae_cabumedida d
+        LEFT JOIN [{$db}].dbo.mae_cabumedida d
             ON d.ume_codigo = m.ume_codigo
 
-        LEFT JOIN dbo.mae_linea l
+        LEFT JOIN [{$db}].dbo.mae_linea l
             ON l.lin_codigo = m.lin_codigo
 
-        LEFT JOIN dbo.mae_familia f
+        LEFT JOIN [{$db}].dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
             AND f.tar_codigo = m.tar_codigo
             AND f.fam_codigo = m.fam_codigo
 
-        LEFT JOIN dbo.mae_tpofamilia tf
+        LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
             ON tf.emp_codigo = m.emp_codigo
             AND tf.tar_codigo = m.tar_codigo
             AND tf.fam_codigo = m.fam_codigo
@@ -271,17 +272,17 @@ try {
             RTRIM(l.lin_nombre) AS categoria,
             RTRIM(f.fam_nombre) AS fam_nombre,
             RTRIM(tf.tfa_nombre) AS tfa_nombre
-        FROM dbo.cfg_alerta_stock cfg
-        INNER JOIN dbo.mae_articulo m
+        FROM [{$db}].dbo.cfg_alerta_stock cfg
+        INNER JOIN [{$db}].dbo.mae_articulo m
             ON m.emp_codigo = cfg.emp_codigo
             AND m.art_codigo = cfg.art_codigo
-        LEFT JOIN dbo.mae_linea l
+        LEFT JOIN [{$db}].dbo.mae_linea l
             ON l.lin_codigo = m.lin_codigo
-        LEFT JOIN dbo.mae_familia f
+        LEFT JOIN [{$db}].dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
             AND f.tar_codigo = m.tar_codigo
             AND f.fam_codigo = m.fam_codigo
-        LEFT JOIN dbo.mae_tpofamilia tf
+        LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
             ON tf.emp_codigo = m.emp_codigo
             AND tf.tar_codigo = m.tar_codigo
             AND tf.fam_codigo = m.fam_codigo

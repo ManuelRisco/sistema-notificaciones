@@ -24,6 +24,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
 
     try {
         $conexion = getSqlServerConn();
+        $db = getDatabaseName();
         // Consulta basada en StockRepository: calcula el stock físico real para almacén 003
         // y une con los artículos que tienen movimientos o configuración en dicho almacén
         $sqlCat = "
@@ -47,8 +48,8 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                             ELSE 0
                         END
                     ) AS stock_actual
-                FROM ERPTECNOFILM.dbo.log_detmov a
-                INNER JOIN ERPTECNOFILM.dbo.log_cabmov b
+                FROM [{$db}].dbo.log_detmov a
+                INNER JOIN [{$db}].dbo.log_cabmov b
                     ON a.mov_id = b.mov_id
                     AND b.alm_codigo = ?
                 WHERE a.emp_codigo = ?
@@ -63,7 +64,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
             (
                 SELECT emp_codigo, art_codigo, alm_codigo FROM StockCalculado
                 UNION
-                SELECT emp_codigo, art_codigo, alm_codigo FROM ERPTECNOFILM.dbo.cfg_alerta_stock WHERE emp_codigo = ? AND alm_codigo = ?
+                SELECT emp_codigo, art_codigo, alm_codigo FROM [{$db}].dbo.cfg_alerta_stock WHERE emp_codigo = ? AND alm_codigo = ?
             )
             SELECT 
                 RTRIM(m.art_codigo) AS art_codigo, 
@@ -75,18 +76,18 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 s.stock_actual,
                 c.disponible
             FROM ArticulosObjetivo obj
-            INNER JOIN ERPTECNOFILM.dbo.mae_articulo m
+            INNER JOIN [{$db}].dbo.mae_articulo m
                 ON m.emp_codigo = obj.emp_codigo
                 AND m.art_codigo = obj.art_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_cabumedida d
+            LEFT JOIN [{$db}].dbo.mae_cabumedida d
                 ON m.ume_codigo = d.ume_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_linea l
+            LEFT JOIN [{$db}].dbo.mae_linea l
                 ON l.lin_codigo = m.lin_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_familia f
+            LEFT JOIN [{$db}].dbo.mae_familia f
                 ON f.emp_codigo = m.emp_codigo
                 AND f.tar_codigo = m.tar_codigo
                 AND f.fam_codigo = m.fam_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.mae_tpofamilia tf
+            LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
                 ON tf.emp_codigo = m.emp_codigo
                 AND tf.tar_codigo = m.tar_codigo
                 AND tf.fam_codigo = m.fam_codigo
@@ -95,7 +96,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 ON s.emp_codigo = obj.emp_codigo
                 AND s.art_codigo = obj.art_codigo
                 AND s.alm_codigo = obj.alm_codigo
-            LEFT JOIN ERPTECNOFILM.dbo.cfg_alerta_stock c
+            LEFT JOIN [{$db}].dbo.cfg_alerta_stock c
                 ON c.emp_codigo = obj.emp_codigo
                 AND c.alm_codigo = obj.alm_codigo
                 AND c.art_codigo = obj.art_codigo
@@ -180,6 +181,7 @@ $conexion = null;
 
 try {
     $conexion = getSqlServerConn();
+    $db = getDatabaseName();
 
     // 1. Consultar maestro de artículos y calcular su stock físico real en almacén 003
     $sqlMae = "
@@ -188,8 +190,8 @@ try {
             SELECT
                 SUM(CASE WHEN b.mov_tipo = 'I' THEN a.mov_ctdmov ELSE 0 END) -
                 SUM(CASE WHEN b.mov_tipo = 'S' THEN a.mov_ctdmov ELSE 0 END) AS stock_actual
-            FROM ERPTECNOFILM.dbo.log_detmov a
-            INNER JOIN ERPTECNOFILM.dbo.log_cabmov b
+            FROM [{$db}].dbo.log_detmov a
+            INNER JOIN [{$db}].dbo.log_cabmov b
                 ON a.mov_id = b.mov_id
                 AND b.alm_codigo = ?
             WHERE a.emp_codigo = ?
@@ -204,16 +206,16 @@ try {
             RTRIM(f.fam_nombre) AS fam_nombre,
             RTRIM(tf.tfa_nombre) AS tfa_nombre,
             s.stock_actual
-        FROM ERPTECNOFILM.dbo.mae_articulo m
-        LEFT JOIN ERPTECNOFILM.dbo.mae_cabumedida d
+        FROM [{$db}].dbo.mae_articulo m
+        LEFT JOIN [{$db}].dbo.mae_cabumedida d
             ON m.ume_codigo = d.ume_codigo
-        LEFT JOIN ERPTECNOFILM.dbo.mae_linea l
+        LEFT JOIN [{$db}].dbo.mae_linea l
             ON l.lin_codigo = m.lin_codigo
-        LEFT JOIN ERPTECNOFILM.dbo.mae_familia f
+        LEFT JOIN [{$db}].dbo.mae_familia f
             ON f.emp_codigo = m.emp_codigo
             AND f.tar_codigo = m.tar_codigo
             AND f.fam_codigo = m.fam_codigo
-        LEFT JOIN ERPTECNOFILM.dbo.mae_tpofamilia tf
+        LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
             ON tf.emp_codigo = m.emp_codigo
             AND tf.tar_codigo = m.tar_codigo
             AND tf.fam_codigo = m.fam_codigo
@@ -253,7 +255,7 @@ try {
     // 2. Consultar si ya tiene configuración en cfg_alerta_stock
     $sqlCfg = "
         SELECT disponible
-        FROM ERPTECNOFILM.dbo.cfg_alerta_stock
+        FROM [{$db}].dbo.cfg_alerta_stock
         WHERE emp_codigo = ? AND alm_codigo = ? AND art_codigo = ?;
     ";
     $stmtCfg = sqlsrv_query($conexion, $sqlCfg, [$emp, $alm, $codigo]);

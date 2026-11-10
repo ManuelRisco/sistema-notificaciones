@@ -24,6 +24,32 @@ if (trim($zonaHoraria) === '') {
 
 date_default_timezone_set($zonaHoraria);
 
+/**
+ * Retorna el nombre de la base de datos configurada en las variables de entorno (.env).
+ *
+ * @throws RuntimeException Si DB_DATABASE no está configurada o contiene caracteres no permitidos.
+ */
+function getDatabaseName(): string
+{
+    $db = $_ENV['DB_DATABASE'] ?? $_SERVER['DB_DATABASE'] ?? getenv('DB_DATABASE');
+
+    if (!is_string($db) || trim($db) === '') {
+        throw new RuntimeException(
+            'Falta configurar la variable DB_DATABASE en el archivo .env.'
+        );
+    }
+
+    $db = trim($db);
+
+    if (!preg_match('/\A[A-Za-z0-9_]+\z/', $db)) {
+        throw new RuntimeException(
+            "El nombre de la base de datos '{$db}' configurado en DB_DATABASE contiene caracteres no permitidos. Solo se permiten letras, números y guiones bajos."
+        );
+    }
+
+    return $db;
+}
+
 function getSqlServerConn(): mixed
 {
     static $conn = null;
@@ -43,10 +69,10 @@ function getSqlServerConn(): mixed
         sqlsrv_configure('WarningsReturnAsErrors', 0);
     }
 
-    $serverName = $_ENV['DB_SERVER'] ?? getenv('DB_SERVER');
-    $database   = $_ENV['DB_DATABASE'] ?? getenv('DB_DATABASE');
-    $username   = $_ENV['DB_USERNAME'] ?? getenv('DB_USERNAME');
-    $password   = $_ENV['DB_PASSWORD'] ?? getenv('DB_PASSWORD');
+    $serverName = $_ENV['DB_SERVER'] ?? $_SERVER['DB_SERVER'] ?? getenv('DB_SERVER');
+    $database   = getDatabaseName();
+    $username   = $_ENV['DB_USERNAME'] ?? $_SERVER['DB_USERNAME'] ?? getenv('DB_USERNAME');
+    $password   = $_ENV['DB_PASSWORD'] ?? $_SERVER['DB_PASSWORD'] ?? getenv('DB_PASSWORD');
 
     if (
         $serverName === '' ||
