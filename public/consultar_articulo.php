@@ -101,7 +101,7 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 ON c.emp_codigo = obj.emp_codigo
                 AND c.alm_codigo = obj.alm_codigo
                 AND c.art_codigo = obj.art_codigo
-            ORDER BY m.art_codigo DESC;
+            ORDER BY m.art_codigo ASC;
         ";
 
         $stmtCat = sqlsrv_query($conexion, $sqlCat, [$alm, $emp, $emp, $alm]);

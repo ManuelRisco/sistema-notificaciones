@@ -70,7 +70,7 @@ if (isset($_GET['alm'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seleccionar Almacén - Sistema de Alertas de Stock</title>
+    <title>Selección de Almacén - Sistema de Alertas de Stock</title>
     <script>
         (function() {
             try {
@@ -84,91 +84,128 @@ if (isset($_GET['alm'])) {
         })();
     </script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
-        <link rel="stylesheet" href="css/almacenes.css?v=<?= file_exists(__DIR__ . '/css/almacenes.css') ? filemtime(__DIR__ . '/css/almacenes.css') : time() ?>">
+    <link rel="stylesheet" href="css/almacenes.css?v=<?= file_exists(__DIR__ . '/css/almacenes.css') ? filemtime(__DIR__ . '/css/almacenes.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
 <body>
-<div class="seleccion-container">
-    <header class="seleccion-header">
-        <div class="seleccion-header-logo">
-            <img src="img/tecnofilm.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm.png') ? filemtime(__DIR__ . '/img/tecnofilm.png') : time() ?>" alt="Tecnofilm" class="no-invert">
+<main class="contenedor">
+    <header class="encabezado">
+        <div class="encabezado-info">
+            <h1>SELECCIÓN DE ALMACÉN</h1>
         </div>
-        <div class="seleccion-header-usuario">
-            <span class="usuario-sesion-pill">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                <?= htmlspecialchars($usrNombre, ENT_QUOTES, 'UTF-8') ?>
-            </span>
-            <a href="logout.php" class="btn-logout" title="Cerrar sesión">
-                Salir
-            </a>
-            <button
-                type="button"
-                id="btn-toggle-dark"
-                onclick="toggleDarkMode(event)"
-                class="btn btn-secundario"
-                style="padding: 4px 8px; border-radius: 50%; font-size: 15px; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
-                title="Alternar Modo Oscuro"
-            >
-                <?= $darkMode ? '🌞' : '🌚' ?>
-            </button>
+
+        <div class="encabezado-derecha">
+            <div class="encabezado-usuario-barra">
+                <?php if (!empty($usuario)): ?>
+                    <div class="usuario-sesion-pill" title="Usuario: <?= htmlspecialchars($usuario['usr_codigo'] ?? '', ENT_QUOTES, 'UTF-8') ?> | Rol: <?= htmlspecialchars($usuario['pus_codigo'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <span class="usuario-sesion-nombre"><?= htmlspecialchars($usuario['usr_nombre'] ?: $usuario['usr_codigo'], ENT_QUOTES, 'UTF-8') ?></span>
+                    </div>
+                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
+                        Salir
+                    </a>
+                <?php endif; ?>
+                <!-- Botón para alternar el modo -->
+                <a href="?toggle_dark_mode=1"
+                   id="btn-toggle-dark"
+                   onclick="toggleDarkMode(event)"
+                   class="btn-toggle-dark"
+                   title="Alternar modo claro / oscuro">
+                    <?= $darkMode ? '🌞' : '🌚' ?>
+                </a>
+            </div>
         </div>
     </header>
 
-    <main class="seleccion-main">
-        <div class="seleccion-titulo">
-            <h1>Seleccione el Almacén</h1>
-            <p>Seleccione el almacén que desea administrar para acceder al catálogo de productos, stocks mínimos y alertas correspondientes.</p>
-        </div>
+    <?php if (!empty($almacenesAutorizados)): ?>
+        <div class="almacenes-grid">
+            <?php foreach ($almacenesAutorizados as $almCodigo): ?>
+                <?php
+                $info = $todosSoportados[$almCodigo] ?? null;
+                if (!$info) continue;
+                ?>
+                <form method="POST" action="seleccionar_almacen.php" class="form-tarjeta-almacen">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generarTokenCsrf(), ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="alm_codigo" value="<?= htmlspecialchars($almCodigo, ENT_QUOTES, 'UTF-8') ?>">
 
-        <?php if (!empty($almacenesAutorizados)): ?>
-            <div class="seleccion-grid">
-                <?php foreach ($almacenesAutorizados as $almCodigo): ?>
-                    <?php
-                    $info = $todosSoportados[$almCodigo] ?? null;
-                    if (!$info) continue;
-                    $iconoEmoji = $info['icono'] === 'palette' ? '🎨' : '📦';
-                    ?>
-                    <form method="POST" action="seleccionar_almacen.php" style="display: contents;">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generarTokenCsrf(), ENT_QUOTES, 'UTF-8') ?>">
-                        <input type="hidden" name="alm_codigo" value="<?= htmlspecialchars($almCodigo, ENT_QUOTES, 'UTF-8') ?>">
-                        <div class="tarjeta-almacen" onclick="this.closest('form').submit();">
-                            <span class="almacen-badge-codigo">CÓDIGO: <?= htmlspecialchars($almCodigo, ENT_QUOTES, 'UTF-8') ?></span>
-                            <h2 class="almacen-nombre"><?= htmlspecialchars($info['nombre'], ENT_QUOTES, 'UTF-8') ?></h2>
-                            <span class="almacen-erp"><?= htmlspecialchars($info['nombre_erp'], ENT_QUOTES, 'UTF-8') ?></span>
-                            <p class="almacen-descripcion"><?= htmlspecialchars($info['descripcion'], ENT_QUOTES, 'UTF-8') ?></p>
-                            <button type="submit" class="almacen-btn-ingresar">
+                    <div class="tarjeta-almacen">
+                        <div>
+                            <div class="tarjeta-almacen-header">
+                                <span class="badge badge-inactivo" style="font-weight: 700; font-size: 11.5px; padding: 4px 10px;">
+                                    ALMACÉN <?= htmlspecialchars($almCodigo, ENT_QUOTES, 'UTF-8') ?>
+                                </span>
+                            </div>
+
+                            <h2 class="tarjeta-almacen-titulo">
+                                <?= htmlspecialchars($info['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                            </h2>
+                            <div class="tarjeta-almacen-erp">
+                                <?= htmlspecialchars($info['nombre_erp'], ENT_QUOTES, 'UTF-8') ?>
+                            </div>
+                            <p class="tarjeta-almacen-desc">
+                                <?= htmlspecialchars($info['descripcion'], ENT_QUOTES, 'UTF-8') ?>
+                            </p>
+                        </div>
+
+                        <div class="tarjeta-almacen-acciones">
+                            <button type="submit" class="btn btn-primario">
                                 Ingresar
                             </button>
                         </div>
-                    </form>
-                <?php endforeach; ?>
-            </div>
-        <?php else: ?>
-            <div class="sin-almacenes">
-                <div style="font-size: 42px; margin-bottom: 16px;">⚠️</div>
-                <h2 style="font-size: 19px; color: var(--color-peligro-texto); margin-bottom: 8px;">Sin almacenes asignados</h2>
-                <p style="color: var(--color-texto-muted); font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
-                    No tiene autorización para ingresar a ningún almacén. Solo el personal encargado de almacén puede acceder.
-                </p>
-                <a href="logout.php" class="btn btn-secundario" style="text-decoration: none;">
-                    Cerrar Sesión
-                </a>
-            </div>
-        <?php endif; ?>
-    </main>
-</div>
+                    </div>
+                </form>
+            <?php endforeach; ?>
+        </div>
+    <?php else: ?>
+        <div class="formulario" style="text-align: center; padding: 40px 24px; margin-top: 20px;">
+            <div style="font-size: 42px; margin-bottom: 16px;">⚠️</div>
+            <h2 style="font-size: 19px; color: var(--color-peligro-texto); margin-bottom: 8px;">Sin almacenes asignados</h2>
+            <p style="color: var(--color-texto-muted); font-size: 14.5px; line-height: 1.5; margin-bottom: 24px;">
+                No tiene autorización para ingresar a ningún almacén registrado en el sistema. Comuníquese con el administrador para solicitar asignación en el ERP.
+            </p>
+            <a href="logout.php" class="btn btn-secundario">
+                Cerrar Sesión
+            </a>
+        </div>
+    <?php endif; ?>
+</main>
 
 <script>
+// Sincronizar el emoji del botón según el estado activo de la página
+document.addEventListener('DOMContentLoaded', function() {
+    const btnDark = document.getElementById('btn-toggle-dark');
+    if (btnDark) {
+        btnDark.textContent = document.documentElement.classList.contains('dark-mode') ? '🌞' : '🌚';
+    }
+
+    <?php if ($error !== null): ?>
+    Swal.fire({
+        icon: 'error',
+        title: 'Atención',
+        html: <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'Entendido'
+    });
+    <?php endif; ?>
+});
+
+// Alternar modo oscuro compartido con index.php
 function toggleDarkMode(e) {
     if (e) e.preventDefault();
     const html = document.documentElement;
     const esOscuro = html.classList.toggle('dark-mode');
     const valor = esOscuro ? 'true' : 'false';
 
+    // Limpiar cualquier cookie residual
+    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+    if (subpath) {
+        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    }
+
+    // Cookie global en raíz "/"
     document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
+
     try {
         localStorage.setItem('dark_mode', valor);
     } catch (_) {}
@@ -178,17 +215,6 @@ function toggleDarkMode(e) {
         btn.textContent = esOscuro ? '🌞' : '🌚';
     }
 }
-
-<?php if ($error !== null): ?>
-    document.addEventListener('DOMContentLoaded', function() {
-        Swal.fire({
-            icon: 'error',
-            title: 'Acceso No Autorizado',
-            text: <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>,
-            confirmButtonColor: '#2563eb'
-        });
-    });
-<?php endif; ?>
 </script>
 </body>
 </html>

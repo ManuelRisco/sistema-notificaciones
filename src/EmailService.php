@@ -47,7 +47,6 @@ class EmailService
             'SISTEMAS_MAIL_USERNAME',
             'SISTEMAS_MAIL_PASSWORD',
             'SISTEMAS_MAIL_FROM',
-            'SISTEMAS_MAIL_DESTINO',
             'SISTEMAS_MAIL_DESTINO_003',
             'SISTEMAS_MAIL_DESTINO_001',
             'SISTEMAS_MAIL_FROM_NAME',
@@ -116,15 +115,19 @@ class EmailService
     }
 
     /**
-     * Lee los destinatarios configurados en .env.
+     * Lee los destinatarios predeterminados.
+     * Si no existe SISTEMAS_MAIL_DESTINO en .env, utiliza los del almacén principal (003).
      */
     public function obtenerDestinatariosPredeterminados(): array
     {
-        $cadena = $this->obtenerVariable('SISTEMAS_MAIL_DESTINO');
+        $cadena = $_ENV['SISTEMAS_MAIL_DESTINO'] ?? $_SERVER['SISTEMAS_MAIL_DESTINO'] ?? getenv('SISTEMAS_MAIL_DESTINO');
 
-        $correos = preg_split('/[,;]+/', $cadena) ?: [];
+        if (is_string($cadena) && trim($cadena) !== '') {
+            $correos = preg_split('/[,;]+/', $cadena) ?: [];
+            return $this->normalizarLista($correos);
+        }
 
-        return $this->normalizarLista($correos);
+        return $this->obtenerDestinatariosPorAlmacen('003');
     }
 
     /**

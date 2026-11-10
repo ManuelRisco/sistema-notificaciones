@@ -27,9 +27,9 @@ try {
         'stock_minimo'  => 260
     ];
 
-    $destinatarios = $emailService->obtenerDestinatariosPredeterminados();
+    $destinatarios = $emailService->obtenerDestinatariosPorAlmacen('003');
 
-    echo "Destinatarios detectados en .env:\n";
+    echo "Destinatarios detectados en .env (Almacén 003):\n";
     foreach ($destinatarios as $correo) {
         echo "  - [{$correo}]\n";
     }

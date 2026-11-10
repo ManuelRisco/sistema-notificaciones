@@ -475,11 +475,12 @@ function abrirModalCatalogo() {
                 <div style="margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <input type="search" id="swal-buscador-catalogo" class="swal2-input" placeholder="020100149 | AMARILLO HUEVO" style="flex: 1; min-width: 240px; margin: 0; font-size: 13.5px; height: 40px; box-sizing: border-box;" autocomplete="off">
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <label for="swal-orden-stock" style="font-weight: 600; font-size: 12px; color: var(--color-texto-muted); white-space: nowrap;">Ordenar stock:</label>
+                        <label for="swal-orden-stock" style="font-weight: 600; font-size: 12px; color: var(--color-texto-muted); white-space: nowrap;">Ordenar:</label>
                         <select id="swal-orden-stock" style="height: 40px; padding: 0 10px; border: 1.5px solid var(--color-borde-campo); border-radius: var(--radio-control); font-size: 12.5px; font-weight: 600; color: var(--color-texto); background-color: var(--color-tarjeta); cursor: pointer;">
-                            <option value="defecto">Por defecto (Nombre)</option>
-                            <option value="desc">De mayor a menor (↓)</option>
-                            <option value="asc">De menor a mayor (↑)</option>
+                            <option value="defecto">Por defecto (Código)</option>
+                            <option value="nombre">Por nombre (A - Z)</option>
+                            <option value="desc">Stock: mayor a menor (↓)</option>
+                            <option value="asc">Stock: menor a mayor (↑)</option>
                         </select>
                     </div>
                 </div>
@@ -515,17 +516,19 @@ function abrirModalCatalogo() {
                         const valA = (a.stock_actual !== null && a.stock_actual !== undefined) ? Number(a.stock_actual) : -Infinity;
                         const valB = (b.stock_actual !== null && b.stock_actual !== undefined) ? Number(b.stock_actual) : -Infinity;
                         if (valB !== valA) return valB - valA;
-                        return (a.nombre || '').localeCompare(b.nombre || '');
+                        return (a.codigo || '').localeCompare(b.codigo || '');
                     });
                 } else if (ordenStockModal === 'asc') {
                     copia.sort((a, b) => {
                         const valA = (a.stock_actual !== null && a.stock_actual !== undefined) ? Number(a.stock_actual) : Infinity;
                         const valB = (b.stock_actual !== null && b.stock_actual !== undefined) ? Number(b.stock_actual) : Infinity;
                         if (valA !== valB) return valA - valB;
-                        return (a.nombre || '').localeCompare(b.nombre || '');
+                        return (a.codigo || '').localeCompare(b.codigo || '');
                     });
-                } else {
+                } else if (ordenStockModal === 'nombre') {
                     copia.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+                } else {
+                    copia.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
                 }
                 return copia;
             }
