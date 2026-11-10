@@ -648,7 +648,7 @@ body {
 
     /* Encabezado que se mantenga */
     overflow-y: auto;
-    max-height: 65vh;
+    max-height: 75vh;
 
     min-height: 280px;
     -webkit-overflow-scrolling: touch;

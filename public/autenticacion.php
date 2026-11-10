@@ -150,10 +150,12 @@ function validarTokenAuth(string $token): ?array
 }
 
 /**
- * Consulta la base de datos de (ERPTECNOFILM.dbo.adm_usuario) para verificar
- * el usuario y su contraseña codificada.
+ * Consulta la base de datos (ERPTECNOFILM.dbo.adm_usuario) para verificar
+ * el usuario, su contraseña y si está asignado como encargado del almacén 003.
+ *
+ * @throws RuntimeException Si el usuario está inactivo o no es encargado del almacén.
  */
-function autenticarUsuario(string $usuario, string $clave): ?array
+function autenticarUsuario(string $usuario, string $clave, string $almCodigo = '003'): ?array
 {
     $usuario = strtoupper(trim($usuario));
     if ($usuario === '' || $clave === '') {
@@ -162,17 +164,26 @@ function autenticarUsuario(string $usuario, string $clave): ?array
 
     $conn = getSqlServerConn();
     $sql = "
-        SELECT TOP 1
-            RTRIM(usr_codigo) AS usr_codigo,
-            RTRIM(pus_codigo) AS pus_codigo,
-            RTRIM(usr_nombre) AS usr_nombre,
-            usr_clave,
-            usr_status
-        FROM ERPTECNOFILM.dbo.adm_usuario
-        WHERE UPPER(RTRIM(usr_codigo)) = ?;
+       SELECT TOP 1
+            RTRIM(u.usr_codigo) AS usr_codigo,
+            RTRIM(u.pus_codigo) AS pus_codigo,
+            RTRIM(u.usr_nombre) AS usr_nombre,
+            u.usr_clave,
+            u.usr_status,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM ERPTECNOFILM.dbo.log_almusr a
+                    WHERE RTRIM(a.usr_codigo) = RTRIM(u.usr_codigo)
+                      AND RTRIM(a.alm_codigo) = ?
+                ) THEN 1
+                ELSE 0
+            END AS es_encargado_almacen
+        FROM ERPTECNOFILM.dbo.adm_usuario u
+        WHERE UPPER(RTRIM(u.usr_codigo)) = ?;
     ";
 
-    $stmt = sqlsrv_query($conn, $sql, [$usuario]);
+    $stmt = sqlsrv_query($conn, $sql, [$almCodigo, $usuario]);
     if ($stmt === false) {
         return null;
     }
@@ -184,14 +195,19 @@ function autenticarUsuario(string $usuario, string $clave): ?array
         return null;
     }
 
-    // Comprobar estado activo del usuario
+    // 1. Comprobar estado activo del usuario
     if (isset($fila['usr_status']) && (int) $fila['usr_status'] !== 1) {
+        throw new RuntimeException('El usuario se encuentra inactivo.');
+    }
+
+    // 2. Verificar contraseña con el algoritmo de ERPTECNOFILM
+    if (!verifyPassword($clave, (string) ($fila['usr_clave'] ?? ''))) {
         return null;
     }
 
-    // Verificar contraseña con el algoritmo de ERPTECNOFILM
-    if (!verifyPassword($clave, (string) ($fila['usr_clave'] ?? ''))) {
-        return null;
+    // 3. Validar si está asignado como encargado del almacén
+    if ((int) ($fila['es_encargado_almacen'] ?? 0) !== 1) {
+        throw new RuntimeException('El usuario no es encargado del almacén.');
     }
 
     return [

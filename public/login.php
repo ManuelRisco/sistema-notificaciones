@@ -63,8 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([
                 'exito' => true,
-                'token' => $token,
-                'usuario' => $usuario,
                 'redirigir' => 'index.php'
             ], JSON_UNESCAPED_UNICODE);
             exit;
@@ -323,16 +321,12 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(({ status, data }) => {
             if (data && data.exito) {
-                // Guardar token hasheado en localStorage y sessionStorage del navegador
-                if (data.token) {
-                    try {
-                        localStorage.setItem('auth_token', data.token);
-                        sessionStorage.setItem('auth_token', data.token);
-                        if (data.usuario) {
-                            localStorage.setItem('auth_user', JSON.stringify(data.usuario));
-                        }
-                    } catch (_) {}
-                }
+                // Limpiar cualquier residuo de credenciales o tokens en el cliente
+                try {
+                    localStorage.removeItem('auth_token');
+                    sessionStorage.removeItem('auth_token');
+                    localStorage.removeItem('auth_user');
+                } catch (_) {}
 
                 btnTexto.textContent = '¡Acceso concedido!';
                 window.location.href = data.redirigir || 'index.php';
