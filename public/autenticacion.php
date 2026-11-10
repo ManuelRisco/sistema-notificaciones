@@ -439,7 +439,7 @@ function renderizarErrorAutorizacion(string $mensaje): void
                 <a href="seleccionar_almacen.php" class="btn btn-primario" style="text-decoration:none;">
                     Ir a Selección de Almacén
                 </a>
-                <a href="login.php?logout=1" class="btn btn-secundario" style="text-decoration:none;">
+                <a href="logout.php" class="btn btn-secundario" style="text-decoration:none;">
                     Cerrar Sesión
                 </a>
             </div>

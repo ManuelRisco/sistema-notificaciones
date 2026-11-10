@@ -101,7 +101,7 @@ if (isset($_GET['alm'])) {
                 </svg>
                 <?= htmlspecialchars($usrNombre, ENT_QUOTES, 'UTF-8') ?>
             </span>
-            <a href="login.php?logout=1" class="btn-logout" title="Cerrar sesión">
+            <a href="logout.php" class="btn-logout" title="Cerrar sesión">
                 Salir
             </a>
             <button
@@ -153,7 +153,7 @@ if (isset($_GET['alm'])) {
                 <p style="color: var(--color-texto-muted); font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
                     No tiene autorización para ingresar a ningún almacén. Solo el personal encargado de almacén puede acceder.
                 </p>
-                <a href="login.php?logout=1" class="btn btn-secundario" style="text-decoration: none;">
+                <a href="logout.php" class="btn btn-secundario" style="text-decoration: none;">
                     Cerrar Sesión
                 </a>
             </div>

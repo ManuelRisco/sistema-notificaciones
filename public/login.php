@@ -6,6 +6,11 @@ const PAGINA_PUBLICA = true;
 
 require_once __DIR__ . '/seguridad.php';
 
+// Si se solicita cerrar sesión, invalidar la sesión antes de comprobar si está autenticado
+if (isset($_GET['logout'])) {
+    cerrarSesionUsuario();
+}
+
 // Si el usuario ya está autenticado, redirigir a la selección de almacén
 if (estaAutenticado()) {
     header('Location: seleccionar_almacen.php');
