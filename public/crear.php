@@ -278,7 +278,7 @@ $darkMode = aplicarModoOscuro();
             <label for="stock_minimo">
                 Stock mínimo
             </label>
-            <div style="position: relative; display: flex; align-items: center;">
+            <div class="campo-con-sufijo">
                 <input
                     type="number"
                     id="stock_minimo"
@@ -289,9 +289,8 @@ $darkMode = aplicarModoOscuro();
                     required
                     placeholder="20.00000"
                     value="<?= h($stockMinimo) ?>"
-                    style="padding-right: 55px;"
                 >
-                <span id="sufijo-unidad-minimo" style="position: absolute; right: 12px; font-weight: 700; font-size: 12px; color: var(--color-texto-muted, #64748b); pointer-events: none;"></span>
+                <span id="sufijo-unidad-minimo" class="sufijo-unidad"></span>
             </div>
         </div>
 

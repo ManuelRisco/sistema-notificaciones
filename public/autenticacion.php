@@ -424,18 +424,18 @@ function renderizarErrorAutorizacion(string $mensaje): void
         <link rel="stylesheet" href="css/estilos.css">
         <script src="js/sweetalert2.all.min.js"></script>
     </head>
-    <body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background-color:var(--color-fondo,#f1f5f9);padding:20px;">
-        <div style="max-width:520px;width:100%;background:var(--color-tarjeta,#ffffff);border-radius:12px;padding:36px;box-shadow:var(--sombra-tarjeta,0 4px 6px -1px rgba(0,0,0,0.1));text-align:center;border:1px solid var(--color-borde,#e2e8f0);">
-            <div style="font-size:48px;margin-bottom:16px;">🚫</div>
-            <h2 style="color:var(--color-peligro,#dc2626);font-size:22px;margin:0 0 12px 0;">Acceso No Autorizado</h2>
-            <p style="color:var(--color-texto,#334155);font-size:15px;line-height:1.6;margin-bottom:28px;">
+    <body class="error-autorizacion-body">
+        <div class="error-autorizacion-card">
+            <div class="error-autorizacion-icono">🚫</div>
+            <h2 class="error-autorizacion-titulo">Acceso No Autorizado</h2>
+            <p class="error-autorizacion-desc">
                 <?= htmlspecialchars($mensaje, ENT_QUOTES, 'UTF-8') ?>
             </p>
-            <div style="display:flex;gap:12px;justify-content:center;">
-                <a href="seleccionar_almacen.php" class="btn btn-primario" style="text-decoration:none;">
+            <div class="error-autorizacion-acciones">
+                <a href="seleccionar_almacen.php" class="btn btn-primario">
                     Ir a Selección de Almacén
                 </a>
-                <a href="logout.php" class="btn btn-secundario" style="text-decoration:none;">
+                <a href="logout.php" class="btn btn-secundario">
                     Cerrar Sesión
                 </a>
             </div>

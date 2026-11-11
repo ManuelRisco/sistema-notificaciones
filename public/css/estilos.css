@@ -1,5 +1,8 @@
 /* ==========================================================================
-   Hoja de estilos principal
+   SISTEMA DE ALERTAS DE STOCK TECNOFILM
+   Hoja de Estilos Principal (estilos.css)
+   Contiene: Variables globales, reset, componentes compartidos, botones,
+   formularios, modales, modo oscuro y utilidades transversales.
    ========================================================================== */
 
 /* ========================================================================== 
@@ -11,7 +14,9 @@
     --color-fondo: #f8fafc;
     --color-tarjeta: #ffffff;
     --color-texto: #0f172a;
+    --color-texto-secundario: #334155;
     --color-texto-muted: #5c6067;
+    --color-placeholder: #94a3b8;
     --color-borde: #e2e8f0;
     --color-borde-campo: #cbd5e1;
 
@@ -30,17 +35,22 @@
     --color-editar-borde: #fde68a;
     --color-editar-hover: #fde68a;
 
-    /* Acciones de tabla: eliminar */
+    /* Acciones de tabla: eliminar / peligro */
     --color-peligro-fondo: #fee2e2;
     --color-peligro-texto: #b91c1c;
     --color-peligro-borde: #fecaca;
     --color-peligro-hover: #fecaca;
 
-    /* Acciones de tabla: reactivar */
+    /* Acciones de tabla: reactivar / éxito */
     --color-exito-fondo: #d1fae5;
     --color-exito-texto: #047857;
     --color-exito-borde: #a7f3d0;
     --color-exito-hover: #a7f3d0;
+
+    /* Botón ejecutar alertas manuales */
+    --color-ejecutar: #059669;
+    --color-ejecutar-hover: #047857;
+    --color-ejecutar-active: #065f46;
 
     /* Geometría y sombras */
     --radio-tarjeta: 10px;
@@ -156,11 +166,17 @@ body {
     transform: scale(1.12);
 }
 
-.btn-icono-actualizar {
-    padding: 8px 12px !important;
+.btn.btn-icono-actualizar {
+    padding: 8px 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.icono-btn {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
 }
 
 .form-ejecutar-manual {
@@ -181,9 +197,10 @@ body {
     padding: 38px 42px;
     border-radius: var(--radio-tarjeta);
     border: 1px solid var(--color-borde);
+    box-shadow: var(--sombra-formulario);
 }
 
-/* Distribución de campos en dos columnas */
+/* Distribución de campos */
 .campo {
     display: flex;
     flex-direction: column;
@@ -194,7 +211,7 @@ body {
     display: block;
     font-size: 15px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--color-texto);
     margin-bottom: 8px;
     letter-spacing: -0.1px;
 }
@@ -211,14 +228,14 @@ body {
     font-size: 16px;
     font-family: inherit;
     color: var(--color-texto);
-    background-color: #ffffff;
+    background-color: var(--color-tarjeta);
     outline: none;
     transition: border-color 0.15s ease-in-out,
                 box-shadow 0.15s ease-in-out;
 }
 
 .campo input::placeholder {
-    color: #94a3b8;
+    color: var(--color-placeholder);
     font-size: 15px;
 }
 
@@ -230,10 +247,10 @@ body {
 
 /* Campos de solo lectura */
 .campo input[readonly] {
-    background-color: #f8fafc;
-    color: #64748b;
+    background-color: var(--color-fondo);
+    color: var(--color-secundario);
     cursor: not-allowed;
-    border: 1.5px solid #e2e8f0;
+    border: 1.5px solid var(--color-borde);
     font-weight: 500;
 }
 
@@ -266,13 +283,33 @@ body {
 }
 
 .btn-catalogo:hover {
-    background-color: #e2e8f0;
+    background-color: var(--color-borde);
     border-color: var(--color-secundario);
-    color: #0f172a;
+    color: var(--color-texto);
 }
 
 .fila-catalogo-modal:hover {
-    background-color: #f8fafc;
+    background-color: var(--color-fondo);
+}
+
+/* Campo con sufijo de unidad de medida */
+.campo-con-sufijo {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.campo-con-sufijo input {
+    padding-right: 55px;
+}
+
+.sufijo-unidad {
+    position: absolute;
+    right: 12px;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--color-secundario);
+    pointer-events: none;
 }
 
 /* Información y estado de búsqueda en tiempo real del artículo */
@@ -293,15 +330,15 @@ body {
     gap: 12px;
     margin-top: 4px;
     padding: 6px 12px;
-    background-color: var(--color-secundario-fondo, #f8fafc);
-    border: 1px solid var(--color-borde-campo, #cbd5e1);
-    border-radius: var(--radio-control, 8px);
+    background-color: var(--color-secundario-fondo);
+    border: 1px solid var(--color-borde-campo);
+    border-radius: var(--radio-control);
 }
 
 .articulo-nombre-destacado {
-    font-size: 15px; /* Mismo tamaño que el texto del código de artículo */
+    font-size: 15px;
     font-weight: 700;
-    color: var(--color-texto, #0f172a);
+    color: var(--color-texto);
 }
 
 .articulo-stock-tag {
@@ -318,7 +355,7 @@ body {
     font-weight: 700;
 }
 
-/* Clasificación del artículo en formulario (Categoría, Familia, Tipo familia en columna) */
+/* Clasificación del artículo en formulario */
 .texto-clasificacion {
     display: inline-block;
     font-size: 13px;
@@ -327,7 +364,6 @@ body {
     line-height: 1.35;
 }
 
-/* Columna de Detalle en el Listado Principal (index.php) */
 /* Barra de acciones de formulario */
 .acciones {
     display: flex;
@@ -335,7 +371,7 @@ body {
     gap: 14px;
     margin-top: 32px;
     padding-top: 10px;
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid var(--color-secundario-fondo);
 }
 
 .acciones .btn {
@@ -347,7 +383,7 @@ body {
 }
 
 /* ========================================================================== 
-   5. BOTONES
+   5. BOTONES REUTILIZABLES
    ========================================================================== */
 
 .btn {
@@ -370,7 +406,7 @@ body {
 .btn:disabled,
 .btn[disabled] {
     opacity: 0.55;
-    cursor: not-allowed !important;
+    cursor: not-allowed;
     pointer-events: none;
     box-shadow: none;
 }
@@ -388,13 +424,13 @@ body {
 /* Botón secundario: volver / cancelar */
 .btn-secundario {
     background-color: var(--color-secundario-fondo);
-    color: #334155;
+    color: var(--color-texto-secundario);
     border: 1.5px solid var(--color-borde-campo);
 }
 
 .btn-secundario:hover {
-    background-color: #e2e8f0;
-    color: #0f172a;
+    background-color: var(--color-borde);
+    color: var(--color-texto);
 }
 
 /* Botón editar */
@@ -435,25 +471,41 @@ body {
 
 /* Botón para ejecutar alertas manualmente */
 .btn-ejecutar {
-    background-color: #059669;
+    background-color: var(--color-ejecutar);
     color: #ffffff;
-    border: 1px solid #047857;
+    border: 1px solid var(--color-ejecutar-hover);
 }
 
 .btn-ejecutar:hover {
-    background-color: #047857;
+    background-color: var(--color-ejecutar-hover);
     color: #ffffff;
 }
 
 .btn-ejecutar:active {
-    background-color: #065f46;
+    background-color: var(--color-ejecutar-active);
+}
+
+/* Botón cerrar sesión (anula estilos base mediante mayor especificidad) */
+.btn.btn-logout {
+    padding: 4px 9px;
+    font-weight: 600;
+    color: var(--color-peligro-texto);
+    border: 1px solid var(--color-peligro-borde);
+    background-color: transparent;
+    border-radius: var(--radio-btn);
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn.btn-logout:hover {
+    background-color: var(--color-peligro-fondo);
+    color: var(--color-peligro-texto);
 }
 
 /* ========================================================================== 
-   8. BADGES, ETIQUETAS Y ACCIONES DE TABLA
+   6. BADGES Y ETIQUETAS DE ESTADO
    ========================================================================== */
 
-/* Etiquetas de estado */
 .badge {
     display: inline-flex;
     align-items: center;
@@ -474,26 +526,33 @@ body {
     border: 1px solid #bbf7d0;
 }
 
-.badge-inactivo {
-    background-color: #f1f5f9;
-    color: #64748b;
-    border: 1px solid #cbd5e1;
+.badge-inactivo,
+.badge-sin-datos {
+    background-color: var(--color-secundario-fondo);
+    color: var(--color-secundario);
+    border: 1px solid var(--color-borde-campo);
 }
 
 .badge-alerta {
-    background-color: #fee2e2;
+    background-color: var(--color-peligro-fondo);
     color: #991b1b;
-    border: 1px solid #fecaca;
+    border: 1px solid var(--color-peligro-borde);
 }
 
-.badge-sin-datos {
-    background-color: #f1f5f9;
-    color: #64748b;
-    border: 1px solid #cbd5e1;
+.badge-sm {
+    font-size: 11px;
+    padding: 2px 6px;
+}
+
+.alerta-articulo-error {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--color-peligro-texto);
 }
 
 /* ========================================================================== 
-   10. ALERTAS Y NOTIFICACIONES
+   7. ALERTAS Y NOTIFICACIONES
    ========================================================================== */
 
 .alerta {
@@ -510,11 +569,11 @@ body {
 .alerta-error {
     background-color: #fef2f2;
     color: #991b1b;
-    border: 1px solid #fecaca;
+    border: 1px solid var(--color-peligro-borde);
 }
 
 /* ========================================================================== 
-   12. PERSONALIZACIÓN DE SWEETALERT2
+   8. PERSONALIZACIÓN DE SWEETALERT2
    ========================================================================== */
 
 .swal2-popup {
@@ -562,7 +621,94 @@ body {
 }
 
 /* ========================================================================== 
-   13. DISEÑO ADAPTABLE / RESPONSIVE
+   9. USUARIO Y SESIÓN
+   ========================================================================== */
+
+.usuario-sesion-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radio-btn);
+    font-size: 12px;
+    color: var(--color-texto);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ========================================================================== 
+   10. PANTALLA DE ERROR DE AUTORIZACIÓN (403)
+   ========================================================================== */
+
+.error-autorizacion-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: var(--color-fondo);
+    padding: 20px;
+}
+
+.error-autorizacion-card {
+    max-width: 520px;
+    width: 100%;
+    background: var(--color-tarjeta);
+    border-radius: 12px;
+    padding: 36px;
+    box-shadow: var(--sombra-tarjeta);
+    text-align: center;
+    border: 1px solid var(--color-borde);
+}
+
+.error-autorizacion-icono {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.error-autorizacion-titulo {
+    color: var(--color-peligro-texto);
+    font-size: 22px;
+    margin: 0 0 12px 0;
+}
+
+.error-autorizacion-desc {
+    color: var(--color-texto-secundario);
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+.error-autorizacion-acciones {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* ========================================================================== 
+   11. MODO OSCURO
+   ========================================================================== */
+
+/* 1. Cuando el documento tenga la clase 'dark-mode', se invierte toda la página */
+html.dark-mode {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+/* 2. Revierte el filtro para imágenes normales y elementos multimedia (excepto iconos) */
+html.dark-mode img:not(.icono-invertible),
+html.dark-mode video,
+html.dark-mode th,
+html.dark-mode .no-invert {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+/* 3. El ícono con .icono-invertible se invierte junto con la página para verse blanco */
+html.dark-mode img.icono-invertible,
+html.dark-mode .icono-invertible {
+    filter: none !important;
+}
+
+/* ========================================================================== 
+   12. DISEÑO ADAPTABLE / RESPONSIVE
    ========================================================================== */
 
 @media (max-width: 768px) {
@@ -601,8 +747,8 @@ body {
     }
 
     .encabezado-acciones .btn,
-    .encabezado-acciones .form-ejecutar-manual,
-    .encabezado-acciones .form-ejecutar-manual .btn,
+    .encabezado-acciones form,
+    .encabezado-acciones form .btn,
     .encabezado .btn {
         width: 100%;
         text-align: center;
@@ -622,62 +768,4 @@ body {
     .acciones .btn {
         width: 100%;
     }
-}
-
-/* ========================================================================== 
-   14. MODO OSCURO
-   ========================================================================== */
-
-   /* 1. Cuando el documento tenga la clase 'dark-mode', se invierte toda la página */
-    html.dark-mode {
-        filter: invert(1) hue-rotate(180deg);
-    }
-
-    /* 2. Revierte el filtro para imágenes normales y elementos multimedia (excepto iconos) */
-    html.dark-mode img:not(.icono-invertible),
-    html.dark-mode video,
-    html.dark-mode th,
-    html.dark-mode .no-invert
-    {
-        filter: invert(1) hue-rotate(180deg);
-    }
-
-    /* 3. El ícono con .icono-invertible se invierte junto con la página para verse blanco */
-    html.dark-mode img.icono-invertible,
-    html.dark-mode .icono-invertible {
-        filter: none !important;
-    }
-
-/* ========================================================================== 
-   15. USUARIO Y SESIÓN
-   ========================================================================== */
-
-.usuario-sesion-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: var(--radio-btn);
-    font-size: 12px;
-    color: var(--color-texto);
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.btn-logout {
-    padding: 4px 9px !important;
-    font-weight: 600 !important;
-    color: var(--color-peligro-texto) !important;
-    border: 1px solid var(--color-peligro-borde) !important;
-    background-color: transparent !important;
-    border-radius: var(--radio-btn) !important;
-    text-decoration: none !important;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.btn-logout:hover {
-    background-color: var(--color-peligro-fondo) !important;
-    color: var(--color-peligro-texto) !important;
 }

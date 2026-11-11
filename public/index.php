@@ -138,7 +138,7 @@ $detalleArticuloParam = '';
 if ($artParam !== '') {
     $detalleArticuloParam = ' para el artículo <strong>' . htmlspecialchars($artParam, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong>';
     if ($nomParam !== '') {
-        $detalleArticuloParam .= '<br><span style="color: #64748b; font-size: 13px;">' . htmlspecialchars($nomParam, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
+        $detalleArticuloParam .= '<br><span class="articulo-nombre-secundario">' . htmlspecialchars($nomParam, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
     }
 }
 
@@ -211,7 +211,7 @@ $darkMode = aplicarModoOscuro();
             </div>
 
             <div class="encabezado-acciones">
-                <a href="seleccionar_almacen.php" class="btn btn-secundario" title="Cambiar de almacén" style="display: inline-flex; align-items: center; gap: 6px;">
+                <a href="seleccionar_almacen.php" class="btn btn-secundario" title="Cambiar de almacén">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                         <polyline points="9 22 9 12 15 12 15 22"></polyline>
@@ -219,7 +219,7 @@ $darkMode = aplicarModoOscuro();
                     Cambiar Almacén
                 </a>
                 <a href="index.php" class="btn btn-secundario btn-icono-actualizar" title="Actualizar datos">
-                    <img src="img/repetir.png" class="icono-invertible" alt="Actualizar" style="width: 18px; height: 18px;">
+                    <img src="img/repetir.png" class="icono-invertible icono-btn" alt="Actualizar">
                 </a>
                 <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
                     <input type="hidden" name="csrf_token" value="<?= h(generarTokenCsrf()) ?>">
@@ -302,7 +302,7 @@ $darkMode = aplicarModoOscuro();
         <p id="busqueda-resultados" class="busqueda-resultados" style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>">
             <?php if ($hayFiltrosActivos): ?>
                 Filtros activos en base de datos — <strong><?= count($registros) ?></strong> <?= count($registros) === 1 ? 'registro encontrado' : 'registros encontrados' ?>.
-                <a href="index.php" style="margin-left: 8px; color: var(--color-primario); text-decoration: underline;">Quitar todos los filtros</a>
+                <a href="index.php" class="busqueda-limpiar-enlace">Quitar todos los filtros</a>
             <?php endif; ?>
         </p>
     </div>
@@ -545,7 +545,7 @@ $darkMode = aplicarModoOscuro();
                 <tbody>
                 <?php if (empty($registros)): ?>
                     <tr>
-                        <td colspan="11" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
+                        <td colspan="11" class="tabla-vacia">
                             <?= $hayFiltrosActivos
                                 ? 'No existen configuraciones que coincidan con los filtros aplicados en la base de datos.'
                                 : 'No existen configuraciones registradas.' ?>

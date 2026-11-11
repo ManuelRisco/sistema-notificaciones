@@ -335,8 +335,8 @@ $darkMode = aplicarModoOscuro();
                             </span>
                         </div>
                     <?php else: ?>
-                        <span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>
-                        <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro.</span>
+                        <span class="badge badge-alerta badge-sm">No encontrado</span>
+                        <span class="alerta-articulo-error">Este artículo no existe en el catálogo maestro.</span>
                     <?php endif; ?>
                 </div>
             </div>
@@ -393,7 +393,8 @@ $darkMode = aplicarModoOscuro();
             <div class="campo">
                 <label for="stock_minimo">
                     Stock mínimo
-                <div style="position: relative; display: flex; align-items: center;">
+                </label>
+                <div class="campo-con-sufijo">
                     <input
                         type="number"
                         id="stock_minimo"
@@ -403,9 +404,8 @@ $darkMode = aplicarModoOscuro();
                         step="0.00001"
                         required
                         value="<?= h($stockMinimo) ?>"
-                        style="padding-right: 55px;"
                     >
-                    <span id="sufijo-unidad-minimo" style="position: absolute; right: 12px; font-weight: 700; font-size: 12px; color: var(--color-texto-muted, #64748b); pointer-events: none;"><?= h($unidadMedida) ?></span>
+                    <span id="sufijo-unidad-minimo" class="sufijo-unidad"><?= h($unidadMedida) ?></span>
                 </div>
             </div>
 

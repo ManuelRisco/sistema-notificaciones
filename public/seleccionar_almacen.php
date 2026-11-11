@@ -105,7 +105,7 @@ if (isset($_GET['alm'])) {
                     <div class="tarjeta-almacen">
                         <div>
                             <div class="tarjeta-almacen-header">
-                                <span class="badge badge-inactivo" style="font-weight: 700; font-size: 11.5px; padding: 4px 10px;">
+                                <span class="badge badge-inactivo">
                                     ALMACÉN <?= htmlspecialchars($almCodigo, ENT_QUOTES, 'UTF-8') ?>
                                 </span>
                             </div>
@@ -131,10 +131,10 @@ if (isset($_GET['alm'])) {
             <?php endforeach; ?>
         </div>
     <?php else: ?>
-        <div class="formulario" style="text-align: center; padding: 40px 24px; margin-top: 20px;">
-            <div style="font-size: 42px; margin-bottom: 16px;">⚠️</div>
-            <h2 style="font-size: 19px; color: var(--color-peligro-texto); margin-bottom: 8px;">Sin almacenes asignados</h2>
-            <p style="color: var(--color-texto-muted); font-size: 14.5px; line-height: 1.5; margin-bottom: 24px;">
+        <div class="formulario almacenes-vacio">
+            <div class="almacenes-vacio-icono">⚠️</div>
+            <h2 class="almacenes-vacio-titulo">Sin almacenes asignados</h2>
+            <p class="almacenes-vacio-desc">
                 No tiene autorización para ingresar a ningún almacén registrado en el sistema. Comuníquese con el administrador para solicitar asignación en el sistema.
             </p>
             <a href="logout.php" class="btn btn-secundario">

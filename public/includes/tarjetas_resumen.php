@@ -47,10 +47,6 @@
             <span>Enviado</span>
             <strong><?= $totales['correo_enviado'] ?></strong>
         </div>
-        <div class="resumen-item">
-            <span>No enviado</span>
-            <strong><?= $totales['correo_no_enviado'] ?></strong>
-        </div>
     </div>
 
     <?php if ($totales['no_encontrados'] > 0): ?>

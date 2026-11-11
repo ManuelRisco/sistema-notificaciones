@@ -1,5 +1,6 @@
 /* ========================================================================== 
-   ESTILOS ESPECÍFICOS DE LA PÁGINA PRINCIPAL (index.php)
+   SISTEMA DE ALERTAS DE STOCK TECNOFILM
+   Estilos Específicos del Panel Principal (index.css)
    Complementa y hereda de estilos.css.
    ========================================================================== */
 
@@ -23,10 +24,12 @@
 }
 
 .resumen-total {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 14px;
     font-weight: 600;
     color: var(--color-texto);
-    gap: 6px;
 }
 
 .resumen-total strong {
@@ -78,7 +81,6 @@
     font-weight: 700;
 }
 
-
 /* ========================================================================== 
    2. BUSCADOR EN VIVO DE ARTÍCULOS
    ========================================================================== */
@@ -121,15 +123,17 @@
     padding: 0 14px;
     border: 1.5px solid var(--color-borde-campo);
     border-radius: var(--radio-control);
-    background-color: #ffffff;
+    background-color: var(--color-tarjeta);
     font-family: inherit;
     font-size: 14.5px;
     color: var(--color-texto);
     outline: none;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .busqueda-campo input:focus {
     border-color: var(--color-primario);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .busqueda-acciones {
@@ -153,6 +157,16 @@
     color: var(--color-texto-muted);
 }
 
+.busqueda-limpiar-enlace {
+    margin-left: 8px;
+    color: var(--color-primario);
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.busqueda-limpiar-enlace:hover {
+    color: var(--color-primario-hover);
+}
 
 /* ========================================================================== 
    3. TABLA DE CONFIGURACIONES
@@ -200,14 +214,14 @@ td {
     padding: 18px 18px;
     font-size: 14px;
     line-height: 1.35;
-    color: #334155;
+    color: var(--color-texto-secundario);
     vertical-align: middle;
     white-space: nowrap;
-    border-bottom: 1px solid #e2e8f0;
-    border-right: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--color-borde);
+    border-right: 1px solid var(--color-borde);
 }
 
-/* Columna 1 (Artículo): Permite que el nombre largo quiebre línea para no ensanchar la tabla */
+/* Columna 1 (Artículo): Permite que el nombre largo quiebre línea */
 td:first-child {
     white-space: normal;
     min-width: 170px;
@@ -239,9 +253,14 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover {
-    background-color: #f8fafc;
+    background-color: var(--color-fondo);
 }
 
+.tabla-vacia {
+    text-align: center;
+    padding: 34px 16px;
+    color: var(--color-texto-muted);
+}
 
 /* ========================================================================== 
    4. FILTROS EN LOS ENCABEZADOS DE TABLA
@@ -282,10 +301,11 @@ tbody tr:hover {
     border-color: rgba(255, 255, 255, 0.4);
 }
 
-.btn-filtro-columna.filtro-activo {
-    background: #3b82f6 !important;
-    color: #ffffff !important;
-    border-color: #60a5fa !important;
+.btn-filtro-columna.filtro-activo,
+.btn-filtro-columna.filtro-activo:hover {
+    background: #3b82f6;
+    color: #ffffff;
+    border-color: #60a5fa;
 }
 
 .icono-filtro {
@@ -303,9 +323,9 @@ tbody tr:hover {
     max-width: 320px;
     max-height: 380px;
     overflow-y: auto;
-    background: #ffffff;
+    background: var(--color-tarjeta);
     border: 1px solid var(--color-borde);
-    border-radius: 8px;
+    border-radius: var(--radio-control);
     box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2),
                 0 8px 10px -6px rgba(15, 23, 42, 0.1);
     z-index: 100;
@@ -320,7 +340,7 @@ tbody tr:hover {
 }
 
 .menu-filtro::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
+    background-color: var(--color-borde-campo);
     border-radius: 4px;
 }
 
@@ -353,7 +373,7 @@ tbody tr:hover {
 }
 
 .opcion-filtro:hover {
-    background-color: #f1f5f9;
+    background-color: var(--color-secundario-fondo);
     color: var(--color-primario);
 }
 
@@ -370,7 +390,6 @@ tbody tr:hover {
     color: var(--color-primario);
     text-align: center;
 }
-
 
 /* ========================================================================== 
    5. CELDAS, TÍTULOS Y ACCIONES DE TABLA
@@ -407,6 +426,11 @@ tbody tr:hover {
     max-width: 220px;
 }
 
+.articulo-nombre-secundario {
+    color: var(--color-secundario);
+    font-size: 13px;
+}
+
 .fecha-contenedor {
     display: inline-flex;
     flex-direction: column;
@@ -427,27 +451,26 @@ tbody tr:hover {
     white-space: nowrap;
 }
 
-
 /* ========================================================================== 
    6. REGISTROS DESHABILITADOS / BORRADO LÓGICO
    ========================================================================== */
 
 tbody tr.fila-inactiva td {
-    color: #64748b;
+    color: var(--color-secundario);
     border-bottom-color: #d3d3d3;
 }
 
 tbody tr.fila-inactiva td strong {
-    color: #334155;
+    color: var(--color-texto-secundario);
 }
 
 tbody tr.fila-inactiva .articulo-titulo {
-    color: #64748b;
+    color: var(--color-secundario);
 }
 
 tbody tr.fila-inactiva .badge {
-    filter: none !important;
-    opacity: 1 !important;
+    filter: none;
+    opacity: 1;
 }
 
 tbody tr.fila-inactiva .acciones-celda .btn {
@@ -456,13 +479,22 @@ tbody tr.fila-inactiva .acciones-celda .btn {
 }
 
 tbody tr.fila-inactiva:hover td {
-    background-color: #f8fafc;
+    background-color: var(--color-fondo);
 }
-
 
 /* ========================================================================== 
    7. ADAPTACIONES RESPONSIVE DE TABLA, BUSCADOR Y RESUMEN
    ========================================================================== */
+
+@media (max-width: 992px) {
+    .resumen-separador {
+        display: none;
+    }
+
+    .resumen {
+        gap: 10px 16px;
+    }
+}
 
 @media (max-width: 768px) {
     .acciones-celda {
@@ -497,19 +529,4 @@ tbody tr.fila-inactiva:hover td {
         padding: 12px 14px;
         gap: 10px 12px;
     }
-
-    .resumen-separador {
-        display: none;
-    }
 }
-
-@media (max-width: 992px) {
-    .resumen-separador {
-        display: none;
-    }
-
-    .resumen {
-        gap: 10px 16px;
-    }
-}
-

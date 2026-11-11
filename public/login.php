@@ -90,8 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Botón para alternar el modo oscuro/claro -->
             <a href="?toggle_dark_mode=1"
                id="btn-toggle-dark"
+               class="btn-toggle-dark"
                onclick="toggleDarkMode(event)"
-               style="display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-size: 28px; text-decoration: none; line-height: 1; filter: invert(1) hue-rotate(180deg);"
                title="Alternar modo claro / oscuro">
                 <?php echo $darkMode ? '🌞' : '🌚'; ?>
             </a>
@@ -122,7 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     required
                     autofocus
                     placeholder="ADMINISTRA"
-                    style="text-transform: uppercase;"
                 >
             </div>
 
