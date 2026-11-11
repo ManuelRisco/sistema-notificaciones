@@ -70,7 +70,7 @@ if (isset($_GET['alm'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Selección de Almacén - Sistema de Alertas de Stock</title>
+    <title>Lista de Almacenes - Sistema de Alertas de Stock</title>
     <script>
         (function() {
             try {
@@ -91,7 +91,7 @@ if (isset($_GET['alm'])) {
 <main class="contenedor">
     <header class="encabezado">
         <div class="encabezado-info">
-            <h1>SELECCIÓN DE ALMACÉN</h1>
+            <h1>LISTA DE ALMACENES</h1>
         </div>
 
         <div class="encabezado-derecha">

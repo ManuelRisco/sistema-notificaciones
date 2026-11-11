@@ -505,7 +505,6 @@ if (isset($_GET['toggle_dark_mode'])) {
     <header class="encabezado">
         <div class="encabezado-info">
             <h1>Editar Stock Mínimo - <?= h($almNombre) ?></h1>
-            <p>Modificar stock mínimo y disponibilidad en <?= h($almNombre) ?> (Almacén <?= h($almOriginal) ?>).</p>
         </div>
         <div class="encabezado-derecha">
             <div class="encabezado-usuario-barra">
@@ -572,27 +571,16 @@ if (isset($_GET['toggle_dark_mode'])) {
                 <label for="art_codigo">
                     Código Artículo
                 </label>
-                <div class="campo-con-boton">
-                    <input
-                        type="text"
-                        id="art_codigo"
-                        name="art_codigo"
-                        maxlength="30"
-                        required
-                        value="<?= h($artCodigo) ?>"
-                        autocomplete="off"
-                        readonly
-                    >
-                    <button
-                        type="button"
-                        class="btn btn-secundario btn-catalogo"
-                        id="btn-catalogo"
-                        disabled
-                        title="No se puede cambiar el artículo en modo edición"
-                    >
-                        Buscar en catálogo
-                    </button>
-                </div>
+                <input
+                    type="text"
+                    id="art_codigo"
+                    name="art_codigo"
+                    maxlength="30"
+                    required
+                    value="<?= h($artCodigo) ?>"
+                    autocomplete="off"
+                    readonly
+                >
                 <div id="info_articulo" class="info-articulo">
                     <?php if ($artNombre !== ''): ?>
                         <div class="info-articulo-fila">
@@ -603,7 +591,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                         </div>
                     <?php else: ?>
                         <span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>
-                        <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro. Seleccione uno válido usando el botón "Buscar en catálogo".</span>
+                        <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro.</span>
                     <?php endif; ?>
                 </div>
             </div>
@@ -740,288 +728,6 @@ function toggleDarkMode(e) {
     }
 }
 
-// Variable en caché para los artículos del catálogo
-let catalogoCache = null;
-let ordenStockModal = 'defecto';
-
-// Modal interactivo de catálogo de artículos con búsqueda en tiempo real
-function abrirModalCatalogo() {
-    Swal.fire({
-        title: 'Catálogo de Artículos (Almacén <?= $almOriginal ?> - <?= h($almNombre) ?>)',
-        html: `
-            <div style="text-align: left; font-size: 13px;">
-                <p style="color: var(--color-texto-muted); margin-bottom: 12px;">
-                    Buscar artículo por código o nombre
-                </p>
-                <div style="margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <input type="search" id="swal-buscador-catalogo" class="swal2-input" placeholder="020100149 | AMARILLO HUEVO" style="flex: 1; min-width: 240px; margin: 0; font-size: 13.5px; height: 40px; box-sizing: border-box;" autocomplete="off">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <label for="swal-orden-stock" style="font-weight: 600; font-size: 12px; color: var(--color-texto-muted); white-space: nowrap;">Ordenar:</label>
-                        <select id="swal-orden-stock" style="height: 40px; padding: 0 10px; border: 1.5px solid var(--color-borde-campo); border-radius: var(--radio-control); font-size: 12.5px; font-weight: 600; color: var(--color-texto); background-color: var(--color-tarjeta); cursor: pointer;">
-                            <option value="defecto">Por defecto (Código)</option>
-                            <option value="nombre">Por nombre (A - Z)</option>
-                            <option value="desc">Stock: mayor a menor (↓)</option>
-                            <option value="asc">Stock: menor a mayor (↑)</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="swal-lista-catalogo" style="max-height: 400px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--color-borde); border-radius: 8px; background: var(--color-tarjeta);">
-                    <div style="padding: 30px; text-align: center; color: var(--color-texto-muted);">
-                        Cargando artículos...
-                    </div>
-                </div>
-                <div id="swal-contador-catalogo" style="margin-top: 8px; font-size: 12px; color: var(--color-texto-muted); text-align: right;"></div>
-            </div>
-        `,
-        width: 'min(1160px, 96vw)',
-        customClass: { popup: 'swal-catalogo-ancho' },
-        showConfirmButton: false,
-        showCloseButton: true,
-        didOpen: () => {
-            const buscador = document.getElementById('swal-buscador-catalogo');
-            const lista = document.getElementById('swal-lista-catalogo');
-            const contador = document.getElementById('swal-contador-catalogo');
-            const selectorOrden = document.getElementById('swal-orden-stock');
-            const codigoOriginalLocal = <?= json_encode($artOriginal, JSON_UNESCAPED_UNICODE) ?>;
-
-            function escapeModalText(text) {
-                const div = document.createElement('div');
-                div.textContent = text || '';
-                return div.innerHTML;
-            }
-
-            function obtenerItemsOrdenados() {
-                if (!catalogoCache) return [];
-                const copia = [...catalogoCache];
-                if (ordenStockModal === 'desc') {
-                    copia.sort((a, b) => {
-                        const valA = (a.stock_actual !== null && a.stock_actual !== undefined) ? Number(a.stock_actual) : -Infinity;
-                        const valB = (b.stock_actual !== null && b.stock_actual !== undefined) ? Number(b.stock_actual) : -Infinity;
-                        if (valB !== valA) return valB - valA;
-                        return (a.codigo || '').localeCompare(b.codigo || '');
-                    });
-                } else if (ordenStockModal === 'asc') {
-                    copia.sort((a, b) => {
-                        const valA = (a.stock_actual !== null && a.stock_actual !== undefined) ? Number(a.stock_actual) : Infinity;
-                        const valB = (b.stock_actual !== null && b.stock_actual !== undefined) ? Number(b.stock_actual) : Infinity;
-                        if (valA !== valB) return valA - valB;
-                        return (a.codigo || '').localeCompare(b.codigo || '');
-                    });
-                } else if (ordenStockModal === 'nombre') {
-                    copia.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
-                } else {
-                    copia.sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
-                }
-                return copia;
-            }
-
-            function renderizar(items) {
-                if (!items || items.length === 0) {
-                    lista.innerHTML = `
-                        <div style="padding: 36px 16px; text-align: center; color: var(--color-texto-muted); font-size: 13px;">
-                            No hay artículos disponibles para este almacén.
-                        </div>
-                    `;
-                    if (contador) contador.textContent = '0 artículos disponibles';
-                    return;
-                }
-
-                // Código del artículo que actualmente está seleccionado en el formulario
-                const codigoActualEnFormulario = (document.getElementById('art_codigo')?.value || '').trim();
-
-                let iconoSort = '⇅';
-                if (ordenStockModal === 'desc') iconoSort = '↓';
-                if (ordenStockModal === 'asc') iconoSort = '↑';
-
-                let html = '<table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; text-align: left;">';
-                html += `
-                    <thead>
-                        <tr style="background: var(--color-secundario-fondo); position: sticky; top: 0; z-index: 2; border-bottom: 1.5px solid var(--color-borde);">
-                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase;">Código</th>
-                            <th style="padding: 8px 6px; font-size: 11px; text-transform: uppercase;">Artículo</th>
-                            <th style="padding: 8px 6px; width: 230px; font-size: 11px; text-transform: uppercase;">Clasificación</th>
-                            <th id="th-sort-stock-modal" style="padding: 8px 6px; width: 125px; font-size: 11px; text-transform: uppercase; text-align: right; cursor: pointer; user-select: none;" title="Haga clic para alternar: Mayor a menor / Menor a mayor / Por defecto">
-                                <span style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px;">
-                                    <span>Stock real</span>
-                                    <span id="icono-sort-stock-modal" style="font-size: 12px; font-weight: bold; color: ${ordenStockModal === 'defecto' ? 'var(--color-texto-muted)' : 'var(--color-primario)'};">${iconoSort}</span>
-                                </span>
-                            </th>
-                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase; text-align: center;">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                `;
-
-                items.forEach(art => {
-                    const metaTexto = `${art.categoria || ''} ${art.fam_nombre || ''} ${art.tfa_nombre || ''}`.trim();
-                    const esEnUso = (codigoActualEnFormulario !== '' && art.codigo === codigoActualEnFormulario);
-
-                    html += `
-                        <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeModalText(art.codigo)}" data-nombre="${escapeModalText(art.nombre)}" data-meta="${escapeModalText(metaTexto)}">
-                            <td style="padding: 8px 6px; font-weight: 700; font-family: monospace; font-size: 12.5px; word-break: break-all;">
-                                ${escapeModalText(art.codigo)}
-                            </td>
-                            <td style="padding: 8px 6px; line-height: 1.3; font-size: 12.5px; font-weight: 600; color: #1e293b; word-break: break-word;">
-                                ${escapeModalText(art.nombre)}
-                            </td>
-                            <td style="padding: 6px; font-size: 12px; line-height: 1.35; color: #334155;">
-                                <div style="display: flex; flex-direction: column; gap: 2px;">
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Categoría:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.categoria || '—')}</strong></div>
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Familia:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.fam_nombre || '—')}</strong></div>
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Tipo fam:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.tfa_nombre || '—')}</strong></div>
-                                </div>
-                            </td>
-                            <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
-                                <span class="articulo-stock-tag" style="font-size: 11.5px; padding: 2px 6px;">
-                                    ${escapeModalText(art.stock_formateado || '0.000')}
-                                </span>
-                            </td>
-                            <td style="padding: 8px 6px; text-align: center; white-space: nowrap;">
-                                ${esEnUso
-                                    ? `<span class="badge badge-activo" style="font-size: 11px; padding: 4px 6px;">En uso</span>`
-                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeModalText(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">Elegir</button>`
-                                }
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                html += `
-                    <tr id="swal-fila-vacia" style="display: none;">
-                        <td colspan="7" style="padding: 30px 16px; text-align: center; color: var(--color-texto-muted);">
-                            No se encontraron artículos que coincidan con la búsqueda.
-                        </td>
-                    </tr>
-                `;
-
-                html += '</tbody></table>';
-                lista.innerHTML = html;
-                if (contador) contador.innerHTML = `Mostrando <strong>${items.length}</strong> de <strong>${catalogoCache.length}</strong> artículos`;
-
-                // Evento al hacer clic en el encabezado de Stock real para ordenar
-                const thStock = lista.querySelector('#th-sort-stock-modal');
-                if (thStock) {
-                    thStock.addEventListener('click', function() {
-                        if (ordenStockModal === 'defecto') {
-                            ordenStockModal = 'desc';
-                        } else if (ordenStockModal === 'desc') {
-                            ordenStockModal = 'asc';
-                        } else {
-                            ordenStockModal = 'defecto';
-                        }
-                        if (selectorOrden) selectorOrden.value = ordenStockModal;
-                        aplicarOrdenYRenderizar();
-                    });
-                }
-
-                lista.querySelectorAll('.btn-elegir-art').forEach(b => {
-                    b.addEventListener('click', function() {
-                        const cod = this.getAttribute('data-codigo');
-                        const inp = document.getElementById('art_codigo');
-                        const artObj = catalogoCache ? catalogoCache.find(x => x.codigo === cod) : null;
-                        if (artObj) {
-                            const inputCat = document.getElementById('art_categoria');
-                            const inputFam = document.getElementById('art_familia');
-                            const inputTfa = document.getElementById('art_tipo_familia');
-                            if (inputCat) inputCat.value = artObj.categoria || '';
-                            if (inputFam) inputFam.value = artObj.fam_nombre || '';
-                            if (inputTfa) inputTfa.value = artObj.tfa_nombre || '';
-                        }
-                        if (inp) {
-                            inp.value = cod;
-                            inp.dispatchEvent(new Event('input', { bubbles: true }));
-                            const inpStock = document.getElementById('stock_minimo');
-                            if (inpStock) inpStock.focus();
-                        }
-                        Swal.close();
-                    });
-                });
-            }
-
-            function aplicarOrdenYRenderizar() {
-                const ordenados = obtenerItemsOrdenados();
-                renderizar(ordenados);
-                filtrar();
-            }
-
-            // Búsqueda idéntica a la de index.php (de izquierda a derecha por código o palabra del nombre)
-            function filtrar() {
-                if (!catalogoCache) return;
-                const q = (buscador ? buscador.value : '').toLowerCase().trim();
-                let visibles = 0;
-
-                const filasModal = lista.querySelectorAll('tbody tr:not(#swal-fila-vacia)');
-                filasModal.forEach(fila => {
-                    const c = (fila.dataset.codigo || '').toLowerCase().trim();
-                    const n = (fila.dataset.nombre || '').toLowerCase().trim();
-                    const m = (fila.dataset.meta || '').toLowerCase().trim();
-
-                    const coincideCodigo = c.startsWith(q) || c.replace(/^0+/, '').startsWith(q);
-                    const palabrasNombre = n.split(/\s+/);
-                    const coincideNombre = n.startsWith(q) || palabrasNombre.some(p => p.startsWith(q));
-                    const coincideMeta = m.includes(q);
-
-                    if (q === '' || coincideCodigo || coincideNombre || coincideMeta) {
-                        fila.style.display = '';
-                        visibles++;
-                    } else {
-                        fila.style.display = 'none';
-                    }
-                });
-
-                const filaVacia = document.getElementById('swal-fila-vacia');
-                if (filaVacia) {
-                    filaVacia.style.display = (visibles === 0 && q !== '') ? '' : 'none';
-                }
-
-                if (contador) {
-                    contador.innerHTML = `Mostrando <strong>${visibles}</strong> de <strong>${catalogoCache.length}</strong> artículos`;
-                }
-            }
-
-            if (selectorOrden) {
-                selectorOrden.value = ordenStockModal;
-                selectorOrden.addEventListener('change', function() {
-                    ordenStockModal = this.value;
-                    aplicarOrdenYRenderizar();
-                });
-            }
-
-            if (buscador) {
-                buscador.addEventListener('input', filtrar);
-                buscador.addEventListener('search', filtrar);
-                buscador.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') e.preventDefault();
-                });
-            }
-
-            // Si el catálogo ya está en caché, renderizarlo inmediatamente con el artículo actual
-            if (catalogoCache) {
-                aplicarOrdenYRenderizar();
-                if (buscador) setTimeout(() => buscador.focus(), 80);
-                return;
-            }
-
-            // Consultar catálogo indicando el artículo original en edición y filtrado por almacén
-            const urlCatalogo = 'consultar_articulo.php?catalogo=1&art_actual=' + encodeURIComponent(codigoOriginalLocal) + '&alm=' + encodeURIComponent('<?= $almOriginal ?>');
-            fetch(urlCatalogo)
-                .then(r => r.json())
-                .then(res => {
-                    if (res && res.exito && Array.isArray(res.articulos)) {
-                        catalogoCache = res.articulos;
-                        renderizar(catalogoCache);
-                        if (buscador) setTimeout(() => buscador.focus(), 80);
-                    } else {
-                        lista.innerHTML = '<div style="padding: 24px; text-align: center; color: #dc2626;">No se pudo cargar el catálogo.</div>';
-                    }
-                })
-                .catch(err => {
-                    lista.innerHTML = `<div style="padding: 24px; text-align: center; color: #dc2626;">Error: ${escapeModalText(err.message)}</div>`;
-                });
-        }
-    });
-}
-
 document.addEventListener('DOMContentLoaded', function() {
 
     // 0. Sincronizar el emoji del botón según el estado activo de la página
@@ -1098,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (!data.encontrado) {
-            infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span> <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro. Seleccione uno válido usando el botón "Buscar en catálogo".</span>';
+            infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span> <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro.</span>';
             if (sufijoUme) sufijoUme.textContent = '';
             if (labelUme) labelUme.textContent = '';
             if (inputCat) inputCat.value = '';

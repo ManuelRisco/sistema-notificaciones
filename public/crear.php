@@ -281,7 +281,6 @@ if (isset($_GET['toggle_dark_mode'])) {
     <header class="encabezado">
         <div class="encabezado-info">
             <h1>Nuevo registro - <?= h($almNombre) ?></h1>
-            <p>Agregar una configuración de stock mínimo en <?= h($almNombre) ?> (Almacén <?= h($almCodigo) ?>).</p>
         </div>
         <div class="encabezado-derecha">
             <div class="encabezado-usuario-barra">
@@ -412,7 +411,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                     max="999999999.99999"
                     step="0.00001"
                     required
-                    placeholder="50.000"
+                    placeholder="20.00000"
                     value="<?= h($stockMinimo) ?>"
                     style="padding-right: 55px;"
                 >
@@ -502,7 +501,6 @@ function abrirModalCatalogo() {
                         <label for="swal-orden-stock" style="font-weight: 600; font-size: 12px; color: var(--color-texto-muted); white-space: nowrap;">Ordenar:</label>
                         <select id="swal-orden-stock" style="height: 40px; padding: 0 10px; border: 1.5px solid var(--color-borde-campo); border-radius: var(--radio-control); font-size: 12.5px; font-weight: 600; color: var(--color-texto); background-color: var(--color-tarjeta); cursor: pointer;">
                             <option value="defecto">Por defecto (Código)</option>
-                            <option value="nombre">Por nombre (A - Z)</option>
                             <option value="desc">Stock: mayor a menor (↓)</option>
                             <option value="asc">Stock: menor a mayor (↑)</option>
                         </select>
@@ -582,10 +580,14 @@ function abrirModalCatalogo() {
                             <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase;">Código</th>
                             <th style="padding: 8px 6px; font-size: 11px; text-transform: uppercase;">Artículo</th>
                             <th style="padding: 8px 6px; width: 230px; font-size: 11px; text-transform: uppercase;">Clasificación</th>
-                            <th id="th-sort-stock-modal" style="padding: 8px 6px; width: 125px; font-size: 11px; text-transform: uppercase; text-align: right; cursor: pointer; user-select: none;" title="Haga clic para alternar: Mayor a menor / Menor a mayor / Por defecto">
+                            <th  style="padding: 8px 6px; width: 125px; font-size: 11px; text-transform: uppercase; text-align: right; user-select: none;">
                                 <span style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px;">
                                     <span>Stock real</span>
-                                    <span id="icono-sort-stock-modal" style="font-size: 12px; font-weight: bold; color: ${ordenStockModal === 'defecto' ? 'var(--color-texto-muted)' : 'var(--color-primario)'};">${iconoSort}</span>
+                                    <button type="button" id="th-sort-stock-modal">
+                                        <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                                        <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"></path>
+                                         </svg>
+                                    </button>
                                 </span>
                             </th>
                             <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase; text-align: center;">Acción</th>
@@ -970,17 +972,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 4. Caso normal: encontrado y no registrado
                 const dispSelect = document.getElementById('disponible');
                 const seraActivo = dispSelect ? dispSelect.value === '1' : true;
-                const estadoTexto = seraActivo
-                    ? '<span class="badge badge-activo" style="font-size: 11px;">Activo</span>'
-                    : '<span class="badge badge-inactivo" style="font-size: 11px;">Inactivo</span>';
 
                 const detalleArticulo = artNombre
-                    ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
+                    ? `<span style="color: #000000ff; font-size: 13px; font-weight: 800;">${escapeHtml(artNombre)}</span>`
                     : '';
 
                 Swal.fire({
                     title: '¿Guardar nuevo registro?',
-                    html: `¿Estás seguro de que deseas registrar esta configuración para el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}<br><br>Estado: ${estadoTexto}`,
+                    html: `¿Estás seguro de que deseas registrar esta configuración para el artículo <strong>${detalleArticulo}<br>${escapeHtml(artCodigo)}</strong>?`,
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#2563eb',

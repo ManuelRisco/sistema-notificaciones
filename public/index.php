@@ -1262,14 +1262,14 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
 
             Swal.fire({
-                title: '¿Deseas revisar el inventario?',
+                title: '¿Estás seguro de revisar el inventario?',
                 text: 'Se analizará el inventario actual y se enviarán correos si existen alertas de stock que no se enviaron por correo.',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#059669',
                 cancelButtonColor: '#64748b',
                 confirmButtonText: 'Sí, ejecutar ahora',
-                cancelButtonText: 'Cancelar',
+                cancelButtonText: 'No',
                 reverseButtons: true,
                 focusCancel: true
             }).then((result) => {
@@ -1395,7 +1395,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmButtonColor: colorConfirmar,
                 cancelButtonColor: '#64748b',
                 confirmButtonText: textoConfirmar,
-                cancelButtonText: 'Cancelar',
+                cancelButtonText: 'No',
                 reverseButtons: true,
                 focusCancel: true
             }).then((result) => {
