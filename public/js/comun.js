@@ -48,3 +48,35 @@ function escapeHtml(texto) {
     div.textContent = texto || '';
     return div.innerHTML;
 }
+
+// Sincronizar el emoji del botón de tema según el estado activo de la página
+document.addEventListener('DOMContentLoaded', function () {
+    const btnDark = document.getElementById('btn-toggle-dark');
+    if (btnDark) {
+        btnDark.textContent = document.documentElement.classList.contains('dark-mode') ? '🌞' : '🌚';
+    }
+});
+
+// Aviso con un único botón "Entendido" (requiere SweetAlert2)
+function swalEntendido(icon, title, html) {
+    return Swal.fire({
+        icon: icon,
+        title: title,
+        html: html,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'Entendido'
+    });
+}
+
+// Modal de progreso mientras se guarda un formulario (requiere SweetAlert2)
+function mostrarGuardando(titulo, detalle) {
+    Swal.fire({
+        title: titulo,
+        html: detalle + '<br><small style="color: #64748b;">Por favor espera un momento...</small>',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+}

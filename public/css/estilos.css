@@ -52,7 +52,6 @@
                          0 4px 6px -4px rgba(0, 0, 0, 0.02);
 }
 
-
 /* ========================================================================== 
    2. RESET Y ESTILOS BASE
    ========================================================================== */
@@ -71,7 +70,6 @@ body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
-
 
 /* ========================================================================== 
    3. CONTENEDORES Y ESTRUCTURA GENERAL
@@ -170,7 +168,6 @@ body {
     margin: 0;
     padding: 0;
 }
-
 
 /* ========================================================================== 
    4. FORMULARIOS ADMINISTRATIVOS
@@ -349,7 +346,6 @@ body {
     border-radius: var(--radio-control);
 }
 
-
 /* ========================================================================== 
    5. BOTONES
    ========================================================================== */
@@ -453,309 +449,6 @@ body {
     background-color: #065f46;
 }
 
-
-/* ========================================================================== 
-   6. TABLA DE CONFIGURACIONES
-   ========================================================================== */
-
-/* Resumen general / métricas */
-.resumen {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 8px 14px;
-    background: var(--color-tarjeta);
-    padding: 10px 18px;
-    margin-bottom: 22px;
-    border-radius: var(--radio-tarjeta);
-    border: 1px solid var(--color-borde);
-    font-size: 13px;
-    text-align: center;
-}
-
-.resumen-total {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-texto);
-    gap: 6px;
-}
-
-.resumen-total strong {
-    font-size: 16px;
-    font-weight: 700;
-}
-
-.resumen-separador {
-    width: 1px;
-    height: 20px;
-    background-color: var(--color-borde);
-    margin: 0 2px;
-    flex-shrink: 0;
-}
-
-.resumen-grupo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    flex-wrap: nowrap;
-}
-
-.resumen-grupo-titulo {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--color-texto-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-right: 2px;
-}
-
-.resumen-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--color-borde);
-    background-color: var(--color-fondo);
-    color: var(--color-texto);
-    font-size: 12.5px;
-    user-select: text;
-    white-space: nowrap;
-}
-
-.resumen-item strong {
-    font-size: 13.5px;
-    font-weight: 700;
-}
-
-/* Contenedor compacto sin desplazamiento horizontal */
-.tabla-contenedor {
-    max-width: 1350px;
-    margin: 0 auto;
-
-    background: var(--color-tarjeta);
-    border-radius: var(--radio-tarjeta);
-    border: 1px solid var(--color-borde);
-    overflow-x: auto;
-
-    /* Encabezado que se mantenga */
-    overflow-y: auto;
-    max-height: 75vh;
-
-    min-height: 280px;
-    -webkit-overflow-scrolling: touch;
-    position: relative;
-}
-
-table {
-    width: 100%;
-    border-spacing: 0;
-    text-align: left;
-    table-layout: auto;
-}
-
-th {
-    background: #1f2229;
-    color: #f8fafc;
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    padding: 10px 8px;
-
-    /* Encabezado que se mantenga */
-    position: sticky;
-    top: 0;
-    z-index: 10;
-
-    border-right: 1px solid rgba(255, 255, 255, 0.15);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-    white-space: nowrap;
-
-    /* Centrar encabezado */
-    text-align: center;
-}
-
-td {
-    padding: 18px 18px;
-    font-size: 14px;
-    line-height: 1.35;
-    color: #334155;
-    vertical-align: middle;
-    white-space: nowrap;
-
-    border-bottom: 1px solid #e2e8f0;
-    border-right: 1px solid #e2e8f0;
-}
-
-/* Columna 1 (Artículo): Permite que el nombre largo quiebre línea para no ensanchar la tabla */
-td:first-child {
-    white-space: normal;
-    min-width: 170px;
-    max-width: 220px;
-}
-
-td:first-child strong {
-    display: block;
-    font-size: 13.5px;
-    line-height: 1.25;
-    word-break: break-word;
-}
-
-/* Alineación numérica de Stock físico y Stock mínimo */
-th:nth-child(2), td:nth-child(2),
-th:nth-child(3), td:nth-child(3) {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    padding-right: 12px;
-}
-
-th:last-child,
-td:last-child {
-    border-right: none;
-}
-
-tbody tr:last-child td {
-    border-bottom: none;
-}
-
-tbody tr:hover {
-    background-color: #f8fafc;
-}
-
-
-/* ========================================================================== 
-   7. FILTROS EN LOS ENCABEZADOS DE TABLA
-   ========================================================================== */
-
-.th-filtrable {
-    position: sticky;
-}
-
-.th-filtrable.th-menu-activo {
-    z-index: 50;
-}
-
-.th-contenido {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.btn-filtro-columna {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.12);
-    color: #cbd5e1;
-    cursor: pointer;
-    transition: all 0.15s ease-in-out;
-}
-
-.btn-filtro-columna:hover {
-    background: rgba(255, 255, 255, 0.25);
-    color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.4);
-}
-
-.btn-filtro-columna.filtro-activo {
-    background: #3b82f6 !important;
-    color: #ffffff !important;
-    border-color: #60a5fa !important;
-}
-
-.icono-filtro {
-    display: block;
-    pointer-events: none;
-}
-
-.menu-filtro {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 8px;
-    margin-top: 4px;
-    min-width: 195px;
-    max-width: 320px;
-    max-height: 380px;
-    overflow-y: auto;
-    background: #ffffff;
-    border: 1px solid var(--color-borde);
-    border-radius: 8px;
-    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2),
-                0 8px 10px -6px rgba(15, 23, 42, 0.1);
-    z-index: 100;
-    padding: 6px 0;
-    text-align: left;
-    text-transform: none;
-    letter-spacing: normal;
-}
-
-.menu-filtro::-webkit-scrollbar {
-    width: 6px;
-}
-
-.menu-filtro::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
-    border-radius: 4px;
-}
-
-.menu-filtro.menu-abierto {
-    display: block;
-    animation: fadeInMenu 0.12s ease-out;
-}
-
-@keyframes fadeInMenu {
-    from {
-        opacity: 0;
-        transform: translateY(-4px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.opcion-filtro {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    font-size: 13px;
-    color: var(--color-texto);
-    text-decoration: none;
-    font-weight: 500;
-    transition: background-color 0.1s ease;
-}
-
-.opcion-filtro:hover {
-    background-color: #f1f5f9;
-    color: var(--color-primario);
-}
-
-.opcion-filtro.seleccionada {
-    background-color: #eff6ff;
-    color: var(--color-primario);
-    font-weight: 600;
-}
-
-.indicador-check {
-    display: inline-block;
-    width: 14px;
-    font-weight: 700;
-    color: var(--color-primario);
-    text-align: center;
-}
-
-
 /* ========================================================================== 
    8. BADGES, ETIQUETAS Y ACCIONES DE TABLA
    ========================================================================== */
@@ -799,99 +492,6 @@ tbody tr:hover {
     border: 1px solid #cbd5e1;
 }
 
-/* Celda y botones de acciones */
-.acciones-celda {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-}
-
-.acciones-celda .btn {
-    padding: 0 8px;
-    font-size: 12.5px;
-    font-weight: 600;
-    border-radius: 5px;
-    height: 27px;
-    line-height: 27px;
-}
-
-.form-eliminar {
-    display: inline-block;
-    margin: 0;
-}
-
-/* titulo del artículo */
-.articulo-titulo {
-    display: block;
-    margin-top: 2px;
-    color: var(--color-texto-muted);
-    font-size: 13.5px;
-    font-weight: 500;
-    white-space: normal;
-    max-width: 220px;
-}
-
-/* Fecha y hora compactas en dos líneas */
-.fecha-contenedor {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 1px;
-    line-height: 1.15;
-}
-
-.fecha-dia {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--color-texto);
-    white-space: nowrap;
-}
-
-.fecha-hora {
-    font-size: 10.5px;
-    color: var(--color-texto-muted);
-    white-space: nowrap;
-}
-
-
-/* ========================================================================== 
-   9. REGISTROS DESHABILITADOS / BORRADO LÓGICO
-   ========================================================================== */
-
-/* Fondo y texto atenuado en las celdas */
-tbody tr.fila-inactiva td {
-    color: #64748b;
-    border-bottom-color: #d3d3d3;
-}
-
-/* Textos destacados */
-tbody tr.fila-inactiva td strong {
-    color: #334155;
-}
-
-/* Descripción del artículo */
-tbody tr.fila-inactiva .articulo-titulo {
-    color: #64748b;
-}
-
-/* Los badges conservan sus colores originales intactos (igual que en los registros disponibles) */
-tbody tr.fila-inactiva .badge {
-    filter: none !important;
-    opacity: 1 !important;
-}
-
-/* Botones continúan siendo claramente identificables y funcionales */
-tbody tr.fila-inactiva .acciones-celda .btn {
-    filter: none;
-    opacity: 1;
-}
-
-/* Mantener el fondo suave cuando se pasa el cursor */
-tbody tr.fila-inactiva:hover td {
-    background-color: #f8fafc;
-}
-
-
 /* ========================================================================== 
    10. ALERTAS Y NOTIFICACIONES
    ========================================================================== */
@@ -912,82 +512,6 @@ tbody tr.fila-inactiva:hover td {
     color: #991b1b;
     border: 1px solid #fecaca;
 }
-
-
-/* ========================================================================== 
-   11. BUSCADOR DE ARTÍCULOS
-   ========================================================================== */
-
-.busqueda-contenedor {
-    background: var(--color-tarjeta);
-    border: 2px solid var(--color-borde);
-    border-radius: var(--radio-tarjeta);
-    padding: 20px 24px;
-    margin-bottom: 22px;
-}
-
-.busqueda-form {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.busqueda-campo {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.busqueda-campo-texto {
-    flex: 1;
-    min-width: 240px;
-}
-
-.busqueda-campo label {
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--color-texto);
-}
-
-.busqueda-campo input {
-    width: 100%;
-    height: 44px;
-    padding: 0 14px;
-    border: 1.5px solid var(--color-borde-campo);
-    border-radius: var(--radio-control);
-    background-color: #ffffff;
-    font-family: inherit;
-    font-size: 14.5px;
-    color: var(--color-texto);
-    outline: none;
-}
-
-.busqueda-campo input:focus {
-    border-color: var(--color-primario);
-}
-
-.busqueda-acciones {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.busqueda-form .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 44px;
-    padding: 0 20px;
-    white-space: nowrap;
-}
-
-.busqueda-resultados {
-    margin-top: 14px;
-    font-size: 13.5px;
-    color: var(--color-texto-muted);
-}
-
 
 /* ========================================================================== 
    12. PERSONALIZACIÓN DE SWEETALERT2
@@ -1036,7 +560,6 @@ tbody tr.fila-inactiva:hover td {
 .swal2-timer-progress-bar {
     background: rgba(37, 99, 235, 0.45) !important;
 }
-
 
 /* ========================================================================== 
    13. DISEÑO ADAPTABLE / RESPONSIVE
@@ -1098,56 +621,6 @@ tbody tr.fila-inactiva:hover td {
 
     .acciones .btn {
         width: 100%;
-    }
-
-    /* Acciones de tabla */
-    .acciones-celda {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-    }
-
-    /* Buscador */
-    .busqueda-form {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .busqueda-campo,
-    .busqueda-campo-texto {
-        min-width: 100%;
-        width: 100%;
-    }
-
-    .busqueda-acciones {
-        flex-direction: column;
-        width: 100%;
-        gap: 10px;
-    }
-
-    .busqueda-acciones .btn,
-    .busqueda-form .btn {
-        width: 100%;
-    }
-
-    /* Resumen general */
-    .resumen {
-        padding: 12px 14px;
-        gap: 10px 12px;
-    }
-
-    .resumen-separador {
-        display: none;
-    }
-}
-
-@media (max-width: 992px) {
-    .resumen-separador {
-        display: none;
-    }
-
-    .resumen {
-        gap: 10px 16px;
     }
 }
 

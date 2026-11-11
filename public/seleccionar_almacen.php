@@ -145,21 +145,9 @@ if (isset($_GET['alm'])) {
 </main>
 
 <script>
-// Sincronizar el emoji del botón según el estado activo de la página
 document.addEventListener('DOMContentLoaded', function() {
-    const btnDark = document.getElementById('btn-toggle-dark');
-    if (btnDark) {
-        btnDark.textContent = document.documentElement.classList.contains('dark-mode') ? '🌞' : '🌚';
-    }
-
     <?php if ($error !== null): ?>
-    Swal.fire({
-        icon: 'error',
-        title: 'Atención',
-        html: <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'Entendido'
-    });
+    swalEntendido('error', 'Atención', <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>);
     <?php endif; ?>
 });
 

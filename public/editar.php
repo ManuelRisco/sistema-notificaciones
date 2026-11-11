@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Manue\SistemaNotificaciones\StockRepository;
+
 require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
@@ -50,7 +52,7 @@ try {
 
     // 2. Conectar con SQL Server.
     $conexion = getSqlServerConn();
-    $db = getDatabaseName();
+    $repositorio = new StockRepository($conexion);
 
     if ($esPost) {
 
@@ -94,47 +96,13 @@ try {
         }
 
         // 9. Recuperar los valores actuales desde SQL Server.
-        $sqlActual = "
-            SELECT
-                cfg.art_codigo,
-                cfg.stock_minimo,
-                cfg.disponible,
-                RTRIM(m.art_nombre) AS art_nombre
-            FROM [{$db}].dbo.cfg_alerta_stock cfg
-            LEFT JOIN [{$db}].dbo.mae_articulo m
-                ON m.emp_codigo = cfg.emp_codigo
-                AND m.art_codigo = cfg.art_codigo
-            WHERE cfg.emp_codigo = ?
-              AND cfg.art_codigo = ?
-              AND cfg.alm_codigo = ?;
-        ";
-
-        $paramsActual = [
+        $registroActual = $repositorio->obtenerConfiguracion(
             $empOriginal,
             $artOriginal,
             $almOriginal
-        ];
-
-        $stmtActual = sqlsrv_query(
-            $conexion,
-            $sqlActual,
-            $paramsActual
         );
 
-        if ($stmtActual === false) {
-            throw new RuntimeException(
-                'No se pudieron consultar los valores actuales.'
-            );
-        }
-
-        $registroActual = sqlsrv_fetch_array(
-            $stmtActual,
-            SQLSRV_FETCH_ASSOC
-        );
-
-        sqlsrv_free_stmt($stmtActual);
-
-        if ($registroActual === null || $registroActual === false) {
+        if ($registroActual === null) {
             throw new RuntimeException(
                 'El registro que intentas modificar ya no existe.'
             );
@@ -148,18 +116,7 @@ try {
 
         // Si se modificó el código de artículo, consultar el nombre del nuevo artículo
         if ($articuloCambio && $artCodigo !== '') {
-            $sqlNom = "
-                SELECT RTRIM(art_nombre) AS art_nombre
-                FROM [{$db}].dbo.mae_articulo
-                WHERE emp_codigo = ?
-                  AND art_codigo = ?;
-            ";
-            $stmtNom = sqlsrv_query($conexion, $sqlNom, [$empOriginal, $artCodigo]);
-            if ($stmtNom !== false) {
-                $filaNom = sqlsrv_fetch_array($stmtNom, SQLSRV_FETCH_ASSOC);
-                $artNombre = trim((string) ($filaNom['art_nombre'] ?? ''));
-                sqlsrv_free_stmt($stmtNom);
-            }
+            $artNombre = $repositorio->obtenerNombreArticulo($empOriginal, $artCodigo);
         }
 
         // Validar que el artículo exista en el catálogo maestro (mae_articulo)
@@ -187,190 +144,30 @@ try {
             // 12. Actualizar si existen cambios.
             // Las banderas se conservan tal como están al cambiar stock o disponibilidad.
             // Solamente se reinician si cambia el código de artículo.
-            $sql = "
-                UPDATE [{$db}].dbo.cfg_alerta_stock
-                SET
-                    art_codigo = ?,
-                    stock_minimo = CAST(? AS NUMERIC(14,5)),
-                    disponible = ?,
-
-                    band_stock = CASE
-                        WHEN ? = 1 THEN 0
-                        ELSE band_stock
-                    END,
-
-                    band_correo = CASE
-                        WHEN ? = 1 THEN 0
-                        ELSE band_correo
-                    END,
-
-                    fecha_actualizacion = SYSDATETIME()
-
-                WHERE emp_codigo = ?
-                  AND art_codigo = ?
-                  AND alm_codigo = ?;
-            ";
-
-            $params = [
+            $repositorio->actualizarConfiguracion(
+                $empOriginal,
+                $artOriginal,
+                $almOriginal,
                 $artCodigo,
                 $stockMinimo,
                 $disponible,
-
-                // Reiniciar banderas únicamente si cambia el artículo
-                $articuloCambio ? 1 : 0,
-                $articuloCambio ? 1 : 0,
-
-                // Identificación original del registro
-                $empOriginal,
-                $artOriginal,
-                $almOriginal
-            ];
-
-            $stmt = sqlsrv_query(
-                $conexion,
-                $sql,
-                $params
+                $articuloCambio,
+                $almNombre
             );
-
-            if ($stmt === false) {
-
-                $erroresSql = sqlsrv_errors(SQLSRV_ERR_ERRORS) ?: [];
-
-                foreach ($erroresSql as $errorSql) {
-
-                    $codigo = (int) ($errorSql['code'] ?? 0);
-
-                    // Clave primaria duplicada.
-                    if ($codigo === 2601 || $codigo === 2627) {
-
-                        throw new RuntimeException(
-                            'El nuevo código de artículo ya tiene una configuración registrada para la empresa 001 y el almacén ' . $almOriginal . ' (' . $almNombre . ').'
-                        );
-                    }
-                }
-
-                throw new RuntimeException(
-                    'No se pudo actualizar la configuración.'
-                );
-            }
-
-            $filasAfectadas = sqlsrv_rows_affected($stmt);
-
-            sqlsrv_free_stmt($stmt);
-
-            if ($filasAfectadas !== 1) {
-                throw new RuntimeException(
-                    'No se pudo completar la actualización.'
-                );
-            }
 
             $actualizado = true;
         }
 
     } else {
 
-        // 13. GET: consultar el registro original y su stock físico real en almacén 003
-        $sql = "
-            ;WITH StockCalculado AS
-            (
-                SELECT
-                    a.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo,
-                    SUM(
-                        CASE
-                            WHEN b.mov_tipo = 'I'
-                                THEN a.mov_ctdmov
-                            ELSE 0
-                        END
-                    ) -
-                    SUM(
-                        CASE
-                            WHEN b.mov_tipo = 'S'
-                                THEN a.mov_ctdmov
-                            ELSE 0
-                        END
-                    ) AS stock_actual
-                FROM [{$db}].dbo.log_detmov a
-                INNER JOIN [{$db}].dbo.log_cabmov b
-                    ON a.mov_id = b.mov_id
-                    AND b.alm_codigo = ?
-                WHERE a.emp_codigo = ?
-                  AND a.art_codigo = ?
-                  AND b.mov_flag <> 'A'
-                  AND b.mov_fecemi <= GETDATE()
-                GROUP BY
-                    a.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo
-            )
-            SELECT
-                cfg.emp_codigo,
-                cfg.art_codigo,
-                cfg.alm_codigo,
-                cfg.stock_minimo,
-                cfg.disponible,
-                RTRIM(m.art_nombre) AS art_nombre,
-                RTRIM(d.ume_abrv) AS unidad_medida,
-                RTRIM(l.lin_nombre) AS categoria,
-                RTRIM(f.fam_nombre) AS fam_nombre,
-                RTRIM(tf.tfa_nombre) AS tfa_nombre,
-                s.stock_actual
-            FROM [{$db}].dbo.cfg_alerta_stock cfg
-            LEFT JOIN [{$db}].dbo.mae_articulo m
-                ON m.emp_codigo = cfg.emp_codigo
-                AND m.art_codigo = cfg.art_codigo
-            LEFT JOIN [{$db}].dbo.mae_cabumedida d
-                ON m.ume_codigo = d.ume_codigo
-            LEFT JOIN [{$db}].dbo.mae_linea l
-                ON l.lin_codigo = m.lin_codigo
-            LEFT JOIN [{$db}].dbo.mae_familia f
-                ON f.emp_codigo = m.emp_codigo
-                AND f.tar_codigo = m.tar_codigo
-                AND f.fam_codigo = m.fam_codigo
-            LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
-                ON tf.emp_codigo = m.emp_codigo
-                AND tf.tar_codigo = m.tar_codigo
-                AND tf.fam_codigo = m.fam_codigo
-                AND tf.tfa_codigo = m.tfa_codigo
-            LEFT JOIN StockCalculado s
-                ON s.emp_codigo = cfg.emp_codigo
-                AND s.art_codigo = cfg.art_codigo
-                AND s.alm_codigo = cfg.alm_codigo
-            WHERE cfg.emp_codigo = ?
-              AND cfg.art_codigo = ?
-              AND cfg.alm_codigo = ?;
-        ";
-
-        $params = [
-            $almOriginal,
-            $empOriginal,
-            $artOriginal,
+        // 13. GET: consultar el registro original y su stock físico real en el almacén
+        $registro = $repositorio->obtenerConfiguracion(
             $empOriginal,
             $artOriginal,
             $almOriginal
-        ];
-
-        $stmt = sqlsrv_query(
-            $conexion,
-            $sql,
-            $params
         );
 
-        if ($stmt === false) {
-            throw new RuntimeException(
-                'No se pudo consultar el registro.'
-            );
-        }
-
-        $registro = sqlsrv_fetch_array(
-            $stmt,
-            SQLSRV_FETCH_ASSOC
-        );
-
-        sqlsrv_free_stmt($stmt);
-
-        if ($registro === null || $registro === false) {
+        if ($registro === null) {
             throw new RuntimeException(
                 'El registro solicitado no existe.'
             );
@@ -446,6 +243,7 @@ $darkMode = aplicarModoOscuro();
     <script src="js/comun.js"></script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
+    <script src="js/formulario-articulo.js"></script>
 </head>
 <body>
 <main class="contenedor contenedor-formulario">
@@ -647,19 +445,8 @@ $darkMode = aplicarModoOscuro();
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
-    // 0. Sincronizar el emoji del botón según el estado activo de la página
-    const btnDark = document.getElementById('btn-toggle-dark');
-    if (btnDark) {
-        btnDark.textContent = document.documentElement.classList.contains('dark-mode') ? '🌞' : '🌚';
-    }
     <?php if ($error !== null): ?>
-    Swal.fire({
-        icon: 'error',
-        title: 'Atención',
-        html: <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'Entendido'
-    });
+    swalEntendido('error', 'Atención', <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>);
     <?php endif; ?>
 
     <?php if ($sinCambios): ?>
@@ -674,258 +461,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     <?php endif; ?>
 
-    const form = document.querySelector('.formulario');
-    const artInput = document.getElementById('art_codigo');
-    const infoContainer = document.getElementById('info_articulo');
-    const codigoOriginal = <?= json_encode($artOriginal, JSON_UNESCAPED_UNICODE) ?>;
-    const nombreOriginal = <?= json_encode($artNombre, JSON_UNESCAPED_UNICODE) ?>;
-    const stockOriginalFormateado = <?= json_encode($stockActual !== null ? number_format((float) $stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '') : '0.000 ' . $unidadMedida, JSON_UNESCAPED_UNICODE) ?>;
-    const categoriaOriginal = <?= json_encode($categoria, JSON_UNESCAPED_UNICODE) ?>;
-    const famNombreOriginal = <?= json_encode($famNombre, JSON_UNESCAPED_UNICODE) ?>;
-    const tfaNombreOriginal = <?= json_encode($tfaNombre, JSON_UNESCAPED_UNICODE) ?>;
-    const unidadMedidaOriginal = <?= json_encode($unidadMedida, JSON_UNESCAPED_UNICODE) ?>;
-    let debounceTimer = null;
-    let currentArtData = null;
-
-    function renderInfoArticulo(data, codigo) {
-        if (!infoContainer) return;
-
-        const sufijoUme = document.getElementById('sufijo-unidad-minimo');
-        const labelUme = document.getElementById('label-unidad-minimo');
-
-        if (!codigo) {
-            infoContainer.innerHTML = '';
-            if (sufijoUme) sufijoUme.textContent = '';
-            if (labelUme) labelUme.textContent = '';
-            return;
-        }
-
-        const inputCat = document.getElementById('art_categoria');
-        const inputFam = document.getElementById('art_familia');
-        const inputTfa = document.getElementById('art_tipo_familia');
-
-        if (!data || !infoContainer) {
-            if (infoContainer) infoContainer.innerHTML = '';
-            if (sufijoUme) sufijoUme.textContent = '';
-            if (labelUme) labelUme.textContent = '';
-            if (inputCat) inputCat.value = '';
-            if (inputFam) inputFam.value = '';
-            if (inputTfa) inputTfa.value = '';
-            return;
-        }
-
-        if (!data.encontrado) {
-            infoContainer.innerHTML = '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span> <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro.</span>';
-            if (sufijoUme) sufijoUme.textContent = '';
-            if (labelUme) labelUme.textContent = '';
-            if (inputCat) inputCat.value = '';
-            if (inputFam) inputFam.value = '';
-            if (inputTfa) inputTfa.value = '';
-            return;
-        }
-
-        if (inputCat) inputCat.value = data.categoria || '';
-        if (inputFam) inputFam.value = data.fam_nombre || '';
-        if (inputTfa) inputTfa.value = data.tfa_nombre || '';
-
-        const umeTexto = data.unidad_medida || '';
-        if (sufijoUme) sufijoUme.textContent = umeTexto;
-        if (labelUme) labelUme.textContent = umeTexto ? `(${umeTexto})` : '';
-
-        const nombreHtml = `<span class="articulo-nombre-destacado">${escapeHtml(data.art_nombre || '')}</span>`;
-        const stockTexto = data.stock_actual_formateado || (data.stock_actual !== null ? `${data.stock_actual} ${data.unidad_medida || ''}` : '0.000');
-        const stockHtml = `<span class="articulo-stock-tag">Stock real: <strong>${escapeHtml(stockTexto)}</strong></span>`;
-
-        let estadoBadge = '';
-        if (codigo === codigoOriginal) {
-            estadoBadge = '<span class="badge badge-activo" style="font-size: 11px;">En uso actualmente</span>';
-        } else if (data.registrado) {
-            if (data.disponible === 1) {
-                estadoBadge = '<span class="badge badge-alerta" style="font-size: 11px;">Ya está registrado</span>';
-            } else {
-                estadoBadge = '<span class="badge badge-inactivo" style="font-size: 11px;">Ya registrado (Inactivo)</span>';
-            }
-        }
-
-        infoContainer.innerHTML = `
-            <div class="info-articulo-fila">
-                ${estadoBadge}
-                ${nombreHtml}
-                ${stockHtml}
-            </div>
-        `;
-    }
-
-    function consultarArticulo(codigo) {
-        codigo = codigo.trim();
-        if (!codigo) {
-            if (infoContainer) infoContainer.innerHTML = '';
-            const inputCat = document.getElementById('art_categoria');
-            const inputFam = document.getElementById('art_familia');
-            const inputTfa = document.getElementById('art_tipo_familia');
-            if (inputCat) inputCat.value = '';
-            if (inputFam) inputFam.value = '';
-            if (inputTfa) inputTfa.value = '';
-            currentArtData = null;
-            return;
-        }
-
-        // Si es el código original y ya conocemos su nombre
-        if (codigo === codigoOriginal && nombreOriginal !== '') {
-            currentArtData = {
-                encontrado: true,
-                art_codigo: codigo,
-                art_nombre: nombreOriginal,
-                unidad_medida: unidadMedidaOriginal,
-                stock_actual_formateado: stockOriginalFormateado,
-                categoria: categoriaOriginal,
-                fam_nombre: famNombreOriginal,
-                tfa_nombre: tfaNombreOriginal,
-                registrado: true,
-                disponible: 1
-            };
-            renderInfoArticulo(currentArtData, codigo);
-            return;
-        }
-
-        if (infoContainer) {
-            infoContainer.innerHTML = '<span style="color: #64748b; font-size: 13px;">Buscando artículo...</span>';
-        }
-
-        fetch(`consultar_articulo.php?codigo=${encodeURIComponent(codigo)}&alm=${encodeURIComponent('<?= $almOriginal ?>')}`)
-            .then(res => res.json())
-            .then(data => {
-                if (artInput && artInput.value.trim() !== codigo) {
-                    return;
-                }
-                currentArtData = data;
-                renderInfoArticulo(data, codigo);
-            })
-            .catch(() => {
-                if (infoContainer) infoContainer.innerHTML = '';
-            });
-    }
-
-    if (artInput) {
-        artInput.addEventListener('input', function() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                consultarArticulo(artInput.value);
-            }, 300);
-        });
-    }
-
-    if (form) {
-        let confirmado = false;
-
-        form.addEventListener('submit', function(e) {
-            if (confirmado) {
-                return;
-            }
-
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            e.preventDefault();
-
-            const artCodigo = artInput ? artInput.value.trim() : '';
-
-            const procesarConfirmacion = (data) => {
-                const artNombre = (data && data.encontrado && data.art_nombre)
-                    ? data.art_nombre
-                    : (artCodigo === codigoOriginal ? nombreOriginal : '');
-                const estaRegistrado = data && data.registrado;
-                const codigoCambio = (artCodigo !== codigoOriginal);
-                const noEncontrado = data && !data.encontrado;
-
-                // 1. Si cambió de código y el nuevo código ya está registrado en otra alerta
-                if (codigoCambio && estaRegistrado) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Artículo ya registrado',
-                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ''}<br><br><span style="color: #dc2626;">Ya se encuentra registrado en el sistema.</span>`,
-                        confirmButtonColor: '#dc2626',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-
-                // 2. Si no fue encontrado en el catálogo mae_articulo
-                if (noEncontrado) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Artículo no encontrado',
-                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong> no existe en el catálogo maestro.<br><br>No se puede asociar una alerta a un artículo inexistente.`,
-                        confirmButtonColor: '#dc2626',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-
-                // 3. Confirmación normal con código y nombre
-                const detalleArticulo = artNombre
-                    ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
-                    : '';
-
-                Swal.fire({
-                    title: '¿Guardar cambios?',
-                    html: `¿Estás seguro de que deseas actualizar la configuración para el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonColor: '#2563eb',
-                    cancelButtonColor: '#64748b',
-                    confirmButtonText: 'Sí, guardar cambios',
-                    cancelButtonText: 'Cancelar',
-                    reverseButtons: true,
-                    focusCancel: true
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        ejecutarEnvio();
-                    }
-                });
-            };
-
-            function ejecutarEnvio() {
-                confirmado = true;
-
-                Swal.fire({
-                    title: 'Actualizando registro...',
-                    html: 'Guardando los cambios en la base de datos.<br><small style="color: #64748b;">Por favor espera un momento...</small>',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-
-                form.submit();
-            }
-
-            if (currentArtData && currentArtData.art_codigo === artCodigo) {
-                procesarConfirmacion(currentArtData);
-            } else if (artCodigo === codigoOriginal) {
-                procesarConfirmacion({
-                    encontrado: (nombreOriginal !== ''),
-                    art_codigo: artCodigo,
-                    art_nombre: nombreOriginal,
-                    registrado: true,
-                    disponible: 1
-                });
-            } else {
-                fetch(`consultar_articulo.php?codigo=${encodeURIComponent(artCodigo)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        currentArtData = data;
-                        procesarConfirmacion(data);
-                    })
-                    .catch(() => {
-                        procesarConfirmacion(null);
-                    });
-            }
-        });
-    }
+    iniciarFormularioArticulo({
+        modo: 'editar',
+        almCodigo: <?= json_encode($almOriginal, JSON_UNESCAPED_UNICODE) ?>,
+        almNombre: <?= json_encode($almNombre, JSON_UNESCAPED_UNICODE) ?>,
+        artOriginal: <?= json_encode($artOriginal, JSON_UNESCAPED_UNICODE) ?>,
+        artNombre: <?= json_encode($artNombre, JSON_UNESCAPED_UNICODE) ?>
+    });
 });
 </script>
 </body>

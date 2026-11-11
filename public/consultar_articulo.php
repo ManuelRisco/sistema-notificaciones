@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Manue\SistemaNotificaciones\StockRepository;
+
 require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
@@ -11,6 +13,16 @@ $emp = '001';
 $almParam = trim((string) ($_GET['alm'] ?? ''));
 $alm = requerirAlmacenAutorizado($almParam !== '' ? $almParam : null);
 
+/**
+ * Formatea el stock con 3 decimales y la unidad de medida (ej.: "1,250.000 KG").
+ */
+function formatearStock(?float $stock, string $unidadMedida): string
+{
+    return ($stock !== null)
+        ? number_format($stock, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '')
+        : trim('0.000 ' . $unidadMedida);
+}
+
 // Si se solicita el catálogo de artículos para la ventana modal
 if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
     $conexion = null;
@@ -18,92 +30,17 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
 
     try {
         $conexion = getSqlServerConn();
-        $db = getDatabaseName();
-        // Consulta basada en StockRepository: calcula el stock físico real para almacén 003
-        // y une con los artículos que tienen movimientos o configuración en dicho almacén
-        $sqlCat = "
-            ;WITH StockCalculado AS
-            (
-                SELECT
-                    a.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo,
-                    SUM(
-                        CASE
-                            WHEN b.mov_tipo = 'I'
-                                THEN a.mov_ctdmov
-                            ELSE 0
-                        END
-                    ) -
-                    SUM(
-                        CASE
-                            WHEN b.mov_tipo = 'S'
-                                THEN a.mov_ctdmov
-                            ELSE 0
-                        END
-                    ) AS stock_actual
-                FROM [{$db}].dbo.log_detmov a
-                INNER JOIN [{$db}].dbo.log_cabmov b
-                    ON a.mov_id = b.mov_id
-                    AND b.alm_codigo = ?
-                WHERE a.emp_codigo = ?
-                  AND b.mov_flag <> 'A'
-                  AND b.mov_fecemi <= GETDATE()
-                GROUP BY
-                    a.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo
-            ),
-            ArticulosObjetivo AS
-            (
-                SELECT emp_codigo, art_codigo, alm_codigo FROM StockCalculado
-                UNION
-                SELECT emp_codigo, art_codigo, alm_codigo FROM [{$db}].dbo.cfg_alerta_stock WHERE emp_codigo = ? AND alm_codigo = ?
-            )
-            SELECT 
-                RTRIM(m.art_codigo) AS art_codigo, 
-                RTRIM(m.art_nombre) AS art_nombre,
-                RTRIM(d.ume_abrv) AS unidad_medida,
-                RTRIM(l.lin_nombre) AS categoria,
-                RTRIM(f.fam_nombre) AS fam_nombre,
-                RTRIM(tf.tfa_nombre) AS tfa_nombre,
-                s.stock_actual,
-                c.disponible
-            FROM ArticulosObjetivo obj
-            INNER JOIN [{$db}].dbo.mae_articulo m
-                ON m.emp_codigo = obj.emp_codigo
-                AND m.art_codigo = obj.art_codigo
-            LEFT JOIN [{$db}].dbo.mae_cabumedida d
-                ON m.ume_codigo = d.ume_codigo
-            LEFT JOIN [{$db}].dbo.mae_linea l
-                ON l.lin_codigo = m.lin_codigo
-            LEFT JOIN [{$db}].dbo.mae_familia f
-                ON f.emp_codigo = m.emp_codigo
-                AND f.tar_codigo = m.tar_codigo
-                AND f.fam_codigo = m.fam_codigo
-            LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
-                ON tf.emp_codigo = m.emp_codigo
-                AND tf.tar_codigo = m.tar_codigo
-                AND tf.fam_codigo = m.fam_codigo
-                AND tf.tfa_codigo = m.tfa_codigo
-            LEFT JOIN StockCalculado s
-                ON s.emp_codigo = obj.emp_codigo
-                AND s.art_codigo = obj.art_codigo
-                AND s.alm_codigo = obj.alm_codigo
-            LEFT JOIN [{$db}].dbo.cfg_alerta_stock c
-                ON c.emp_codigo = obj.emp_codigo
-                AND c.alm_codigo = obj.alm_codigo
-                AND c.art_codigo = obj.art_codigo
-            ORDER BY m.art_codigo ASC;
-        ";
+        $repositorio = new StockRepository($conexion);
 
-        $stmtCat = sqlsrv_query($conexion, $sqlCat, [$alm, $emp, $emp, $alm]);
-        if ($stmtCat === false) {
+        $articulos = [];
+
+        try {
+            $filas = $repositorio->listarCatalogo($emp, $alm);
+        } catch (Throwable $e) {
             throw new RuntimeException('Error al consultar el catálogo de artículos.');
         }
 
-        $articulos = [];
-        while ($fila = sqlsrv_fetch_array($stmtCat, SQLSRV_FETCH_ASSOC)) {
+        foreach ($filas as $fila) {
             $codigo = (string) $fila['art_codigo'];
             $disponible = $fila['disponible'] !== null ? (int) $fila['disponible'] : null;
             $esArticuloActual = ($artActual !== '' && $codigo === $artActual);
@@ -115,9 +52,6 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
 
             $stock = $fila['stock_actual'] !== null ? (float) $fila['stock_actual'] : null;
             $ume = trim((string) ($fila['unidad_medida'] ?? ''));
-            $stockFormateado = ($stock !== null)
-                ? number_format($stock, 3, '.', ',') . ($ume !== '' ? ' ' . $ume : '')
-                : trim('0.000 ' . $ume);
 
             $articulos[] = [
                 'codigo' => $codigo,
@@ -127,12 +61,11 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 'fam_nombre' => trim((string) ($fila['fam_nombre'] ?? '')),
                 'tfa_nombre' => trim((string) ($fila['tfa_nombre'] ?? '')),
                 'stock_actual' => $stock,
-                'stock_formateado' => $stockFormateado,
+                'stock_formateado' => formatearStock($stock, $ume),
                 'en_uso' => $esArticuloActual
             ];
         }
 
-        sqlsrv_free_stmt($stmtCat);
         echo json_encode([
             'exito' => true,
             'total' => count($articulos),
@@ -175,51 +108,11 @@ $conexion = null;
 
 try {
     $conexion = getSqlServerConn();
-    $db = getDatabaseName();
+    $repositorio = new StockRepository($conexion);
 
-    // 1. Consultar maestro de artículos y calcular su stock físico real en almacén 003
-    $sqlMae = "
-        ;WITH StockCalculado AS
-        (
-            SELECT
-                SUM(CASE WHEN b.mov_tipo = 'I' THEN a.mov_ctdmov ELSE 0 END) -
-                SUM(CASE WHEN b.mov_tipo = 'S' THEN a.mov_ctdmov ELSE 0 END) AS stock_actual
-            FROM [{$db}].dbo.log_detmov a
-            INNER JOIN [{$db}].dbo.log_cabmov b
-                ON a.mov_id = b.mov_id
-                AND b.alm_codigo = ?
-            WHERE a.emp_codigo = ?
-              AND a.art_codigo = ?
-              AND b.mov_flag <> 'A'
-              AND b.mov_fecemi <= GETDATE()
-        )
-        SELECT 
-            RTRIM(m.art_nombre) AS art_nombre,
-            RTRIM(d.ume_abrv) AS unidad_medida,
-            RTRIM(l.lin_nombre) AS categoria,
-            RTRIM(f.fam_nombre) AS fam_nombre,
-            RTRIM(tf.tfa_nombre) AS tfa_nombre,
-            s.stock_actual
-        FROM [{$db}].dbo.mae_articulo m
-        LEFT JOIN [{$db}].dbo.mae_cabumedida d
-            ON m.ume_codigo = d.ume_codigo
-        LEFT JOIN [{$db}].dbo.mae_linea l
-            ON l.lin_codigo = m.lin_codigo
-        LEFT JOIN [{$db}].dbo.mae_familia f
-            ON f.emp_codigo = m.emp_codigo
-            AND f.tar_codigo = m.tar_codigo
-            AND f.fam_codigo = m.fam_codigo
-        LEFT JOIN [{$db}].dbo.mae_tpofamilia tf
-            ON tf.emp_codigo = m.emp_codigo
-            AND tf.tar_codigo = m.tar_codigo
-            AND tf.fam_codigo = m.fam_codigo
-            AND tf.tfa_codigo = m.tfa_codigo
-        LEFT JOIN StockCalculado s
-            ON 1 = 1
-        WHERE m.emp_codigo = ? AND m.art_codigo = ?;
-    ";
+    // 1. Consultar maestro de artículos y calcular su stock físico real en el almacén
+    $filaMae = $repositorio->obtenerArticuloConStock($emp, $alm, $codigo);
 
-    $stmtMae = sqlsrv_query($conexion, $sqlMae, [$alm, $emp, $codigo, $emp, $codigo]);
     $artNombre = null;
     $unidadMedida = null;
     $categoria = null;
@@ -229,40 +122,29 @@ try {
     $stockFormateado = null;
     $encontrado = false;
 
-    if ($stmtMae !== false) {
-        $filaMae = sqlsrv_fetch_array($stmtMae, SQLSRV_FETCH_ASSOC);
-        if ($filaMae && isset($filaMae['art_nombre'])) {
-            $artNombre = trim((string) $filaMae['art_nombre']);
-            $unidadMedida = trim((string) ($filaMae['unidad_medida'] ?? ''));
-            $categoria = trim((string) ($filaMae['categoria'] ?? ''));
-            $famNombre = trim((string) ($filaMae['fam_nombre'] ?? ''));
-            $tfaNombre = trim((string) ($filaMae['tfa_nombre'] ?? ''));
-            $stockActual = $filaMae['stock_actual'] !== null ? (float) $filaMae['stock_actual'] : null;
-            $stockFormateado = ($stockActual !== null)
-                ? number_format($stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '')
-                : trim('0.000 ' . $unidadMedida);
-            $encontrado = true;
-        }
-        sqlsrv_free_stmt($stmtMae);
+    if ($filaMae !== null) {
+        $artNombre = trim((string) $filaMae['art_nombre']);
+        $unidadMedida = trim((string) ($filaMae['unidad_medida'] ?? ''));
+        $categoria = trim((string) ($filaMae['categoria'] ?? ''));
+        $famNombre = trim((string) ($filaMae['fam_nombre'] ?? ''));
+        $tfaNombre = trim((string) ($filaMae['tfa_nombre'] ?? ''));
+        $stockActual = $filaMae['stock_actual'] !== null ? (float) $filaMae['stock_actual'] : null;
+        $stockFormateado = formatearStock($stockActual, $unidadMedida);
+        $encontrado = true;
     }
 
     // 2. Consultar si ya tiene configuración en cfg_alerta_stock
-    $sqlCfg = "
-        SELECT disponible
-        FROM [{$db}].dbo.cfg_alerta_stock
-        WHERE emp_codigo = ? AND alm_codigo = ? AND art_codigo = ?;
-    ";
-    $stmtCfg = sqlsrv_query($conexion, $sqlCfg, [$emp, $alm, $codigo]);
     $registrado = false;
     $disponible = null;
 
-    if ($stmtCfg !== false) {
-        $filaCfg = sqlsrv_fetch_array($stmtCfg, SQLSRV_FETCH_ASSOC);
-        if ($filaCfg !== null && $filaCfg !== false) {
+    try {
+        $disponibleCfg = $repositorio->obtenerDisponibleConfiguracion($emp, $alm, $codigo);
+        if ($disponibleCfg !== null) {
             $registrado = true;
-            $disponible = (int) ($filaCfg['disponible'] ?? 1);
+            $disponible = $disponibleCfg;
         }
-        sqlsrv_free_stmt($stmtCfg);
+    } catch (Throwable $e) {
+        // Si la verificación falla, se responde como no registrado.
     }
 
     echo json_encode([
@@ -289,4 +171,3 @@ try {
         sqlsrv_close($conexion);
     }
 }
-

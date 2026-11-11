@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Manue\SistemaNotificaciones\StockRepository;
+
 require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
@@ -49,25 +51,13 @@ try {
 
     // 4. Conectar con SQL Server.
     $conexion = getSqlServerConn();
-    $db = getDatabaseName();
+    $repositorio = new StockRepository($conexion);
 
     // 4.1 Si la acción es reactivar, verificar que el artículo exista en el catálogo maestro
-    if ($accion === 'reactivar') {
-        $sqlVerifMae = "
-            SELECT 1 FROM [{$db}].dbo.mae_articulo
-            WHERE emp_codigo = ? AND art_codigo = ?;
-        ";
-        $stmtVerifMae = sqlsrv_query($conexion, $sqlVerifMae, [$empCodigo, $artCodigo]);
-        $existeEnMae = false;
-        if ($stmtVerifMae !== false) {
-            $existeEnMae = (sqlsrv_fetch_array($stmtVerifMae, SQLSRV_FETCH_NUMERIC) !== null);
-            sqlsrv_free_stmt($stmtVerifMae);
-        }
-        if (!$existeEnMae) {
-            throw new RuntimeException(
-                "No se puede reactivar la alerta porque el artículo '{$artCodigo}' no existe en el catálogo maestro. Puede editarlo para asignarle un código válido."
-            );
-        }
+    if ($accion === 'reactivar' && !$repositorio->existeArticulo($empCodigo, $artCodigo)) {
+        throw new RuntimeException(
+            "No se puede reactivar la alerta porque el artículo '{$artCodigo}' no existe en el catálogo maestro. Puede editarlo para asignarle un código válido."
+        );
     }
 
     // 5. Borrado Lógico: en lugar de DELETE físico, actualizamos "disponible".
@@ -75,35 +65,13 @@ try {
     // Al cambiar de estado, se conservan las banderas de stock y correo intactas.
     $nuevoEstado = ($accion === 'reactivar') ? 1 : 0;
 
-    $sql = "
-        UPDATE [{$db}].dbo.cfg_alerta_stock
-        SET
-            disponible = ?,
-            fecha_actualizacion = SYSDATETIME()
-        WHERE emp_codigo = ?
-          AND art_codigo = ?
-          AND alm_codigo = ?;
-    ";
-
-    $params = [
-        $nuevoEstado,
+    // 6. Ejecutar.
+    $filasAfectadas = $repositorio->actualizarDisponible(
         $empCodigo,
         $artCodigo,
-        $almCodigo
-    ];
-
-    // 6. Ejecutar.
-    $stmt = sqlsrv_query($conexion, $sql, $params);
-
-    if ($stmt === false) {
-        throw new RuntimeException(
-            'No se pudo actualizar el estado del registro.'
-        );
-    }
-
-    $filasAfectadas = sqlsrv_rows_affected($stmt);
-
-    sqlsrv_free_stmt($stmt);
+        $almCodigo,
+        $nuevoEstado
+    );
 
     if ($filasAfectadas !== 1) {
         throw new RuntimeException(
@@ -113,19 +81,7 @@ try {
 
     // Obtener nombre del artículo si no se envió desde el formulario
     if ($artNombre === '' && $artCodigo !== '') {
-        $sqlNom = "
-            SELECT RTRIM(art_nombre) AS art_nombre
-            FROM [{$db}].dbo.mae_articulo
-            WHERE emp_codigo = ? AND art_codigo = ?;
-        ";
-        $stmtNom = sqlsrv_query($conexion, $sqlNom, [$empCodigo, $artCodigo]);
-        if ($stmtNom !== false) {
-            $filaNom = sqlsrv_fetch_array($stmtNom, SQLSRV_FETCH_ASSOC);
-            if ($filaNom) {
-                $artNombre = trim((string) ($filaNom['art_nombre'] ?? ''));
-            }
-            sqlsrv_free_stmt($stmtNom);
-        }
+        $artNombre = $repositorio->obtenerNombreArticulo($empCodigo, $artCodigo);
     }
 
     $actualizado = true;
