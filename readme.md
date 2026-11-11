@@ -1,9 +1,9 @@
-# Dependencias a instalar
+## Dependencias a instalar
 
 ## Para el proyecto de php, se debe instalar composer, phpmailer, vlucas
 
-composer init
+# composer init
 
-composer require phpmailer/phpmailer
+# composer require phpmailer/phpmailer
 
-composer require vlucas/phpdotenv
+# composer require vlucas/phpdotenv

@@ -52,8 +52,7 @@ class StockNotificationService
             $almacenFiltro
         );
 
-        $articulosPendientes = [];
-        $indicesPendientes = [];
+        $articulosPendientes = 0;
         $pendientesPorAlmacen = [];
 
         // Preparar los artículos que necesitan notificación agrupados por almacén.
@@ -72,8 +71,7 @@ class StockNotificationService
                         'articulo' => $articulo
                     ];
                 }
-                $articulosPendientes[] = $articulo;
-                $indicesPendientes[] = $indice;
+                $articulosPendientes++;
             }
         }
 
@@ -148,7 +146,7 @@ class StockNotificationService
         return [
             'modo_simulacion' => $modoSimulacion,
             'total_articulos' => count($resultados),
-            'articulos_pendientes' => count($articulosPendientes),
+            'articulos_pendientes' => $articulosPendientes,
             'articulos_notificados' => $articulosNotificados,
             'correos_enviados' => $correosEnviados,
             'correos_fallidos' => $correosFallidos,

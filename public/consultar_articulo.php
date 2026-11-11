@@ -5,13 +5,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
-require_once $raizProyecto . '/vendor/autoload.php';
-
-$dotenv = Dotenv\Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-require_once $raizProyecto . '/config/database.php';
-
 header('Content-Type: application/json; charset=utf-8');
 
 $emp = '001';

@@ -251,63 +251,6 @@ class StockRepository
     }
 
     /**
-     * Eliminación lógica: cambia el estado de disponible a 0.
-     * No elimina el registro físicamente de la base de datos.
-     */
-    public function eliminarLogico(
-        string $empresa,
-        string $articulo,
-        string $almacen
-    ): void {
-        $this->actualizarDisponible($empresa, $articulo, $almacen, 0);
-    }
-
-    /**
-     * Cambia la disponibilidad (1 = activo, 0 = inactivo / borrado lógico).
-     */
-    public function actualizarDisponible(
-        string $empresa,
-        string $articulo,
-        string $almacen,
-        int $disponible
-    ): void {
-
-        if (!in_array($disponible, [0, 1], true)) {
-            throw new RuntimeException(
-                'El valor de disponible solo puede ser 0 o 1.'
-            );
-        }
-
-        $sql = "
-            UPDATE [{$this->database}].dbo.cfg_alerta_stock
-            SET
-                disponible = ?,
-                fecha_actualizacion = SYSDATETIME()
-            WHERE
-                emp_codigo = ?
-                AND art_codigo = ?
-                AND alm_codigo = ?;
-        ";
-
-        $params = [
-            $disponible,
-            $empresa,
-            $articulo,
-            $almacen
-        ];
-
-        $stmt = sqlsrv_query($this->connection, $sql, $params);
-
-        if ($stmt === false) {
-            throw $this->crearErrorSql(
-                'No se pudo actualizar el estado de disponibilidad'
-            );
-        }
-
-        sqlsrv_free_stmt($stmt);
-    }
-
-    /**
      * Marca una alerta como notificada.
      */
     public function marcarCorreoEnviado(

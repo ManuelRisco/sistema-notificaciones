@@ -6,13 +6,6 @@ require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
 
-require_once $raizProyecto . '/vendor/autoload.php';
-
-$dotenv = Dotenv\Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-require_once $raizProyecto . '/config/database.php';
-
 $conexion = null;
 $actualizado = false;
 $error = null;
@@ -148,11 +141,7 @@ try {
     }
 }
 
-$esAjax = (
-    (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-    || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-    || (isset($_POST['formato']) && $_POST['formato'] === 'json')
-);
+$esAjax = esSolicitudAjax();
 
 if ($actualizado) {
     $detalleArticulo = $artNombre !== '' ? " ({$artNombre})" : '';

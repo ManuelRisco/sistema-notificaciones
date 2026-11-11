@@ -117,7 +117,7 @@ class EmailService
         string|array|null $destinatarios
     ): array {
         if ($destinatarios === null || $destinatarios === '') {
-            return $this->obtenerDestinatariosPredeterminados();
+            return [];
         }
 
         if (is_string($destinatarios)) {
@@ -125,29 +125,6 @@ class EmailService
         }
 
         return $this->normalizarLista($destinatarios);
-    }
-
-    /**
-     * Lee los destinatarios predeterminados.
-     * Si no existe SISTEMAS_MAIL_DESTINO en .env, utiliza los del primer almacén configurado.
-     */
-    public function obtenerDestinatariosPredeterminados(): array
-    {
-        $cadena = $_ENV['SISTEMAS_MAIL_DESTINO'] ?? $_SERVER['SISTEMAS_MAIL_DESTINO'] ?? getenv('SISTEMAS_MAIL_DESTINO');
-
-        if (is_string($cadena) && trim($cadena) !== '') {
-            $correos = preg_split('/[,;]+/', $cadena) ?: [];
-            return $this->normalizarLista($correos);
-        }
-
-        $almacenes = function_exists('getAlmacenesSoportados') ? getAlmacenesSoportados() : [];
-        $primerAlmacen = !empty($almacenes) ? (string) array_key_first($almacenes) : '';
-
-        if ($primerAlmacen !== '') {
-            return $this->obtenerDestinatariosPorAlmacen($primerAlmacen);
-        }
-
-        return [];
     }
 
     /**
@@ -184,6 +161,14 @@ class EmailService
         return $limpios;
     }
 
+    /**
+     * Escapa texto para incrustarlo en el HTML del correo.
+     */
+    private static function esc(string $texto): string
+    {
+        return htmlspecialchars($texto, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
     private function normalizarLista(array $correos): array
     {
         $limpios = [];
@@ -197,19 +182,6 @@ class EmailService
         }
 
         return array_values(array_unique($limpios));
-    }
-
-    /**
-     * Compatibilidad con el envío de un solo artículo.
-     */
-    public function enviarAlerta(
-        array $articulo,
-        string|array|null $destinatarios = null
-    ): bool {
-        return $this->enviarAlertas(
-            [$articulo],
-            $destinatarios
-        );
     }
 
     /**
@@ -292,41 +264,17 @@ class EmailService
             }
 
             // Escapar los datos provenientes de SQL Server.
-            $codigoHtml = htmlspecialchars(
-                $codigo,
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
+            $codigoHtml = self::esc($codigo);
 
-            $descripcionHtml = htmlspecialchars(
-                $descripcion,
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
+            $descripcionHtml = self::esc($descripcion);
 
-            $unidadHtml = htmlspecialchars(
-                $unidad,
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
+            $unidadHtml = self::esc($unidad);
 
-            $categoriaHtml = htmlspecialchars(
-                $categoria !== '' ? $categoria : '—',
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
+            $categoriaHtml = self::esc($categoria !== '' ? $categoria : '—');
 
-            $famNombreHtml = htmlspecialchars(
-                $famNombre !== '' ? $famNombre : '—',
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
+            $famNombreHtml = self::esc($famNombre !== '' ? $famNombre : '—');
 
-            $tfaNombreHtml = htmlspecialchars(
-                $tfaNombre !== '' ? $tfaNombre : '—',
-                ENT_QUOTES | ENT_SUBSTITUTE,
-                'UTF-8'
-            );
+            $tfaNombreHtml = self::esc($tfaNombre !== '' ? $tfaNombre : '—');
 
             $stockFormato = number_format(
                 $stockActual,
@@ -493,8 +441,8 @@ class EmailService
             ? getNombreAlmacen($almCodigo)
             : "Almacén {$almCodigo}";
 
-        $nombreAlmacenHtml = htmlspecialchars($nombreAlmacen, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $almCodigoHtml = htmlspecialchars($almCodigo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $nombreAlmacenHtml = self::esc($nombreAlmacen);
+        $almCodigoHtml = self::esc($almCodigo);
 
         $asunto = "[ALERTA DE STOCK] {$nombreAlmacen} - TECNOFILM";
 

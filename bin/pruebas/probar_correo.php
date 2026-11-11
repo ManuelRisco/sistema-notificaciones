@@ -51,7 +51,7 @@ try {
     echo "----------------------------------------\n";
     echo "Iniciando envío de correo de prueba...\n";
 
-    $emailService->enviarAlerta($articulo, $destinatarios);
+    $emailService->enviarAlertasPorAlmacen($almCodigo, [$articulo], $destinatarios);
 
     echo "========================================\n";
     echo "¡CORREO ENVIADO CORRECTAMENTE A TODOS LOS DESTINATARIOS!\n";

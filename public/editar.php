@@ -6,14 +6,6 @@ require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
 
-require_once $raizProyecto . '/vendor/autoload.php';
-
-// Cargar variables de entorno.
-$dotenv = Dotenv\Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-require_once $raizProyecto . '/config/database.php';
-
 // Clave original del registro.
 $empOriginal = trim($_GET['emp'] ?? $_POST['emp_original'] ?? '');
 $artOriginal = trim($_GET['art'] ?? $_POST['art_original'] ?? '');
@@ -173,7 +165,7 @@ try {
         // Validar que el artículo exista en el catálogo maestro (mae_articulo)
         if ($artNombre === '') {
             throw new RuntimeException(
-                "El artículo con código '{$artCodigo}' no existe en el catálogo maestro (mae_articulo). Seleccione un artículo válido con el botón 'Buscar en catálogo'."
+                "El artículo con código '{$artCodigo}' no existe en el catálogo maestro (mae_articulo)."
             );
         }
 
@@ -438,41 +430,8 @@ function normalizarStock(mixed $valor): string
 }
 
 // Escapar los valores antes de mostrarlos en HTML.
-if (!function_exists('h')) {
-    function h(mixed $valor): string
-    {
-        return htmlspecialchars(
-            (string) $valor,
-            ENT_QUOTES | ENT_SUBSTITUTE,
-            'UTF-8'
-        );
-    }
-}
-
-// Detectar si hay una cookie de modo oscuro activa
-$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
-
-// Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
-if (isset($_GET['toggle_dark_mode'])) {
-    $darkMode = !$darkMode;
-    $valorCookie = $darkMode ? 'true' : 'false';
-    $tiempoExpira = time() + (86400 * 30);
-
-    // Guardar ÚNICAMENTE en la raíz "/" para compartir con todas las páginas
-    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
-    setcookie('dark_mode', '', time() - 3600, dirname($_SERVER['SCRIPT_NAME']));
-    setcookie('dark_mode', '', time() - 3600);
-
-    // Mantener los parámetros GET originales (emp, art, alm)
-    $params = $_GET;
-    unset($params['toggle_dark_mode']);
-    $urlLimpia = strtok($_SERVER["REQUEST_URI"], '?');
-    if (!empty($params)) {
-        $urlLimpia .= '?' . http_build_query($params);
-    }
-    header("Location: " . $urlLimpia);
-    exit;
-}
+// Modo oscuro (cookie compartida entre todas las páginas)
+$darkMode = aplicarModoOscuro();
 
 ?>
 <!DOCTYPE html>
@@ -484,19 +443,7 @@ if (isset($_GET['toggle_dark_mode'])) {
         content="width=device-width, initial-scale=1.0"
     >
     <title>Editar Stock Mínimo</title>
-    <script>
-        // Sincronizar modo oscuro antes de renderizar para evitar parpadeos
-        (function() {
-            try {
-                const modo = localStorage.getItem('dark_mode');
-                if (modo === 'true') {
-                    document.documentElement.classList.add('dark-mode');
-                } else if (modo === 'false') {
-                    document.documentElement.classList.remove('dark-mode');
-                }
-            } catch (_) {}
-        })();
-    </script>
+    <script src="js/comun.js"></script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
@@ -698,36 +645,6 @@ if (isset($_GET['toggle_dark_mode'])) {
 </main>
 
 <script>
-// Alternar modo oscuro / claro compartido globalmente en todas las páginas
-function toggleDarkMode(e) {
-    if (e) e.preventDefault();
-    const html = document.documentElement;
-    const esOscuro = html.classList.toggle('dark-mode');
-    const valor = esOscuro ? 'true' : 'false';
-
-    // 1. Limpiar cualquier cookie residual con ruta específica
-    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-    if (subpath) {
-        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    }
-
-    // 2. Guardar UNA sola cookie global en la raíz "/" (accesible por index, crear, editar, etc.)
-    document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
-
-    // 3. Guardar en localStorage (sincronización instantánea entre pestañas y páginas)
-    try {
-        localStorage.setItem('dark_mode', valor);
-    } catch (_) {}
-
-    // 4. Actualizar el emoji del botón
-    const btn = document.getElementById('btn-toggle-dark');
-    if (btn) {
-        btn.textContent = esOscuro ? '🌞' : '🌚';
-    }
-}
-
 document.addEventListener('DOMContentLoaded', function() {
 
     // 0. Sincronizar el emoji del botón según el estado activo de la página
@@ -756,12 +673,6 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmButtonText: 'Aceptar'
     });
     <?php endif; ?>
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text || '';
-        return div.innerHTML;
-    }
 
     const form = document.querySelector('.formulario');
     const artInput = document.getElementById('art_codigo');
@@ -946,7 +857,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     Swal.fire({
                         icon: 'error',
                         title: 'Artículo no encontrado',
-                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong> no existe en el catálogo maestro.<br><br>No se puede asociar una alerta a un artículo inexistente.<br>Utiliza el botón <strong>"Buscar en catálogo"</strong> para seleccionar un artículo válido.`,
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong> no existe en el catálogo maestro.<br><br>No se puede asociar una alerta a un artículo inexistente.`,
                         confirmButtonColor: '#dc2626',
                         confirmButtonText: 'Entendido'
                     });

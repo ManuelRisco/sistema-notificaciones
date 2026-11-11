@@ -17,34 +17,15 @@ if (estaAutenticado()) {
     exit;
 }
 
-// Detectar si hay una cookie de modo oscuro activa (compartida con index, crear, editar)
-$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
-
-// Alternar modo oscuro si se recibe por GET
-if (isset($_GET['toggle_dark_mode'])) {
-    $darkMode = !$darkMode;
-    $valorCookie = $darkMode ? 'true' : 'false';
-    $tiempoExpira = time() + (86400 * 30);
-
-    // Guardar en la raíz "/" para compartir con todas las vistas
-    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
-    setcookie('dark_mode', '', time() - 3600, dirname($_SERVER['SCRIPT_NAME']));
-    setcookie('dark_mode', '', time() - 3600);
-
-    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
-    exit;
-}
+// Modo oscuro (cookie compartida entre todas las páginas)
+$darkMode = aplicarModoOscuro();
 
 $error = null;
 $usuarioInput = '';
 $esLogout = isset($_GET['logout']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $esAjax = (
-        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-        || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-        || (isset($_POST['formato']) && $_POST['formato'] === 'json')
-    );
+    $esAjax = esSolicitudAjax();
 
     try {
         validarTokenCsrf();
@@ -97,19 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Sistema de Alertas de Stock</title>
-    <script>
-        // Sincronizar modo oscuro antes de renderizar para evitar parpadeos
-        (function() {
-            try {
-                const modo = localStorage.getItem('dark_mode');
-                if (modo === 'true') {
-                    document.documentElement.classList.add('dark-mode');
-                } else if (modo === 'false') {
-                    document.documentElement.classList.remove('dark-mode');
-                }
-            } catch (_) {}
-        })();
-    </script>
+    <script src="js/comun.js"></script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <link rel="stylesheet" href="css/login.css?v=<?= file_exists(__DIR__ . '/css/login.css') ? filemtime(__DIR__ . '/css/login.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
@@ -192,36 +161,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-// Función para alternar modo claro / oscuro sincronizado con cookie y localStorage
-function toggleDarkMode(e) {
-    if (e) e.preventDefault();
-    const html = document.documentElement;
-    const esOscuro = html.classList.toggle('dark-mode');
-    const valor = esOscuro ? 'true' : 'false';
-
-    // 1. Limpiar cualquier cookie residual con ruta específica
-    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-    if (subpath) {
-        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    }
-
-    // 2. Guardar UNA sola cookie global en la raíz "/" (compartida con index, crear, editar, etc.)
-    document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
-
-    // 3. Guardar en localStorage (sincronización instantánea entre pestañas y páginas)
-    try {
-        localStorage.setItem('dark_mode', valor);
-    } catch (_) {}
-
-    // 4. Actualizar el emoji del botón
-    const btn = document.getElementById('btn-toggle-dark');
-    if (btn) {
-        btn.textContent = esOscuro ? '🌞' : '🌚';
-    }
-}
-
 // Función global para cerrar/desvanecer cualquier alerta con animación
 function cerrarAlerta(el) {
     if (!el) return;

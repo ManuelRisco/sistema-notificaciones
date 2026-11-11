@@ -2,19 +2,11 @@
 
 declare(strict_types=1);
 
-// 1. Cargar Composer.
-require_once dirname(__DIR__) . '/vendor/autoload.php';
 // 1.1 Protección del formulario de eliminación
 require_once __DIR__ . '/seguridad.php';
 
 // 2. Cargar las variables de entorno.
 $raizProyecto = dirname(__DIR__);
-
-$dotenv = Dotenv\Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-// 3. Cargar la conexión a SQL Server.
-require_once $raizProyecto . '/config/database.php';
 
 // Validar autorización y recuperar almacén activo
 $almActivo = requerirAlmacenAutorizado($_GET['alm'] ?? null);
@@ -336,20 +328,6 @@ try {
 }
 
 /**
- * Escapa los datos antes de mostrarlos en HTML.
- */
-if (!function_exists('escapar')) {
-    function escapar(mixed $valor): string
-    {
-        return htmlspecialchars(
-            (string) $valor,
-            ENT_QUOTES | ENT_SUBSTITUTE,
-            'UTF-8'
-        );
-    }
-}
-
-/**
  * Genera URLs acumulativas o conmutables para los filtros en BD
  */
 if (!function_exists('urlConFiltros')) {
@@ -415,25 +393,8 @@ if (!empty($_SESSION['flash_error'])) {
     unset($_SESSION['flash_error']);
 }
 
-// Detectar si hay una cookie de modo oscuro activa
-$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
-
-// Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
-if (isset($_GET['toggle_dark_mode'])) {
-    $darkMode = !$darkMode;
-    $valorCookie = $darkMode ? 'true' : 'false';
-    $tiempoExpira = time() + (86400 * 30);
-
-    // Guardar ÚNICAMENTE en la raíz "/" para compartir con todas las páginas
-    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
-    // Limpiar posibles cookies antiguas en subrutas
-    setcookie('dark_mode', '', time() - 3600, dirname($_SERVER['SCRIPT_NAME']));
-    setcookie('dark_mode', '', time() - 3600);
-
-    // Redirigir a la misma página para limpiar la URL de la variable GET
-    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
-    exit;
-}
+// Modo oscuro (cookie compartida entre todas las páginas)
+$darkMode = aplicarModoOscuro();
 
 ?>
 <!DOCTYPE html>
@@ -445,19 +406,7 @@ if (isset($_GET['toggle_dark_mode'])) {
         content="width=device-width, initial-scale=1.0"
     >
     <title>Almacén <?= htmlspecialchars(getNombreAlmacen($almActivo), ENT_QUOTES, 'UTF-8') ?> - Alertas de Stock</title>
-    <script>
-        // Sincronizar modo oscuro antes de renderizar para evitar parpadeos
-        (function() {
-            try {
-                const modo = localStorage.getItem('dark_mode');
-                if (modo === 'true') {
-                    document.documentElement.classList.add('dark-mode');
-                } else if (modo === 'false') {
-                    document.documentElement.classList.remove('dark-mode');
-                }
-            } catch (_) {}
-        })();
-    </script>
+    <script src="js/comun.js"></script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
@@ -475,8 +424,8 @@ if (isset($_GET['toggle_dark_mode'])) {
                 $usuarioSesion = obtenerUsuarioAutenticado();
                 if (!empty($usuarioSesion)):
                 ?>
-                    <div class="usuario-sesion-pill" title="Usuario: <?= escapar($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= escapar($usuarioSesion['pus_codigo'] ?? '') ?>">
-                        <span class="usuario-sesion-nombre"><?= escapar($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                    <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
+                        <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
                     </div>
                     <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
                         Salir
@@ -504,8 +453,8 @@ if (isset($_GET['toggle_dark_mode'])) {
                     <img src="img/repetir.png" class="icono-invertible" alt="Actualizar" style="width: 18px; height: 18px;">
                 </a>
                 <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
-                    <input type="hidden" name="csrf_token" value="<?= escapar(generarTokenCsrf()) ?>">
-                    <input type="hidden" name="almacen" value="<?= escapar($almActivo) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= h(generarTokenCsrf()) ?>">
+                    <input type="hidden" name="almacen" value="<?= h($almActivo) ?>">
                     <button
                         type="submit"
                         class="btn btn-ejecutar"
@@ -591,28 +540,28 @@ if (isset($_GET['toggle_dark_mode'])) {
                 class="busqueda-form"
         >
             <?php if ($filtroDisponible !== ''): ?>
-                <input type="hidden" name="disponible" value="<?= escapar($filtroDisponible) ?>">
+                <input type="hidden" name="disponible" value="<?= h($filtroDisponible) ?>">
             <?php endif; ?>
             <?php if ($filtroStock !== ''): ?>
-                <input type="hidden" name="stock" value="<?= escapar($filtroStock) ?>">
+                <input type="hidden" name="stock" value="<?= h($filtroStock) ?>">
             <?php endif; ?>
             <?php if ($filtroCorreo !== ''): ?>
-                <input type="hidden" name="correo" value="<?= escapar($filtroCorreo) ?>">
+                <input type="hidden" name="correo" value="<?= h($filtroCorreo) ?>">
             <?php endif; ?>
             <?php if ($filtroCatalogo !== ''): ?>
-                <input type="hidden" name="catalogo" value="<?= escapar($filtroCatalogo) ?>">
+                <input type="hidden" name="catalogo" value="<?= h($filtroCatalogo) ?>">
             <?php endif; ?>
             <?php if ($filtroCategoria !== ''): ?>
-                <input type="hidden" name="categoria" value="<?= escapar($filtroCategoria) ?>">
+                <input type="hidden" name="categoria" value="<?= h($filtroCategoria) ?>">
             <?php endif; ?>
             <?php if ($filtroFamilia !== ''): ?>
-                <input type="hidden" name="familia" value="<?= escapar($filtroFamilia) ?>">
+                <input type="hidden" name="familia" value="<?= h($filtroFamilia) ?>">
             <?php endif; ?>
             <?php if ($filtroTfa !== ''): ?>
-                <input type="hidden" name="tfa" value="<?= escapar($filtroTfa) ?>">
+                <input type="hidden" name="tfa" value="<?= h($filtroTfa) ?>">
             <?php endif; ?>
             <?php if ($orden !== ''): ?>
-                <input type="hidden" name="orden" value="<?= escapar($orden) ?>">
+                <input type="hidden" name="orden" value="<?= h($orden) ?>">
             <?php endif; ?>
 
             <div class="busqueda-campo busqueda-campo-texto">
@@ -673,8 +622,8 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 <span class="indicador-check"><?= ($filtroCategoria === '') ? '✓' : '' ?></span> Todas las opciones
                             </a>
                             <?php foreach ($opcionesCategoria as $cat): ?>
-                                <a href="<?= urlConFiltros(['categoria' => ($filtroCategoria === $cat ? '' : $cat)]) ?>" class="opcion-filtro <?= ($filtroCategoria === $cat) ? 'seleccionada' : '' ?>" title="<?= escapar($cat) ?>">
-                                    <span class="indicador-check"><?= ($filtroCategoria === $cat) ? '✓' : '' ?></span> <?= escapar($cat) ?>
+                                <a href="<?= urlConFiltros(['categoria' => ($filtroCategoria === $cat ? '' : $cat)]) ?>" class="opcion-filtro <?= ($filtroCategoria === $cat) ? 'seleccionada' : '' ?>" title="<?= h($cat) ?>">
+                                    <span class="indicador-check"><?= ($filtroCategoria === $cat) ? '✓' : '' ?></span> <?= h($cat) ?>
                                 </a>
                             <?php endforeach; ?>
                         </div>
@@ -700,8 +649,8 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 <span class="indicador-check"><?= ($filtroFamilia === '') ? '✓' : '' ?></span> Todas las opciones
                             </a>
                             <?php foreach ($opcionesFamilia as $fam): ?>
-                                <a href="<?= urlConFiltros(['familia' => ($filtroFamilia === $fam ? '' : $fam)]) ?>" class="opcion-filtro <?= ($filtroFamilia === $fam) ? 'seleccionada' : '' ?>" title="<?= escapar($fam) ?>">
-                                    <span class="indicador-check"><?= ($filtroFamilia === $fam) ? '✓' : '' ?></span> <?= escapar($fam) ?>
+                                <a href="<?= urlConFiltros(['familia' => ($filtroFamilia === $fam ? '' : $fam)]) ?>" class="opcion-filtro <?= ($filtroFamilia === $fam) ? 'seleccionada' : '' ?>" title="<?= h($fam) ?>">
+                                    <span class="indicador-check"><?= ($filtroFamilia === $fam) ? '✓' : '' ?></span> <?= h($fam) ?>
                                 </a>
                             <?php endforeach; ?>
                         </div>
@@ -727,8 +676,8 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 <span class="indicador-check"><?= ($filtroTfa === '') ? '✓' : '' ?></span> Todas las opciones
                             </a>
                             <?php foreach ($opcionesTfa as $tf): ?>
-                                <a href="<?= urlConFiltros(['tfa' => ($filtroTfa === $tf ? '' : $tf)]) ?>" class="opcion-filtro <?= ($filtroTfa === $tf) ? 'seleccionada' : '' ?>" title="<?= escapar($tf) ?>">
-                                    <span class="indicador-check"><?= ($filtroTfa === $tf) ? '✓' : '' ?></span> <?= escapar($tf) ?>
+                                <a href="<?= urlConFiltros(['tfa' => ($filtroTfa === $tf ? '' : $tf)]) ?>" class="opcion-filtro <?= ($filtroTfa === $tf) ? 'seleccionada' : '' ?>" title="<?= h($tf) ?>">
+                                    <span class="indicador-check"><?= ($filtroTfa === $tf) ? '✓' : '' ?></span> <?= h($tf) ?>
                                 </a>
                             <?php endforeach; ?>
                         </div>
@@ -900,33 +849,33 @@ if (isset($_GET['toggle_dark_mode'])) {
                         $artEncontrado = !empty($registro['mae_art_codigo']);
                         ?>
                         <tr class="<?= $estaDisponible ? '' : 'fila-inactiva' ?>"
-                            data-codigo="<?= escapar($artCodigo) ?>"
-                            data-nombre="<?= escapar($artNombre) ?>">
+                            data-codigo="<?= h($artCodigo) ?>"
+                            data-nombre="<?= h($artNombre) ?>">
                             <td>
                                 <strong>
-                                    <?= $artEncontrado ? escapar($artNombre) : '<span class="badge badge-alerta" title="El artículo no existe en el catálogo maestro (mae_articulo)">No encontrado</span>' ?>
+                                    <?= $artEncontrado ? h($artNombre) : '<span class="badge badge-alerta" title="El artículo no existe en el catálogo maestro (mae_articulo)">No encontrado</span>' ?>
                                 </strong>
                                 <span class="articulo-titulo">
-                                    <?= escapar($artCodigo) ?>
+                                    <?= h($artCodigo) ?>
                                 </span>
                             </td>
                             <td>
                                 <?php if ($artEncontrado && !empty($registro['categoria'])): ?>
-                                    <span class="texto-clasificacion"><?= escapar($registro['categoria']) ?></span>
+                                    <span class="texto-clasificacion"><?= h($registro['categoria']) ?></span>
                                 <?php else: ?>
                                     <span class="badge badge-sin-datos" title="Sin categoría">—</span>
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($artEncontrado && !empty($registro['fam_nombre'])): ?>
-                                    <span class="texto-clasificacion"><?= escapar($registro['fam_nombre']) ?></span>
+                                    <span class="texto-clasificacion"><?= h($registro['fam_nombre']) ?></span>
                                 <?php else: ?>
                                     <span class="badge badge-sin-datos" title="Sin familia">—</span>
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($artEncontrado && !empty($registro['tfa_nombre'])): ?>
-                                    <span class="texto-clasificacion"><?= escapar($registro['tfa_nombre']) ?></span>
+                                    <span class="texto-clasificacion"><?= h($registro['tfa_nombre']) ?></span>
                                 <?php else: ?>
                                     <span class="badge badge-sin-datos" title="Sin tipo de familia">—</span>
                                 <?php endif; ?>
@@ -940,26 +889,26 @@ if (isset($_GET['toggle_dark_mode'])) {
                                     </span>
                                 <?php else: ?>
                                     <strong>
-                                        <?= escapar(
+                                        <?= h(
                                                 number_format(
                                                         (float) $registro['stock_actual'],
                                                         5,
                                                         '.',
                                                         ','
                                                 )
-                                        ) . (!empty($registro['unidad_medida']) ? ' ' . escapar($registro['unidad_medida']) : '') ?>
+                                        ) . (!empty($registro['unidad_medida']) ? ' ' . h($registro['unidad_medida']) : '') ?>
                                     </strong>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?= escapar(
+                                <?= h(
                                         number_format(
                                                 (float) $registro['stock_minimo'],
                                                         5,
                                                         '.',
                                                         ','
                                         )
-                                ) . (!empty($registro['unidad_medida']) ? ' ' . escapar($registro['unidad_medida']) : '') ?>
+                                ) . (!empty($registro['unidad_medida']) ? ' ' . h($registro['unidad_medida']) : '') ?>
                             </td>
                             <td>
                                 <?php if (!$artEncontrado): ?>
@@ -991,11 +940,11 @@ if (isset($_GET['toggle_dark_mode'])) {
                                 $fecha = $registro['fecha_actualizacion'];
                                 if ($fecha instanceof DateTimeInterface) {
                                     echo '<div class="fecha-contenedor">';
-                                    echo '<span class="fecha-dia">' . escapar($fecha->format('d/m/Y')) . '</span>';
-                                    echo '<span class="fecha-hora">' . escapar($fecha->format('H:i:s')) . '</span>';
+                                    echo '<span class="fecha-dia">' . h($fecha->format('d/m/Y')) . '</span>';
+                                    echo '<span class="fecha-hora">' . h($fecha->format('H:i:s')) . '</span>';
                                     echo '</div>';
                                 } else {
-                                    echo escapar($fecha);
+                                    echo h($fecha);
                                 }
                                 ?>
                             </td>
@@ -1018,37 +967,37 @@ if (isset($_GET['toggle_dark_mode'])) {
                                             <input
                                                 type="hidden"
                                                 name="emp_codigo"
-                                                value="<?= escapar(trim($registro['emp_codigo'])) ?>"
+                                                value="<?= h(trim($registro['emp_codigo'])) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="art_codigo"
-                                                value="<?= escapar(trim($registro['art_codigo'])) ?>"
+                                                value="<?= h(trim($registro['art_codigo'])) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="alm_codigo"
-                                                value="<?= escapar(trim($registro['alm_codigo'])) ?>"
+                                                value="<?= h(trim($registro['alm_codigo'])) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="art_nombre"
-                                                value="<?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="categoria"
-                                                value="<?= escapar(trim((string) ($registro['categoria'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['categoria'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="fam_nombre"
-                                                value="<?= escapar(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="tfa_nombre"
-                                                value="<?= escapar(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
@@ -1058,7 +1007,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                                             <input
                                                 type="hidden"
                                                 name="csrf_token"
-                                                value="<?= escapar(generarTokenCsrf()) ?>"
+                                                value="<?= h(generarTokenCsrf()) ?>"
                                             >
                                             <button
                                                 type="submit"
@@ -1077,37 +1026,37 @@ if (isset($_GET['toggle_dark_mode'])) {
                                             <input
                                                 type="hidden"
                                                 name="emp_codigo"
-                                                value="<?= escapar(trim($registro['emp_codigo'])) ?>"
+                                                value="<?= h(trim($registro['emp_codigo'])) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="art_codigo"
-                                                value="<?= escapar(trim($registro['art_codigo'])) ?>"
+                                                value="<?= h(trim($registro['art_codigo'])) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="alm_codigo"
-                                                value="<?= escapar(trim($registro['alm_codigo'])) ?>"
+                                                value="<?= h(trim($registro['alm_codigo'])) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="art_nombre"
-                                                value="<?= escapar(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="categoria"
-                                                value="<?= escapar(trim((string) ($registro['categoria'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['categoria'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="fam_nombre"
-                                                value="<?= escapar(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
                                                 name="tfa_nombre"
-                                                value="<?= escapar(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
+                                                value="<?= h(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
                                             >
                                             <input
                                                 type="hidden"
@@ -1117,7 +1066,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                                             <input
                                                 type="hidden"
                                                 name="csrf_token"
-                                                value="<?= escapar(generarTokenCsrf()) ?>"
+                                                value="<?= h(generarTokenCsrf()) ?>"
                                             >
                                             <button
                                                 type="submit"
@@ -1139,36 +1088,6 @@ if (isset($_GET['toggle_dark_mode'])) {
 </main>
 
 <script>
-// Alternar modo oscuro / claro compartido globalmente en todas las páginas
-function toggleDarkMode(e) {
-    if (e) e.preventDefault();
-    const html = document.documentElement;
-    const esOscuro = html.classList.toggle('dark-mode');
-    const valor = esOscuro ? 'true' : 'false';
-
-    // 1. Limpiar cualquier cookie residual con ruta específica
-    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-    if (subpath) {
-        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    }
-
-    // 2. Guardar UNA sola cookie global en la raíz "/" (accesible por index, crear, editar, etc.)
-    document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
-
-    // 3. Guardar en localStorage (sincronización instantánea entre pestañas y páginas)
-    try {
-        localStorage.setItem('dark_mode', valor);
-    } catch (_) {}
-
-    // 4. Actualizar el emoji del botón
-    const btn = document.getElementById('btn-toggle-dark');
-    if (btn) {
-        btn.textContent = esOscuro ? '🌞' : '🌚';
-    }
-}
-
 // Manejo del menú desplegable para filtros de columnas
 function toggleMenuFiltro(e, menuId) {
     e.stopPropagation();
@@ -1249,12 +1168,6 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php endif; ?>
 
     // Función auxiliar para escapar texto en HTML dentro de modales
-    function escapeHtml(texto) {
-        const div = document.createElement('div');
-        div.textContent = texto || '';
-        return div.innerHTML;
-    }
-
     // 2. Control animado para "Revisar Stock" (con modal de progreso según el tiempo de respuesta)
     const formEjecutar = document.querySelector('.form-ejecutar-manual');
     if (formEjecutar) {

@@ -6,13 +6,6 @@ require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
 
-require_once $raizProyecto . '/vendor/autoload.php';
-
-$dotenv = Dotenv\Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-require_once $raizProyecto . '/config/database.php';
-
 // Proteger endpoint: requiere sesión activa y almacén activo autorizado
 $almActivo = requerirAlmacenAutorizado();
 $usuario = obtenerUsuarioAutenticado();
@@ -63,7 +56,8 @@ try {
         session_write_close();
     }
 
-    $phpExe = 'C:\xampp\php\php.exe';
+    // Ruta del ejecutable PHP: configurable con PHP_EXE en .env (por defecto, el de XAMPP)
+    $phpExe = trim((string) ($_ENV['PHP_EXE'] ?? '')) ?: 'C:\xampp\php\php.exe';
     if (!file_exists($phpExe)) {
         $phpExe = PHP_BINARY ?: 'php';
     }
@@ -110,11 +104,7 @@ try {
     $resumen = !empty($lineasSalida) ? end($lineasSalida) : 'Revisión finalizada correctamente.';
 
     // Detectar si la solicitud proviene de AJAX / Fetch
-    $esAjax = (
-        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-        || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-        || (isset($_POST['formato']) && $_POST['formato'] === 'json')
-    );
+    $esAjax = esSolicitudAjax();
 
     if ($esAjax) {
         header('Content-Type: application/json; charset=utf-8');
@@ -143,11 +133,7 @@ try {
     exit;
 
 } catch (Throwable $e) {
-    $esAjax = (
-        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-        || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-        || (isset($_POST['formato']) && $_POST['formato'] === 'json')
-    );
+    $esAjax = esSolicitudAjax();
 
     if ($esAjax) {
         header('Content-Type: application/json; charset=utf-8');

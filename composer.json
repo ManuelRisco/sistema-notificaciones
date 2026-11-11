@@ -15,7 +15,8 @@
     ],
     "require": {
         "php": "^8.2",
-        "phpmailer/phpmailer": "*",
+        "ext-sqlsrv": "*",
+        "phpmailer/phpmailer": "^7.1",
         "vlucas/phpdotenv": "^5.8"
     }
 }

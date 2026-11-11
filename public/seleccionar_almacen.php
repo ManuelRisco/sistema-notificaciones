@@ -15,22 +15,8 @@ $usrNombre = (string) ($usuario['usr_nombre'] ?? $usrCodigo);
 $almacenesAutorizados = obtenerAlmacenesAutorizadosUsuario($usrCodigo);
 $todosSoportados = getAlmacenesSoportados();
 
-// Modo oscuro sincronizado con cookie
-$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
-
-// Alternar modo oscuro si se solicita vía GET
-if (isset($_GET['toggle_dark_mode'])) {
-    $darkMode = !$darkMode;
-    $valorCookie = $darkMode ? 'true' : 'false';
-    $tiempoExpira = time() + (86400 * 30);
-
-    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
-    setcookie('dark_mode', '', time() - 3600, dirname($_SERVER['SCRIPT_NAME']));
-    setcookie('dark_mode', '', time() - 3600);
-
-    header("Location: " . strtok($_SERVER["REQUEST_URI"], '?'));
-    exit;
-}
+// Modo oscuro (cookie compartida entre todas las páginas)
+$darkMode = aplicarModoOscuro();
 
 $error = null;
 
@@ -71,18 +57,7 @@ if (isset($_GET['alm'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lista de Almacenes - Sistema de Alertas de Stock</title>
-    <script>
-        (function() {
-            try {
-                const modo = localStorage.getItem('dark_mode');
-                if (modo === 'true') {
-                    document.documentElement.classList.add('dark-mode');
-                } else if (modo === 'false') {
-                    document.documentElement.classList.remove('dark-mode');
-                }
-            } catch (_) {}
-        })();
-    </script>
+    <script src="js/comun.js"></script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <link rel="stylesheet" href="css/almacenes.css?v=<?= file_exists(__DIR__ . '/css/almacenes.css') ? filemtime(__DIR__ . '/css/almacenes.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
@@ -188,33 +163,6 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php endif; ?>
 });
 
-// Alternar modo oscuro compartido con index.php
-function toggleDarkMode(e) {
-    if (e) e.preventDefault();
-    const html = document.documentElement;
-    const esOscuro = html.classList.toggle('dark-mode');
-    const valor = esOscuro ? 'true' : 'false';
-
-    // Limpiar cualquier cookie residual
-    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-    if (subpath) {
-        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    }
-
-    // Cookie global en raíz "/"
-    document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
-
-    try {
-        localStorage.setItem('dark_mode', valor);
-    } catch (_) {}
-
-    const btn = document.getElementById('btn-toggle-dark');
-    if (btn) {
-        btn.textContent = esOscuro ? '🌞' : '🌚';
-    }
-}
 </script>
 </body>
 </html>

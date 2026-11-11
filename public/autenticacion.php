@@ -381,11 +381,7 @@ function requerirAlmacenAutorizado(?string $almCodigo = null): string
     // Verificar si el almacén es soportado y si el usuario está autorizado
     $empCodigo = (string) ($usuario['emp_codigo'] ?? '001');
     if (!esAlmacenSoportado($alm) || !usuarioTienePermisoAlmacen($usuario['usr_codigo'], $alm, $empCodigo)) {
-        $esAjax = (
-            (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-            || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-            || (isset($_POST['formato']) && $_POST['formato'] === 'json')
-        );
+        $esAjax = esSolicitudAjax();
 
         if ($esAjax) {
             header('Content-Type: application/json; charset=utf-8');
@@ -593,11 +589,7 @@ function requerirAutenticacion(): void
         return;
     }
 
-    $esAjax = (
-        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
-        || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
-        || (isset($_POST['formato']) && $_POST['formato'] === 'json')
-    );
+    $esAjax = esSolicitudAjax();
 
     if ($esAjax) {
         header('Content-Type: application/json; charset=utf-8');

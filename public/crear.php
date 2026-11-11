@@ -6,13 +6,6 @@ require_once __DIR__ . '/seguridad.php';
 
 $raizProyecto = dirname(__DIR__);
 
-require_once $raizProyecto . '/vendor/autoload.php';
-
-$dotenv = Dotenv\Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-require_once $raizProyecto . '/config/database.php';
-
 // Validar autorización y obtener el almacén activo
 $almCodigo = requerirAlmacenAutorizado($_GET['alm'] ?? null);
 $almNombre = getNombreAlmacen($almCodigo);
@@ -214,41 +207,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Escapar texto para HTML
-if (!function_exists('h')) {
-    function h(mixed $valor): string
-    {
-        return htmlspecialchars(
-            (string) $valor,
-            ENT_QUOTES | ENT_SUBSTITUTE,
-            'UTF-8'
-        );
-    }
-}
-
-// Detectar si hay una cookie de modo oscuro activa
-$darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
-
-// Si el usuario hace clic en el botón, procesamos la petición mediante una variable GET
-if (isset($_GET['toggle_dark_mode'])) {
-    $darkMode = !$darkMode;
-    $valorCookie = $darkMode ? 'true' : 'false';
-    $tiempoExpira = time() + (86400 * 30);
-
-    // Guardar ÚNICAMENTE en la raíz "/" para compartir con todas las páginas
-    setcookie('dark_mode', $valorCookie, $tiempoExpira, "/");
-    setcookie('dark_mode', '', time() - 3600, dirname($_SERVER['SCRIPT_NAME']));
-    setcookie('dark_mode', '', time() - 3600);
-
-    $params = $_GET;
-    unset($params['toggle_dark_mode']);
-    $urlLimpia = strtok($_SERVER["REQUEST_URI"], '?');
-    if (!empty($params)) {
-        $urlLimpia .= '?' . http_build_query($params);
-    }
-    header("Location: " . $urlLimpia);
-    exit;
-}
+// Modo oscuro (cookie compartida entre todas las páginas)
+$darkMode = aplicarModoOscuro();
 
 ?>
 <!DOCTYPE html>
@@ -260,19 +220,7 @@ if (isset($_GET['toggle_dark_mode'])) {
         content="width=device-width, initial-scale=1.0"
     >
     <title>Nuevo registro de stock</title>
-    <script>
-        // Sincronizar modo oscuro antes de renderizar para evitar parpadeos
-        (function() {
-            try {
-                const modo = localStorage.getItem('dark_mode');
-                if (modo === 'true') {
-                    document.documentElement.classList.add('dark-mode');
-                } else if (modo === 'false') {
-                    document.documentElement.classList.remove('dark-mode');
-                }
-            } catch (_) {}
-        })();
-    </script>
+    <script src="js/comun.js"></script>
     <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
     <script src="js/sweetalert2.all.min.js"></script>
 </head>
@@ -452,36 +400,6 @@ if (isset($_GET['toggle_dark_mode'])) {
 </main>
 
 <script>
-// Alternar modo oscuro / claro compartido globalmente en todas las páginas
-function toggleDarkMode(e) {
-    if (e) e.preventDefault();
-    const html = document.documentElement;
-    const esOscuro = html.classList.toggle('dark-mode');
-    const valor = esOscuro ? 'true' : 'false';
-
-    // 1. Limpiar cualquier cookie residual con ruta específica
-    document.cookie = "dark_mode=; path=" + window.location.pathname + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    const subpath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
-    if (subpath) {
-        document.cookie = "dark_mode=; path=" + subpath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        document.cookie = "dark_mode=; path=" + subpath + "/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    }
-
-    // 2. Guardar UNA sola cookie global en la raíz "/" (accesible por index, crear, editar, etc.)
-    document.cookie = `dark_mode=${valor}; path=/; max-age=2592000; SameSite=Lax`;
-
-    // 3. Guardar en localStorage (sincronización instantánea entre pestañas y páginas)
-    try {
-        localStorage.setItem('dark_mode', valor);
-    } catch (_) {}
-
-    // 4. Actualizar el emoji del botón
-    const btn = document.getElementById('btn-toggle-dark');
-    if (btn) {
-        btn.textContent = esOscuro ? '🌞' : '🌚';
-    }
-}
-
 // Variable en caché para los artículos del catálogo
 let catalogoCache = null;
 let ordenStockModal = 'defecto';
@@ -523,12 +441,6 @@ function abrirModalCatalogo() {
             const lista = document.getElementById('swal-lista-catalogo');
             const contador = document.getElementById('swal-contador-catalogo');
             const selectorOrden = document.getElementById('swal-orden-stock');
-
-            function escapeModalText(text) {
-                const div = document.createElement('div');
-                div.textContent = text || '';
-                return div.innerHTML;
-            }
 
             function obtenerItemsOrdenados() {
                 if (!catalogoCache) return [];
@@ -601,29 +513,29 @@ function abrirModalCatalogo() {
                     const esEnUso = (codigoActualEnFormulario !== '' && art.codigo === codigoActualEnFormulario);
 
                     html += `
-                        <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeModalText(art.codigo)}" data-nombre="${escapeModalText(art.nombre)}" data-meta="${escapeModalText(metaTexto)}">
+                        <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeHtml(art.codigo)}" data-nombre="${escapeHtml(art.nombre)}" data-meta="${escapeHtml(metaTexto)}">
                             <td style="padding: 8px 6px; font-weight: 700; font-family: monospace; font-size: 12.5px; word-break: break-all;">
-                                ${escapeModalText(art.codigo)}
+                                ${escapeHtml(art.codigo)}
                             </td>
                             <td style="padding: 8px 6px; line-height: 1.3; font-size: 12.5px; font-weight: 600; color: #1e293b; word-break: break-word;">
-                                ${escapeModalText(art.nombre)}
+                                ${escapeHtml(art.nombre)}
                             </td>
                             <td style="padding: 6px; font-size: 12px; line-height: 1.35; color: #334155;">
                                 <div style="display: flex; flex-direction: column; gap: 2px;">
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Categoría:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.categoria || '—')}</strong></div>
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Familia:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.fam_nombre || '—')}</strong></div>
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Tipo fam:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeModalText(art.tfa_nombre || '—')}</strong></div>
+                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Categoría:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeHtml(art.categoria || '—')}</strong></div>
+                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Familia:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeHtml(art.fam_nombre || '—')}</strong></div>
+                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Tipo fam:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeHtml(art.tfa_nombre || '—')}</strong></div>
                                 </div>
                             </td>
                             <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
                                 <span class="articulo-stock-tag" style="font-size: 11.5px; padding: 2px 6px;">
-                                    ${escapeModalText(art.stock_formateado || '0.000')}
+                                    ${escapeHtml(art.stock_formateado || '0.000')}
                                 </span>
                             </td>
                             <td style="padding: 8px 6px; text-align: center; white-space: nowrap;">
                                 ${esEnUso
                                     ? `<span class="badge badge-activo" style="font-size: 11px; padding: 4px 6px;">En uso</span>`
-                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeModalText(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">Elegir</button>`
+                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeHtml(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">Elegir</button>`
                                 }
                             </td>
                         </tr>
@@ -759,7 +671,7 @@ function abrirModalCatalogo() {
                     }
                 })
                 .catch(err => {
-                    lista.innerHTML = `<div style="padding: 24px; text-align: center; color: #dc2626;">Error: ${escapeModalText(err.message)}</div>`;
+                    lista.innerHTML = `<div style="padding: 24px; text-align: center; color: #dc2626;">Error: ${escapeHtml(err.message)}</div>`;
                 });
         }
     });
@@ -781,12 +693,6 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmButtonText: 'Entendido'
     });
     <?php endif; ?>
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text || '';
-        return div.innerHTML;
-    }
 
     const form = document.querySelector('.formulario');
     const artInput = document.getElementById('art_codigo');
