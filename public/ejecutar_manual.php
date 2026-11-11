@@ -28,15 +28,12 @@ try {
     // 1. Validar el token de seguridad CSRF
     validarTokenCsrf();
 
-    // 2. Determinar alcance de ejecución y bloquear manipulación de parámetros:
-    // - Un usuario normal solamente puede procesar su almacén activo y autorizado.
-    // - Si existe un perfil administrador con permisos globales, podrá procesar todos los almacenes.
+    // 2. Determinar alcance de ejecución:
+    // La ejecución manual desde la interfaz web procesa ÚNICAMENTE el almacén activo en el que se encuentra el usuario.
     $almacenParam = null;
     if (isset($_POST['almacen']) && trim((string)$_POST['almacen']) !== '') {
         $almacenParam = trim((string)$_POST['almacen']);
     }
-
-    $almacenAProcesar = null;
 
     if (!$esAdminGlobal) {
         // Usuario normal: si intenta enviar otro almacén en el parámetro POST, rechazar
@@ -45,13 +42,15 @@ try {
         }
         $almacenAProcesar = $almActivo;
     } else {
-        // Administrador global: procesa todos los almacenes por defecto,
-        // o el almacén solicitado si envía un parámetro válido.
+        // Perfil administrador: por defecto procesa el almacén activo donde está navegando;
+        // si se especificó otro almacén soportado, se procesa ese almacén individual.
         if ($almacenParam !== null) {
             if (!esAlmacenSoportado($almacenParam)) {
                 throw new RuntimeException('Almacén especificado no válido.');
             }
             $almacenAProcesar = $almacenParam;
+        } else {
+            $almacenAProcesar = $almActivo;
         }
     }
 

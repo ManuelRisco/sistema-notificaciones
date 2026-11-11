@@ -505,6 +505,7 @@ if (isset($_GET['toggle_dark_mode'])) {
                 </a>
                 <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
                     <input type="hidden" name="csrf_token" value="<?= escapar(generarTokenCsrf()) ?>">
+                    <input type="hidden" name="almacen" value="<?= escapar($almActivo) ?>">
                     <button
                         type="submit"
                         class="btn btn-ejecutar"

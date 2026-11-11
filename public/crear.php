@@ -24,6 +24,7 @@ $stockMinimo = '';
 $categoria = '';
 $famNombre = '';
 $tfaNombre = '';
+$disponible = 1;
 
 $error = null;
 $guardado = false;
@@ -43,11 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $categoria = trim($_POST['categoria'] ?? '');
         $famNombre = trim($_POST['fam_nombre'] ?? '');
         $tfaNombre = trim($_POST['tfa_nombre'] ?? '');
+        $disponible = isset($_POST['disponible']) && (string)$_POST['disponible'] === '0' ? 0 : 1;
 
         // 3. Validar campos.
         if ($artCodigo === '' || $stockMinimo === '') {
             throw new RuntimeException(
                 'El código de artículo y el stock mínimo son obligatorios.'
+            );
+        }
+
+        if (!in_array($disponible, [0, 1], true)) {
+            throw new RuntimeException(
+                'El valor del campo disponibilidad no es válido.'
             );
         }
 
@@ -120,11 +128,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
 
-            // Si existía con borrado lógico (disponible = 0), se reactiva conservando sus banderas
+            // Si existía con borrado lógico (disponible = 0), se actualiza/reactiva con el estado seleccionado
             $sqlReactivar = "
                 UPDATE [{$db}].dbo.cfg_alerta_stock
                 SET stock_minimo = CAST(? AS NUMERIC(14,5)),
-                    disponible = 1,
+                    disponible = ?,
                     fecha_actualizacion = SYSDATETIME()
                 WHERE emp_codigo = ?
                   AND art_codigo = ?
@@ -134,12 +142,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtReactivar = sqlsrv_query(
                 $conexion,
                 $sqlReactivar,
-                [$stockMinimo, $empCodigo, $artCodigo, $almCodigo]
+                [$stockMinimo, $disponible, $empCodigo, $artCodigo, $almCodigo]
             );
 
             if ($stmtReactivar === false) {
                 throw new RuntimeException(
-                    'No se pudo reactivar la configuración del artículo.'
+                    'No se pudo actualizar la configuración del artículo.'
                 );
             }
 
@@ -147,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } else {
 
-            // 6. Nuevo registro con disponible = 1
+            // 6. Nuevo registro con disponibilidad seleccionada
             $sql = "
                 INSERT INTO [{$db}].dbo.cfg_alerta_stock
                 (
@@ -163,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ?,
                     ?,
                     CAST(? AS NUMERIC(14,5)),
-                    1
+                    ?
                 );
             ";
 
@@ -171,7 +179,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $empCodigo,
                 $artCodigo,
                 $almCodigo,
-                $stockMinimo
+                $stockMinimo,
+                $disponible
             ];
 
             $stmt = sqlsrv_query($conexion, $sql, $params);
@@ -409,6 +418,21 @@ if (isset($_GET['toggle_dark_mode'])) {
                 >
                 <span id="sufijo-unidad-minimo" style="position: absolute; right: 12px; font-weight: 700; font-size: 12px; color: var(--color-texto-muted, #64748b); pointer-events: none;"></span>
             </div>
+        </div>
+
+        <!-- Disponibilidad -->
+        <div class="campo">
+            <label for="disponible">
+                Disponibilidad
+            </label>
+            <select id="disponible" name="disponible">
+                <option value="1" <?= $disponible === 1 ? 'selected' : '' ?>>
+                    Activo
+                </option>
+                <option value="0" <?= $disponible === 0 ? 'selected' : '' ?>>
+                    Inactivo
+                </option>
+            </select>
         </div>
 
         <div class="acciones">
@@ -906,16 +930,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                // 2. Ya registrado pero inactivo (se reactivará)
+                // 2. Ya registrado pero inactivo (se reactivará o mantendrá inactivo según la selección)
                 if (estaRegistrado && disponible === 0) {
+                    const dispSelect = document.getElementById('disponible');
+                    const seraActivo = dispSelect ? dispSelect.value === '1' : true;
+                    const accionTexto = seraActivo ? 'reactivarlo como <strong>activo</strong>' : 'actualizarlo manteniéndolo como <strong>inactivo</strong>';
+
                     Swal.fire({
-                        title: '¿Reactivar configuración?',
-                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ''}<br><br>Ya se encuentra registrado pero está <strong>inactivo</strong>.<br>¿Deseas reactivarlo con el nuevo stock mínimo?`,
+                        title: seraActivo ? '¿Reactivar configuración?' : '¿Actualizar configuración?',
+                        html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ''}<br><br>Ya se encuentra registrado pero está <strong>inactivo</strong>.<br>¿Deseas ${accionTexto} con el nuevo stock mínimo?`,
                         icon: 'question',
                         showCancelButton: true,
                         confirmButtonColor: '#059669',
                         cancelButtonColor: '#64748b',
-                        confirmButtonText: 'Sí, reactivar',
+                        confirmButtonText: seraActivo ? 'Sí, reactivar' : 'Sí, guardar',
                         cancelButtonText: 'Cancelar',
                         reverseButtons: true,
                         focusCancel: true
@@ -940,13 +968,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // 4. Caso normal: encontrado y no registrado
+                const dispSelect = document.getElementById('disponible');
+                const seraActivo = dispSelect ? dispSelect.value === '1' : true;
+                const estadoTexto = seraActivo
+                    ? '<span class="badge badge-activo" style="font-size: 11px;">Activo</span>'
+                    : '<span class="badge badge-inactivo" style="font-size: 11px;">Inactivo</span>';
+
                 const detalleArticulo = artNombre
                     ? `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(artNombre)}</span>`
                     : '';
 
                 Swal.fire({
                     title: '¿Guardar nuevo registro?',
-                    html: `¿Estás seguro de que deseas registrar esta configuración para el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`,
+                    html: `¿Estás seguro de que deseas registrar esta configuración para el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}<br><br>Estado: ${estadoTexto}`,
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#2563eb',

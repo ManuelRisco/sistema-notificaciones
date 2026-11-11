@@ -12,15 +12,13 @@ function getAlmacenesSoportados(): array
             'codigo' => '003',
             'nombre' => 'Tintas y Solventes',
             'nombre_erp' => 'ALMACEN TINTAS SOLVENTES Y ADHESIVOS',
-            'descripcion' => 'Monitoreo de stock mínimo de tintas, solventes y adhesivos.',
-            'icono' => 'palette'
+            'descripcion' => 'Monitoreo de stock mínimo de tintas, solventes y adhesivos.'
         ],
         '001' => [
             'codigo' => '001',
             'nombre' => 'Materia Prima',
             'nombre_erp' => 'ALMACEN MATERIAS PRIMAS',
-            'descripcion' => 'Monitoreo de stock mínimo de materias primas e insumos.',
-            'icono' => 'boxes-stacked'
+            'descripcion' => 'Monitoreo de stock mínimo de materias primas e insumos.'
         ]
     ];
 }
