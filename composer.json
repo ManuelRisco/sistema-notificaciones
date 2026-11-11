@@ -16,7 +16,6 @@
     "require": {
         "php": "^8.2",
         "phpmailer/phpmailer": "*",
-        "vlucas/phpdotenv": "^5.8",
-        "phpoffice/phpspreadsheet": "^5.10"
+        "vlucas/phpdotenv": "^5.8"
     }
 }
