@@ -128,8 +128,9 @@ $hayFiltrosActivos = (
     $orden !== ''
 );
 
-// Gestión de mensajes de notificación (éxito o error)
+// Gestión de mensajes de notificación (éxito, advertencia o error)
 $mensajeExito = null;
+$mensajeAdvertencia = null;
 $ok = $_GET['ok'] ?? '';
 $artParam = trim((string) ($_GET['art'] ?? ''));
 $nomParam = trim((string) ($_GET['nom'] ?? ''));
@@ -144,8 +145,15 @@ if ($artParam !== '') {
 
 if ($ok === 'ejecutado') {
     $detalleEjecucion = $_SESSION['flash_ejecucion'] ?? '';
-    unset($_SESSION['flash_ejecucion']);
-    $mensajeExito = 'Proceso de alertas de stock ejecutado correctamente.' . ($detalleEjecucion !== '' ? ' — ' . $detalleEjecucion : '');
+    $tipoEjecucion = $_SESSION['flash_ejecucion_tipo'] ?? 'success';
+    unset($_SESSION['flash_ejecucion'], $_SESSION['flash_ejecucion_tipo']);
+    if ($tipoEjecucion === 'warning') {
+        $mensajeAdvertencia = $detalleEjecucion !== ''
+            ? $detalleEjecucion
+            : 'El stock se revisó, pero ocurrió un problema al enviar el correo de notificación.';
+    } else {
+        $mensajeExito = $detalleEjecucion !== '' ? $detalleEjecucion : 'Stock revisado correctamente.';
+    }
 } elseif ($ok === 'creado') {
     $mensajeExito = 'Configuración de stock' . $detalleArticuloParam . ' registrada exitosamente.';
 } elseif ($ok === 'editado') {
@@ -163,6 +171,9 @@ if (!empty($_SESSION['flash_error'])) {
 
 // Modo oscuro (cookie compartida entre todas las páginas)
 $darkMode = aplicarModoOscuro();
+
+// Obtener la base de datos seleccionada
+$nombreBD = getDatabaseName();
 
 ?>
 <!DOCTYPE html>
@@ -193,8 +204,14 @@ $darkMode = aplicarModoOscuro();
                 $usuarioSesion = obtenerUsuarioAutenticado();
                 if (!empty($usuarioSesion)):
                 ?>
+                        <div class="encabezado-base-datos">
+                <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
+        </div>
                     <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
-                        <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                        <span>USUARIO: </span>
+                            <strong>
+                                <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                            </strong>
                     </div>
                     <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
                         Salir
@@ -798,11 +815,12 @@ $darkMode = aplicarModoOscuro();
     <?php endif; ?>
 </main>
 
-<script src="js/index.js"></script>
+<script src="js/index.js?v=<?= file_exists(__DIR__ . '/js/index.js') ? filemtime(__DIR__ . '/js/index.js') : time() ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     iniciarIndex({
         mensajeExito: <?= json_encode($mensajeExito, JSON_UNESCAPED_UNICODE) ?>,
+        mensajeAdvertencia: <?= json_encode($mensajeAdvertencia, JSON_UNESCAPED_UNICODE) ?>,
         error: <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>,
         hayFiltrosActivos: <?= json_encode($hayFiltrosActivos) ?>,
         totalRegistros: <?= count($registros) ?>

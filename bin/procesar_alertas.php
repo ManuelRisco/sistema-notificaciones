@@ -25,8 +25,10 @@ date_default_timezone_set($zonaHoraria);
 // --simular : no actualiza BD ni envía correos
 // --detalle : fuerza mostrar el desglose de todos los artículos aunque no haya alertas
 // --almacen=XXX : procesa únicamente el almacén indicado (ej: 003 o 001)
+// --json : imprime un resumen JSON estructurado por stdout
 $modoSimulacion = in_array('--simular', $argv ?? [], true);
 $mostrarDetalleCompleto = in_array('--detalle', $argv ?? [], true);
+$formatoJson = in_array('--json', $argv ?? [], true);
 
 $almacenFiltro = null;
 foreach ($argv ?? [] as $arg) {
@@ -53,7 +55,14 @@ $lockHandle = fopen($lockFilePath, 'c+');
 
 if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
     $fechaHora = date('d/m/Y H:i:s');
-    echo "[{$fechaHora}] AVISO: Ya existe otro proceso de alertas en ejecución. Se omite esta ejecución para evitar duplicados." . PHP_EOL;
+    if ($formatoJson) {
+        echo json_encode([
+            'exito' => true,
+            'en_curso' => true,
+        ], JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    } else {
+        echo "[{$fechaHora}] AVISO: Ya existe otro proceso de alertas en ejecución. Se omite esta ejecución para evitar duplicados." . PHP_EOL;
+    }
     if ($lockHandle) {
         fclose($lockHandle);
     }
@@ -273,8 +282,17 @@ try {
     }
 
     // Salida por consola / stdout (capturada por cron o ejecución manual)
-    $salidaConsola = implode(PHP_EOL, $salidasFormateadas);
-    echo $salidaConsola . PHP_EOL;
+    if ($formatoJson) {
+        echo json_encode([
+            'exito' => true,
+            'en_curso' => false,
+            'correos_enviados' => (int) ($resultado['correos_enviados'] ?? 0),
+            'correos_fallidos' => (int) ($resultado['correos_fallidos'] ?? 0),
+            'errores_actualizacion_banderas' => (int) ($resultado['errores_actualizacion_banderas'] ?? 0),
+        ], JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    } else {
+        echo implode(PHP_EOL, $salidasFormateadas) . PHP_EOL;
+    }
 
 } catch (Throwable $e) {
 

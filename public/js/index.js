@@ -54,17 +54,90 @@ document.addEventListener('keydown', function(e) {
 });
 
 /**
+ * Limpia parámetros de estado (?ok / ?error) de la URL actual tras mostrar la notificación.
+ */
+function limpiarParametrosEstadoUrl() {
+    if (!window.history.replaceState) {
+        return;
+    }
+    const url = new URL(window.location);
+    url.searchParams.delete('ok');
+    url.searchParams.delete('error');
+    window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+}
+
+/**
+ * Muestra el modal de resultado tras ejecutar la revisión manual de stock,
+ * indicando de forma simple si el correo se envió correctamente o si hubo un error.
+ *
+ * @param {Object} data Respuesta JSON de ejecutar_manual.php
+ */
+function mostrarResultadoRevisionStock(data) {
+    const estadoCorreo = data.estado_correo || 'ninguno';
+
+    if (estadoCorreo !== 'enviado' && estadoCorreo !== 'error') {
+        Swal.fire({
+            icon: 'success',
+            title: '¡Stock revisado correctamente!',
+            confirmButtonColor: '#059669',
+            confirmButtonText: 'Aceptar'
+        }).then(() => {
+            window.location.reload();
+        });
+        return;
+    }
+
+    const esError = (estadoCorreo === 'error');
+    const mensajeBanner = data.correo_estado_mensaje || (
+        esError
+            ? 'Hubo un error al enviar el correo de notificación.'
+            : 'El correo de notificación se envió correctamente.'
+    );
+
+    const svgIcono = esError
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+
+    const claseBanner = esError ? 'swal-correo-banner--error' : 'swal-correo-banner--exito';
+
+    Swal.fire({
+        icon: esError ? 'warning' : 'success',
+        title: esError ? 'Stock revisado' : '¡Stock revisado correctamente!',
+        html: `
+            <div class="swal-correo-banner ${claseBanner}">
+                <span class="swal-correo-banner-icono">${svgIcono}</span>
+                <span>${escapeHtml(mensajeBanner)}</span>
+            </div>
+        `,
+        confirmButtonColor: esError ? '#d97706' : '#059669',
+        confirmButtonText: 'Aceptar'
+    }).then(() => {
+        window.location.reload();
+    });
+}
+
+/**
  * Inicializa los eventos, modales y búsqueda de index.php.
  *
  * @param {Object} [config]
  * @param {string|null} [config.mensajeExito]
+ * @param {string|null} [config.mensajeAdvertencia]
  * @param {string|null} [config.error]
  * @param {boolean} [config.hayFiltrosActivos]
  * @param {number} [config.totalRegistros]
  */
 function iniciarIndex(config = {}) {
     // 1. Mostrar modales para mensajes de sesión o URL (sin alertas estáticas en HTML)
-    if (config.mensajeExito) {
+    if (config.mensajeAdvertencia) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Stock revisado',
+            html: config.mensajeAdvertencia,
+            confirmButtonColor: '#d97706',
+            confirmButtonText: 'Aceptar'
+        });
+        limpiarParametrosEstadoUrl();
+    } else if (config.mensajeExito) {
         Swal.fire({
             icon: 'success',
             title: '¡Operación Exitosa!',
@@ -74,12 +147,7 @@ function iniciarIndex(config = {}) {
             confirmButtonColor: '#2563eb',
             confirmButtonText: 'Aceptar'
         });
-        if (window.history.replaceState) {
-            const url = new URL(window.location);
-            url.searchParams.delete('ok');
-            url.searchParams.delete('error');
-            window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
-        }
+        limpiarParametrosEstadoUrl();
     } else if (config.error) {
         Swal.fire({
             icon: 'error',
@@ -150,14 +218,7 @@ function iniciarIndex(config = {}) {
                                     confirmButtonText: 'Entendido'
                                 });
                             } else {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: '¡Alertas procesadas con éxito!',
-                                    confirmButtonColor: '#059669',
-                                    confirmButtonText: 'Aceptar'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
+                                mostrarResultadoRevisionStock(data);
                             }
                         } else {
                             Swal.fire({

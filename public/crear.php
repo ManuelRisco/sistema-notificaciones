@@ -137,6 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Modo oscuro (cookie compartida entre todas las páginas)
 $darkMode = aplicarModoOscuro();
 
+// Obtener la base de datos seleccionada
+$nombreBD = getDatabaseName();
+
 ?>
 <!DOCTYPE html>
 <html lang="es" class="<?php echo $darkMode ? 'dark-mode' : ''; ?>">
@@ -164,8 +167,15 @@ $darkMode = aplicarModoOscuro();
                 $usuarioSesion = obtenerUsuarioAutenticado();
                 if (!empty($usuarioSesion)):
                 ?>
+                    <div class="encabezado-base-datos">
+                        <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
+                    </div>
+
                     <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
-                        <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                    <span>USUARIO: </span>    
+                    <strong>
+                            <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
+                        </strong>    
                     </div>
                     <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
                         Salir

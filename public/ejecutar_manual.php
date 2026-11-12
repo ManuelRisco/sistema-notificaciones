@@ -17,6 +17,72 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+/**
+ * Decodifica el JSON emitido por bin/procesar_alertas.php --json.
+ */
+function decodificarResultadoProceso(string $salida): ?array
+{
+    $recortada = trim($salida);
+    if ($recortada === '') {
+        return null;
+    }
+
+    $decodificado = json_decode($recortada, true);
+    if (is_array($decodificado) && array_key_exists('exito', $decodificado)) {
+        return $decodificado;
+    }
+
+    // Si hubiera avisos previos en stdout/stderr, buscar la última línea JSON válida.
+    $lineas = array_reverse(explode("\n", $recortada));
+    foreach ($lineas as $linea) {
+        $linea = trim($linea);
+        if ($linea !== '' && str_starts_with($linea, '{')) {
+            $cand = json_decode($linea, true);
+            if (is_array($cand) && array_key_exists('exito', $cand)) {
+                return $cand;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Construye el estado estructurado del envío de correo a partir del resultado del proceso.
+ */
+function construirEstadoCorreo(array $datosProceso): array
+{
+    $correosEnviados = (int) ($datosProceso['correos_enviados'] ?? 0);
+    $correosFallidos = (int) ($datosProceso['correos_fallidos'] ?? 0);
+    $erroresBanderas = (int) ($datosProceso['errores_actualizacion_banderas'] ?? 0);
+
+    if ($correosFallidos > 0) {
+        return [
+            'estado_correo' => 'error',
+            'correo_estado_mensaje' => 'Hubo un error al enviar el correo de notificación.',
+        ];
+    }
+
+    if ($correosEnviados > 0 && $erroresBanderas > 0) {
+        return [
+            'estado_correo' => 'error',
+            'correo_estado_mensaje' => 'Hubo un error al actualizar el estado de la notificación.',
+        ];
+    }
+
+    if ($correosEnviados > 0) {
+        return [
+            'estado_correo' => 'enviado',
+            'correo_estado_mensaje' => 'El correo de notificación se envió correctamente.',
+        ];
+    }
+
+    return [
+        'estado_correo' => 'ninguno',
+        'correo_estado_mensaje' => '',
+    ];
+}
+
 try {
     // 1. Validar el token de seguridad CSRF
     validarTokenCsrf();
@@ -70,7 +136,7 @@ try {
 
     // 4. Ejecutar mediante el CLI de PHP (misma funcionalidad de ejecutar_alertas.bat)
     if (function_exists('exec')) {
-        $comando = "\"{$phpExe}\" \"{$scriptProcesar}\"{$argAlmacen} 2>&1";
+        $comando = "\"{$phpExe}\" \"{$scriptProcesar}\"{$argAlmacen} --json 2>&1";
         $lineas = [];
         exec($comando, $lineas, $codigoSalida);
         $salida = implode(PHP_EOL, $lineas);
@@ -78,7 +144,7 @@ try {
 
     // Fallback: Si exec no estuviera disponible, ejecutar en el mismo hilo de PHP
     if (empty($salida) && $codigoSalida === 0) {
-        $argv = ['procesar_alertas.php'];
+        $argv = ['procesar_alertas.php', '--json'];
         if ($almacenAProcesar !== null) {
             $argv[] = "--almacen={$almacenAProcesar}";
         }
@@ -96,27 +162,32 @@ try {
         );
     }
 
-    // Detectar si el proceso se omitió porque ya había otro en curso
-    $enCurso = strpos($salida, 'AVISO: Ya existe otro proceso de alertas en ejecución') !== false;
+    $datosProceso = decodificarResultadoProceso($salida);
 
-    // Extraer la última línea de resumen relevante para la interfaz web
-    $lineasSalida = array_values(array_filter(array_map('trim', explode("\n", $salida))));
-    $resumen = !empty($lineasSalida) ? end($lineasSalida) : 'Revisión finalizada correctamente.';
+    // Detectar si el proceso se omitió porque ya había otro en curso
+    $enCurso = ($datosProceso !== null && !empty($datosProceso['en_curso']))
+        || strpos($salida, 'AVISO: Ya existe otro proceso de alertas en ejecución') !== false;
+
+    $estadoCorreo = ($datosProceso !== null && !$enCurso)
+        ? construirEstadoCorreo($datosProceso)
+        : [
+            'estado_correo' => $enCurso ? 'en_curso' : 'ninguno',
+            'correo_estado_mensaje' => '',
+        ];
 
     // Detectar si la solicitud proviene de AJAX / Fetch
     $esAjax = esSolicitudAjax();
 
     if ($esAjax) {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
+        $respuestaAjax = array_merge([
             'exito' => true,
             'en_curso' => $enCurso,
-            'mensaje' => $enCurso
-                ? 'Ya existe una revisión de stock en ejecución en este momento.'
-                : 'Proceso de alertas ejecutado correctamente.',
-            'resumen' => $resumen,
-            'salida_completa' => $salida
-        ], JSON_UNESCAPED_UNICODE);
+        ], $estadoCorreo);
+        if ($enCurso) {
+            $respuestaAjax['mensaje'] = 'Ya existe una revisión de stock en ejecución en este momento.';
+        }
+        echo json_encode($respuestaAjax, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -126,8 +197,24 @@ try {
 
     if ($enCurso) {
         $_SESSION['flash_ejecucion'] = 'Ya hay una revisión de alertas ejecutándose en segundo plano.';
+        $_SESSION['flash_ejecucion_tipo'] = 'info';
+    } elseif ($estadoCorreo['estado_correo'] === 'error') {
+        $_SESSION['flash_ejecucion'] = htmlspecialchars(
+            $estadoCorreo['correo_estado_mensaje'],
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
+        $_SESSION['flash_ejecucion_tipo'] = 'warning';
+    } elseif ($estadoCorreo['estado_correo'] === 'enviado') {
+        $_SESSION['flash_ejecucion'] = 'Stock revisado correctamente.<br>' . htmlspecialchars(
+            $estadoCorreo['correo_estado_mensaje'],
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
+        $_SESSION['flash_ejecucion_tipo'] = 'success';
     } else {
-        $_SESSION['flash_ejecucion'] = $resumen;
+        $_SESSION['flash_ejecucion'] = 'Stock revisado correctamente.';
+        $_SESSION['flash_ejecucion_tipo'] = 'success';
     }
     header('Location: index.php?ok=ejecutado');
     exit;

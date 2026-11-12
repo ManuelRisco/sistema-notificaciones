@@ -18,6 +18,9 @@ $todosSoportados = getAlmacenesSoportados();
 // Modo oscuro (cookie compartida entre todas las páginas)
 $darkMode = aplicarModoOscuro();
 
+// Obtener la base de datos seleccionada
+$nombreBD = getDatabaseName();
+
 $error = null;
 
 // Procesar selección de almacén vía POST
@@ -69,11 +72,18 @@ if (isset($_GET['alm'])) {
             <h1>LISTA DE ALMACENES</h1>
         </div>
 
+        <div class="encabezado-base-datos">
+                <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
+        </div>
+
         <div class="encabezado-derecha">
             <div class="encabezado-usuario-barra">
                 <?php if (!empty($usuario)): ?>
                     <div class="usuario-sesion-pill" title="Usuario: <?= htmlspecialchars($usuario['usr_codigo'] ?? '', ENT_QUOTES, 'UTF-8') ?> | Rol: <?= htmlspecialchars($usuario['pus_codigo'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <span class="usuario-sesion-nombre"><?= htmlspecialchars($usuario['usr_nombre'] ?: $usuario['usr_codigo'], ENT_QUOTES, 'UTF-8') ?></span>
+                        <span>USUARIO: </span>
+                            <strong>
+                                <span class="usuario-sesion-nombre"><?= htmlspecialchars($usuario['usr_nombre'] ?: $usuario['usr_codigo'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </strong>
                     </div>
                     <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
                         Salir
