@@ -265,9 +265,6 @@ $nombreBD = getDatabaseName();
             </svg>
             Cambiar Almacén
         </a>
-        <a href="index.php" class="btn btn-secundario btn-icono-actualizar" title="Actualizar datos">
-            <img src="<?= h(assetUrl('img/repetir.png')) ?>" class="icono-invertible icono-btn" alt="Actualizar">
-        </a>
         <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
             <input type="hidden" name="csrf_token" value="<?= h(generarTokenCsrf()) ?>">
             <input type="hidden" name="almacen" value="<?= h($almActivo) ?>">
@@ -350,9 +347,10 @@ $nombreBD = getDatabaseName();
                         <button
                                 type="button"
                                 id="btn-pantalla-completa"
-                                class="btn btn-secundario btn-pantalla-completa"
+                                class="btn btn-secundario btn-accion-icono btn-pantalla-completa"
                                 aria-pressed="false"
                                 title="Ver tabla en pantalla completa"
+                                aria-label="Ver tabla en pantalla completa"
                         >
                             <svg class="icono-expandir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <polyline points="15 3 21 3 21 9"></polyline>
@@ -368,6 +366,19 @@ $nombreBD = getDatabaseName();
                             </svg>
                         </button>
                     <?php endif; ?>
+                    <a
+                            href="<?= h(urlConFiltros()) ?>"
+                            id="btn-recargar-pagina"
+                            class="btn btn-secundario btn-accion-icono"
+                            title="Recargar página"
+                            aria-label="Recargar página"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </a>
                 </div>
             </form>
 

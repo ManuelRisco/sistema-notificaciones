@@ -181,19 +181,6 @@ html.dark-mode .btn-toggle-dark .icono-tema-luna {
     display: none;
 }
 
-.btn.btn-icono-actualizar {
-    padding: 8px 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.icono-btn {
-    width: 18px;
-    height: 18px;
-    vertical-align: middle;
-}
-
 .form-ejecutar-manual {
     display: inline-flex;
     margin: 0;

@@ -588,15 +588,9 @@ function iniciarIndex(config = {}) {
         document.body.classList.toggle('tabla-fullscreen-abierta', activar);
         btnPantallaCompleta.classList.toggle('activo', activar);
         btnPantallaCompleta.setAttribute('aria-pressed', activar ? 'true' : 'false');
-        btnPantallaCompleta.setAttribute(
-            'title',
-            activar ? 'Salir de pantalla completa (Esc)' : 'Ver tabla en pantalla completa'
-        );
-
-        const textoSpan = btnPantallaCompleta.querySelector('.btn-pantalla-texto');
-        if (textoSpan) {
-            textoSpan.textContent = activar ? 'Salir de pantalla completa' : 'Pantalla completa';
-        }
+        const tituloFullscreen = activar ? 'Salir de pantalla completa (Esc)' : 'Ver tabla en pantalla completa';
+        btnPantallaCompleta.setAttribute('title', tituloFullscreen);
+        btnPantallaCompleta.setAttribute('aria-label', tituloFullscreen);
 
         try {
             if (activar) {
@@ -608,6 +602,14 @@ function iniciarIndex(config = {}) {
     }
 
     window.establecerPantallaCompletaTabla = establecerPantallaCompletaTabla;
+
+    const btnRecargarPagina = document.getElementById('btn-recargar-pagina');
+    if (btnRecargarPagina) {
+        btnRecargarPagina.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.location.reload();
+        });
+    }
 
     if (btnPantallaCompleta && panelTabla && tablaContenedor) {
         btnPantallaCompleta.addEventListener('click', function() {

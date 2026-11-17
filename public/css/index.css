@@ -152,6 +152,13 @@
     white-space: nowrap;
 }
 
+.busqueda-form .btn.btn-accion-icono {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+}
+
 .btn.btn-pantalla-completa .icono-contraer {
     display: none;
 }
@@ -640,14 +647,14 @@ tbody tr.fila-inactiva:hover td {
     }
 
     .busqueda-acciones {
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
         width: 100%;
         gap: 10px;
     }
 
-    .busqueda-acciones .btn,
-    .busqueda-form .btn {
-        width: 100%;
+    .busqueda-acciones #btn-limpiar-filtros {
+        flex: 1;
     }
 
     .resumen {
