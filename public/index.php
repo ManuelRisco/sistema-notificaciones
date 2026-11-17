@@ -288,258 +288,283 @@ $nombreBD = getDatabaseName();
         <?php require __DIR__ . '/includes/tarjetas_resumen.php'; ?>
     <?php endif; ?>
 
-    <!-- BUSCADOR POR CÓDIGO O NOMBRE DE ARTÍCULO -->
-    <div class="busqueda-contenedor">
-        <form
-                action="index.php"
-                method="GET"
-                class="busqueda-form"
-        >
-            <?php if ($filtroDisponible !== ''): ?>
-                <input type="hidden" name="disponible" value="<?= h($filtroDisponible) ?>">
-            <?php endif; ?>
-            <?php if ($filtroStock !== ''): ?>
-                <input type="hidden" name="stock" value="<?= h($filtroStock) ?>">
-            <?php endif; ?>
-            <?php if ($filtroCorreo !== ''): ?>
-                <input type="hidden" name="correo" value="<?= h($filtroCorreo) ?>">
-            <?php endif; ?>
-            <?php if ($filtroCatalogo !== ''): ?>
-                <input type="hidden" name="catalogo" value="<?= h($filtroCatalogo) ?>">
-            <?php endif; ?>
-            <?php if ($filtroCategoria !== ''): ?>
-                <input type="hidden" name="categoria" value="<?= h($filtroCategoria) ?>">
-            <?php endif; ?>
-            <?php if ($filtroFamilia !== ''): ?>
-                <input type="hidden" name="familia" value="<?= h($filtroFamilia) ?>">
-            <?php endif; ?>
-            <?php if ($filtroTfa !== ''): ?>
-                <input type="hidden" name="tfa" value="<?= h($filtroTfa) ?>">
-            <?php endif; ?>
-            <?php if ($orden !== ''): ?>
-                <input type="hidden" name="orden" value="<?= h($orden) ?>">
-            <?php endif; ?>
-            <input type="hidden" name="por_pagina" id="hidden-por-pagina" value="<?= (int) $porPagina ?>">
+    <!-- PANEL DE BÚSQUEDA, TABLA Y PAGINACIÓN (SOPORTA PANTALLA COMPLETA) -->
+    <div id="panel-tabla-index" class="panel-tabla-index">
+        <!-- BUSCADOR POR CÓDIGO O NOMBRE DE ARTÍCULO -->
+        <div class="busqueda-contenedor">
+            <form
+                    action="index.php"
+                    method="GET"
+                    class="busqueda-form"
+            >
+                <?php if ($filtroDisponible !== ''): ?>
+                    <input type="hidden" name="disponible" value="<?= h($filtroDisponible) ?>">
+                <?php endif; ?>
+                <?php if ($filtroStock !== ''): ?>
+                    <input type="hidden" name="stock" value="<?= h($filtroStock) ?>">
+                <?php endif; ?>
+                <?php if ($filtroCorreo !== ''): ?>
+                    <input type="hidden" name="correo" value="<?= h($filtroCorreo) ?>">
+                <?php endif; ?>
+                <?php if ($filtroCatalogo !== ''): ?>
+                    <input type="hidden" name="catalogo" value="<?= h($filtroCatalogo) ?>">
+                <?php endif; ?>
+                <?php if ($filtroCategoria !== ''): ?>
+                    <input type="hidden" name="categoria" value="<?= h($filtroCategoria) ?>">
+                <?php endif; ?>
+                <?php if ($filtroFamilia !== ''): ?>
+                    <input type="hidden" name="familia" value="<?= h($filtroFamilia) ?>">
+                <?php endif; ?>
+                <?php if ($filtroTfa !== ''): ?>
+                    <input type="hidden" name="tfa" value="<?= h($filtroTfa) ?>">
+                <?php endif; ?>
+                <?php if ($orden !== ''): ?>
+                    <input type="hidden" name="orden" value="<?= h($orden) ?>">
+                <?php endif; ?>
+                <input type="hidden" name="por_pagina" id="hidden-por-pagina" value="<?= (int) $porPagina ?>">
 
-            <div class="busqueda-campo busqueda-campo-texto">
-                <label for="articulo">
-                    Buscar artículo por código o nombre
-                </label>
-                <input
-                        type="search"
-                        id="articulo"
-                        name="q"
-                        maxlength="50"
-                        value="<?= h($busqueda) ?>"
-                        placeholder="020100427 | ROJO BANDERA 409"
-                        autocomplete="off"
-                >
-            </div>
-            <div class="busqueda-acciones">
-                <a
-                        href="index.php"
-                        id="btn-limpiar-filtros"
-                        class="btn btn-secundario"
-                        style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>"
-                >
-                    Limpiar filtros
-                </a>
-            </div>
-        </form>
+                <div class="busqueda-campo busqueda-campo-texto">
+                    <label for="articulo">
+                        Buscar artículo por código o nombre
+                    </label>
+                    <input
+                            type="search"
+                            id="articulo"
+                            name="q"
+                            maxlength="50"
+                            value="<?= h($busqueda) ?>"
+                            placeholder="020100427 | ROJO BANDERA 409"
+                            autocomplete="off"
+                    >
+                </div>
+                <div class="busqueda-acciones">
+                    <a
+                            href="index.php"
+                            id="btn-limpiar-filtros"
+                            class="btn btn-secundario"
+                            style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>"
+                    >
+                        Limpiar filtros
+                    </a>
+                    <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
+                        <button
+                                type="button"
+                                id="btn-pantalla-completa"
+                                class="btn btn-secundario btn-pantalla-completa"
+                                aria-pressed="false"
+                                title="Ver tabla en pantalla completa"
+                        >
+                            <svg class="icono-expandir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <polyline points="9 21 3 21 3 15"></polyline>
+                                <line x1="21" y1="3" x2="14" y2="10"></line>
+                                <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                            <svg class="icono-contraer" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <polyline points="4 14 10 14 10 20"></polyline>
+                                <polyline points="20 10 14 10 14 4"></polyline>
+                                <line x1="14" y1="10" x2="21" y2="3"></line>
+                                <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </form>
 
-        <p id="busqueda-resultados" class="busqueda-resultados" style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>">
-            <?php renderResumenFiltrosIndex($hayFiltrosActivos, $busqueda, $totalRegistrosFiltrados); ?>
-        </p>
-    </div>
+            <p id="busqueda-resultados" class="busqueda-resultados" style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>">
+                <?php renderResumenFiltrosIndex($hayFiltrosActivos, $busqueda, $totalRegistrosFiltrados); ?>
+            </p>
+        </div>
 
-    <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
-        <div class="tabla-contenedor">
-            <table>
-                <thead>
-                <tr>
-                    <th>Artículo</th>
-                    <?php
-                    $construirOpcionesClasificacion = static function (string $claveParam, string $valorActivo, array $lista): array {
-                        $opciones = [[
-                            'href' => urlConFiltros([$claveParam => '', 'pagina' => '']),
-                            'seleccionada' => ($valorActivo === ''),
-                            'texto' => 'Todas las opciones',
-                        ]];
-                        foreach ($lista as $item) {
-                            $opciones[] = [
-                                'href' => urlConFiltros([$claveParam => ($valorActivo === $item ? '' : $item), 'pagina' => '']),
-                                'seleccionada' => ($valorActivo === $item),
-                                'texto' => $item,
-                                'title' => $item,
+        <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
+            <div class="tabla-contenedor">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Artículo</th>
+                        <?php
+                        $construirOpcionesClasificacion = static function (string $claveParam, string $valorActivo, array $lista): array {
+                            $opciones = [[
+                                'href' => urlConFiltros([$claveParam => '', 'pagina' => '']),
+                                'seleccionada' => ($valorActivo === ''),
+                                'texto' => 'Todas las opciones',
+                            ]];
+                            foreach ($lista as $item) {
+                                $opciones[] = [
+                                    'href' => urlConFiltros([$claveParam => ($valorActivo === $item ? '' : $item), 'pagina' => '']),
+                                    'seleccionada' => ($valorActivo === $item),
+                                    'texto' => $item,
+                                    'title' => $item,
+                                ];
+                            }
+                            return $opciones;
+                        };
+
+                        renderThFiltro(
+                            'Categoría',
+                            'menu-filtro-categoria',
+                            $filtroCategoria !== '',
+                            'Filtrar por Categoría',
+                            $construirOpcionesClasificacion('categoria', $filtroCategoria, $opcionesCategoria)
+                        );
+                        renderThFiltro(
+                            'Familia',
+                            'menu-filtro-familia',
+                            $filtroFamilia !== '',
+                            'Filtrar por Familia',
+                            $construirOpcionesClasificacion('familia', $filtroFamilia, $opcionesFamilia)
+                        );
+                        renderThFiltro(
+                            'Tipo familia',
+                            'menu-filtro-tfa',
+                            $filtroTfa !== '',
+                            'Filtrar por Tipo familia',
+                            $construirOpcionesClasificacion('tfa', $filtroTfa, $opcionesTfa)
+                        );
+
+                        renderThFiltro(
+                            'Stock físico',
+                            'menu-filtro-stock-fisico',
+                            in_array($orden, ['stock_desc', 'stock_asc'], true),
+                            'Ordenar por Stock físico',
+                            [
+                                [
+                                    'href' => urlConFiltros(['orden' => '', 'pagina' => '']),
+                                    'seleccionada' => !in_array($orden, ['stock_desc', 'stock_asc'], true),
+                                    'texto' => 'Por defecto',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['orden' => ($orden === 'stock_desc' ? '' : 'stock_desc'), 'pagina' => '']),
+                                    'seleccionada' => ($orden === 'stock_desc'),
+                                    'texto' => 'De mayor a menor (↓)',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['orden' => ($orden === 'stock_asc' ? '' : 'stock_asc'), 'pagina' => '']),
+                                    'seleccionada' => ($orden === 'stock_asc'),
+                                    'texto' => 'De menor a mayor (↑)',
+                                ],
+                            ]
+                        );
+
+                        renderThFiltro(
+                            'Stock mínimo',
+                            'menu-filtro-stock-minimo',
+                            in_array($orden, ['minimo_desc', 'minimo_asc'], true),
+                            'Ordenar por Stock mínimo',
+                            [
+                                [
+                                    'href' => urlConFiltros(['orden' => '', 'pagina' => '']),
+                                    'seleccionada' => !in_array($orden, ['minimo_desc', 'minimo_asc'], true),
+                                    'texto' => 'Por defecto',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['orden' => ($orden === 'minimo_desc' ? '' : 'minimo_desc'), 'pagina' => '']),
+                                    'seleccionada' => ($orden === 'minimo_desc'),
+                                    'texto' => 'De mayor a menor (↓)',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['orden' => ($orden === 'minimo_asc' ? '' : 'minimo_asc'), 'pagina' => '']),
+                                    'seleccionada' => ($orden === 'minimo_asc'),
+                                    'texto' => 'De menor a mayor (↑)',
+                                ],
+                            ]
+                        );
+
+                        $opcionesFiltroStock = [
+                            [
+                                'href' => urlConFiltros(['stock' => '', 'catalogo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroStock === '' && $filtroCatalogo === ''),
+                                'texto' => 'Todas las opciones',
+                            ],
+                            [
+                                'href' => urlConFiltros(['stock' => '0', 'catalogo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroStock === '0'),
+                                'texto' => 'Con Stock',
+                            ],
+                            [
+                                'href' => urlConFiltros(['stock' => '1', 'catalogo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroStock === '1'),
+                                'texto' => 'Sin Stock',
+                            ],
+                        ];
+                        if ($totales['no_encontrados'] > 0) {
+                            $opcionesFiltroStock[] = [
+                                'href' => urlConFiltros(['catalogo' => 'no_encontrado', 'stock' => '', 'correo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroCatalogo === 'no_encontrado'),
+                                'texto' => 'No encontrado en catálogo',
                             ];
                         }
-                        return $opciones;
-                    };
+                        renderThFiltro(
+                            'Band. stock',
+                            'menu-filtro-stock',
+                            ($filtroStock !== '' || $filtroCatalogo === 'no_encontrado'),
+                            'Filtrar por Stock',
+                            $opcionesFiltroStock
+                        );
 
-                    renderThFiltro(
-                        'Categoría',
-                        'menu-filtro-categoria',
-                        $filtroCategoria !== '',
-                        'Filtrar por Categoría',
-                        $construirOpcionesClasificacion('categoria', $filtroCategoria, $opcionesCategoria)
-                    );
-                    renderThFiltro(
-                        'Familia',
-                        'menu-filtro-familia',
-                        $filtroFamilia !== '',
-                        'Filtrar por Familia',
-                        $construirOpcionesClasificacion('familia', $filtroFamilia, $opcionesFamilia)
-                    );
-                    renderThFiltro(
-                        'Tipo familia',
-                        'menu-filtro-tfa',
-                        $filtroTfa !== '',
-                        'Filtrar por Tipo familia',
-                        $construirOpcionesClasificacion('tfa', $filtroTfa, $opcionesTfa)
-                    );
+                        renderThFiltro(
+                            'Band. correo',
+                            'menu-filtro-correo',
+                            $filtroCorreo !== '',
+                            'Filtrar por Correo',
+                            [
+                                [
+                                    'href' => urlConFiltros(['correo' => '', 'catalogo' => '', 'pagina' => '']),
+                                    'seleccionada' => ($filtroCorreo === ''),
+                                    'texto' => 'Todas las opciones',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['correo' => '1', 'catalogo' => '', 'pagina' => '']),
+                                    'seleccionada' => ($filtroCorreo === '1'),
+                                    'texto' => 'Correo enviado',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['correo' => '0', 'catalogo' => '', 'pagina' => '']),
+                                    'seleccionada' => ($filtroCorreo === '0'),
+                                    'texto' => 'Correo no enviado',
+                                ],
+                            ]
+                        );
 
-                    renderThFiltro(
-                        'Stock físico',
-                        'menu-filtro-stock-fisico',
-                        in_array($orden, ['stock_desc', 'stock_asc'], true),
-                        'Ordenar por Stock físico',
-                        [
+                        renderThFiltro(
+                            'Estado',
+                            'menu-filtro-estado',
+                            $filtroDisponible !== '',
+                            'Filtrar por Estado',
                             [
-                                'href' => urlConFiltros(['orden' => '', 'pagina' => '']),
-                                'seleccionada' => !in_array($orden, ['stock_desc', 'stock_asc'], true),
-                                'texto' => 'Por defecto',
-                            ],
-                            [
-                                'href' => urlConFiltros(['orden' => ($orden === 'stock_desc' ? '' : 'stock_desc'), 'pagina' => '']),
-                                'seleccionada' => ($orden === 'stock_desc'),
-                                'texto' => 'De mayor a menor (↓)',
-                            ],
-                            [
-                                'href' => urlConFiltros(['orden' => ($orden === 'stock_asc' ? '' : 'stock_asc'), 'pagina' => '']),
-                                'seleccionada' => ($orden === 'stock_asc'),
-                                'texto' => 'De menor a mayor (↑)',
-                            ],
-                        ]
-                    );
+                                [
+                                    'href' => urlConFiltros(['disponible' => '', 'pagina' => '']),
+                                    'seleccionada' => ($filtroDisponible === ''),
+                                    'texto' => 'Todas las opciones',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['disponible' => '1', 'pagina' => '']),
+                                    'seleccionada' => ($filtroDisponible === '1'),
+                                    'texto' => 'Disponible',
+                                ],
+                                [
+                                    'href' => urlConFiltros(['disponible' => '0', 'pagina' => '']),
+                                    'seleccionada' => ($filtroDisponible === '0'),
+                                    'texto' => 'No disponible',
+                                ],
+                            ]
+                        );
+                        ?>
 
-                    renderThFiltro(
-                        'Stock mínimo',
-                        'menu-filtro-stock-minimo',
-                        in_array($orden, ['minimo_desc', 'minimo_asc'], true),
-                        'Ordenar por Stock mínimo',
-                        [
-                            [
-                                'href' => urlConFiltros(['orden' => '', 'pagina' => '']),
-                                'seleccionada' => !in_array($orden, ['minimo_desc', 'minimo_asc'], true),
-                                'texto' => 'Por defecto',
-                            ],
-                            [
-                                'href' => urlConFiltros(['orden' => ($orden === 'minimo_desc' ? '' : 'minimo_desc'), 'pagina' => '']),
-                                'seleccionada' => ($orden === 'minimo_desc'),
-                                'texto' => 'De mayor a menor (↓)',
-                            ],
-                            [
-                                'href' => urlConFiltros(['orden' => ($orden === 'minimo_asc' ? '' : 'minimo_asc'), 'pagina' => '']),
-                                'seleccionada' => ($orden === 'minimo_asc'),
-                                'texto' => 'De menor a mayor (↑)',
-                            ],
-                        ]
-                    );
+                        <th>Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tabla-configuraciones-body">
+                    <?php renderFilasTablaConfiguracion($registros, $hayFiltrosActivos); ?>
+                    </tbody>
+                </table>
+            </div>
 
-                    $opcionesFiltroStock = [
-                        [
-                            'href' => urlConFiltros(['stock' => '', 'catalogo' => '', 'pagina' => '']),
-                            'seleccionada' => ($filtroStock === '' && $filtroCatalogo === ''),
-                            'texto' => 'Todas las opciones',
-                        ],
-                        [
-                            'href' => urlConFiltros(['stock' => '0', 'catalogo' => '', 'pagina' => '']),
-                            'seleccionada' => ($filtroStock === '0'),
-                            'texto' => 'Con Stock',
-                        ],
-                        [
-                            'href' => urlConFiltros(['stock' => '1', 'catalogo' => '', 'pagina' => '']),
-                            'seleccionada' => ($filtroStock === '1'),
-                            'texto' => 'Sin Stock',
-                        ],
-                    ];
-                    if ($totales['no_encontrados'] > 0) {
-                        $opcionesFiltroStock[] = [
-                            'href' => urlConFiltros(['catalogo' => 'no_encontrado', 'stock' => '', 'correo' => '', 'pagina' => '']),
-                            'seleccionada' => ($filtroCatalogo === 'no_encontrado'),
-                            'texto' => 'No encontrado en catálogo',
-                        ];
-                    }
-                    renderThFiltro(
-                        'Band. stock',
-                        'menu-filtro-stock',
-                        ($filtroStock !== '' || $filtroCatalogo === 'no_encontrado'),
-                        'Filtrar por Stock',
-                        $opcionesFiltroStock
-                    );
-
-                    renderThFiltro(
-                        'Band. correo',
-                        'menu-filtro-correo',
-                        $filtroCorreo !== '',
-                        'Filtrar por Correo',
-                        [
-                            [
-                                'href' => urlConFiltros(['correo' => '', 'catalogo' => '', 'pagina' => '']),
-                                'seleccionada' => ($filtroCorreo === ''),
-                                'texto' => 'Todas las opciones',
-                            ],
-                            [
-                                'href' => urlConFiltros(['correo' => '1', 'catalogo' => '', 'pagina' => '']),
-                                'seleccionada' => ($filtroCorreo === '1'),
-                                'texto' => 'Correo enviado',
-                            ],
-                            [
-                                'href' => urlConFiltros(['correo' => '0', 'catalogo' => '', 'pagina' => '']),
-                                'seleccionada' => ($filtroCorreo === '0'),
-                                'texto' => 'Correo no enviado',
-                            ],
-                        ]
-                    );
-
-                    renderThFiltro(
-                        'Estado',
-                        'menu-filtro-estado',
-                        $filtroDisponible !== '',
-                        'Filtrar por Estado',
-                        [
-                            [
-                                'href' => urlConFiltros(['disponible' => '', 'pagina' => '']),
-                                'seleccionada' => ($filtroDisponible === ''),
-                                'texto' => 'Todas las opciones',
-                            ],
-                            [
-                                'href' => urlConFiltros(['disponible' => '1', 'pagina' => '']),
-                                'seleccionada' => ($filtroDisponible === '1'),
-                                'texto' => 'Disponible',
-                            ],
-                            [
-                                'href' => urlConFiltros(['disponible' => '0', 'pagina' => '']),
-                                'seleccionada' => ($filtroDisponible === '0'),
-                                'texto' => 'No disponible',
-                            ],
-                        ]
-                    );
-                    ?>
-
-                    <th>Acciones</th>
-                </tr>
-                </thead>
-                <tbody id="tabla-configuraciones-body">
-                <?php renderFilasTablaConfiguracion($registros, $hayFiltrosActivos); ?>
-                </tbody>
-            </table>
-        </div>
-
-        <div id="paginacion-index">
-            <?php renderPaginacionIndex($paginaActual, $totalPaginas, $totalRegistrosFiltrados, $porPagina, $urlPagina); ?>
-        </div>
-    <?php endif; ?>
+            <div id="paginacion-index">
+                <?php renderPaginacionIndex($paginaActual, $totalPaginas, $totalRegistrosFiltrados, $porPagina, $urlPagina); ?>
+            </div>
+        <?php endif; ?>
+    </div>
 </main>
 
 <script src="<?= h(assetUrl('js/index.js')) ?>"></script>

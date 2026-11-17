@@ -42,14 +42,26 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Cerrar menús con la tecla Escape
+// Cerrar menús o salir de pantalla completa con la tecla Escape (priorizando SweetAlert y menús abiertos)
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.menu-filtro').forEach(function(m) {
+    if (e.key !== 'Escape') return;
+
+    const menusAbiertos = document.querySelectorAll('.menu-filtro.menu-abierto');
+    if (menusAbiertos.length > 0) {
+        menusAbiertos.forEach(function(m) {
             m.classList.remove('menu-abierto');
             const th = m.closest('.th-filtrable');
             if (th) th.classList.remove('th-menu-activo');
         });
+        return;
+    }
+
+    const swalAbierto = typeof Swal !== 'undefined' && typeof Swal.isVisible === 'function' && Swal.isVisible();
+    if (!swalAbierto && typeof window.establecerPantallaCompletaTabla === 'function') {
+        const panelTabla = document.getElementById('panel-tabla-index');
+        if (panelTabla && panelTabla.classList.contains('tabla-pantalla-completa')) {
+            window.establecerPantallaCompletaTabla(false);
+        }
     }
 });
 
@@ -561,6 +573,65 @@ function iniciarIndex(config = {}) {
                 cargarTablaIndex({ pagina: 1, porPagina: nuevoTam, scrollTabla: true });
             }
         });
+    }
+
+    // 5. Modo pantalla completa para el panel de búsqueda, tabla y paginación
+    const panelTabla = document.getElementById('panel-tabla-index');
+    const btnPantallaCompleta = document.getElementById('btn-pantalla-completa');
+    const STORAGE_FULLSCREEN_KEY = 'index_tabla_fullscreen';
+
+    function establecerPantallaCompletaTabla(activo) {
+        if (!panelTabla || !btnPantallaCompleta) return;
+
+        const activar = Boolean(activo);
+        panelTabla.classList.toggle('tabla-pantalla-completa', activar);
+        document.body.classList.toggle('tabla-fullscreen-abierta', activar);
+        btnPantallaCompleta.classList.toggle('activo', activar);
+        btnPantallaCompleta.setAttribute('aria-pressed', activar ? 'true' : 'false');
+        btnPantallaCompleta.setAttribute(
+            'title',
+            activar ? 'Salir de pantalla completa (Esc)' : 'Ver tabla en pantalla completa'
+        );
+
+        const textoSpan = btnPantallaCompleta.querySelector('.btn-pantalla-texto');
+        if (textoSpan) {
+            textoSpan.textContent = activar ? 'Salir de pantalla completa' : 'Pantalla completa';
+        }
+
+        try {
+            if (activar) {
+                sessionStorage.setItem(STORAGE_FULLSCREEN_KEY, '1');
+            } else {
+                sessionStorage.removeItem(STORAGE_FULLSCREEN_KEY);
+            }
+        } catch (_) {}
+    }
+
+    window.establecerPantallaCompletaTabla = establecerPantallaCompletaTabla;
+
+    if (btnPantallaCompleta && panelTabla && tablaContenedor) {
+        btnPantallaCompleta.addEventListener('click', function() {
+            const estaActiva = panelTabla.classList.contains('tabla-pantalla-completa');
+            establecerPantallaCompletaTabla(!estaActiva);
+        });
+
+        // Al salir hacia otras vistas (Editar, Crear, Cambiar almacén, Logout), restaurar vista normal
+        document.addEventListener('click', function(e) {
+            const enlace = e.target.closest ? e.target.closest('a[href]') : null;
+            if (!enlace) return;
+            const href = enlace.getAttribute('href') || '';
+            if (href && !href.startsWith('index.php') && !href.startsWith('?') && !href.startsWith('#')) {
+                try {
+                    sessionStorage.removeItem(STORAGE_FULLSCREEN_KEY);
+                } catch (_) {}
+            }
+        });
+
+        try {
+            if (sessionStorage.getItem(STORAGE_FULLSCREEN_KEY) === '1') {
+                establecerPantallaCompletaTabla(true);
+            }
+        } catch (_) {}
     }
 }
 
