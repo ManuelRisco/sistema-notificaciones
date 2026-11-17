@@ -184,6 +184,12 @@
     min-height: 280px;
     -webkit-overflow-scrolling: touch;
     position: relative;
+    transition: opacity 0.15s ease;
+}
+
+.tabla-contenedor.tabla-cargando {
+    opacity: 0.6;
+    pointer-events: none;
 }
 
 table {
@@ -236,8 +242,8 @@ td:first-child strong {
 }
 
 /* Alineación numérica de Stock físico y Stock mínimo */
-th:nth-child(2), td:nth-child(2),
-th:nth-child(3), td:nth-child(3) {
+th:nth-child(5), td:nth-child(5),
+th:nth-child(6), td:nth-child(6) {
     text-align: right;
     font-variant-numeric: tabular-nums;
     padding-right: 12px;
@@ -431,26 +437,6 @@ tbody tr:hover {
     font-size: 13px;
 }
 
-.fecha-contenedor {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 1px;
-    line-height: 1.15;
-}
-
-.fecha-dia {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--color-texto);
-    white-space: nowrap;
-}
-
-.fecha-hora {
-    font-size: 10.5px;
-    color: var(--color-texto-muted);
-    white-space: nowrap;
-}
-
 /* ========================================================================== 
    6. REGISTROS DESHABILITADOS / BORRADO LÓGICO
    ========================================================================== */
@@ -516,6 +502,45 @@ tbody tr.fila-inactiva:hover td {
     background-color: var(--color-peligro-fondo);
     color: var(--color-peligro-texto);
     border-color: var(--color-peligro-borde);
+}
+
+.swal-articulo-nombre {
+    color: var(--color-texto);
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 6px;
+    line-height: 1.35;
+}
+
+.swal-articulo-detalle {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--color-fondo);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-control);
+    font-size: 12.5px;
+    text-align: left;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 260px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.swal-articulo-detalle-fila {
+    display: flex;
+    gap: 8px;
+}
+
+.swal-articulo-detalle-fila span {
+    color: var(--color-texto-muted);
+    font-weight: 600;
+    min-width: 82px;
+}
+
+.swal-articulo-detalle-fila strong {
+    color: var(--color-texto);
 }
 
 /* ========================================================================== 

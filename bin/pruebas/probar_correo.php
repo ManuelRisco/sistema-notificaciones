@@ -2,18 +2,9 @@
 
 declare(strict_types=1);
 
-use Dotenv\Dotenv;
 use Manue\SistemaNotificaciones\EmailService;
 
-$raiz = dirname(__DIR__, 2);
-
-require_once $raiz . '/vendor/autoload.php';
-require_once $raiz . '/config/almacenes.php';
-
-if (file_exists($raiz . '/.env')) {
-    $dotenv = Dotenv::createImmutable($raiz);
-    $dotenv->safeLoad();
-}
+require_once dirname(__DIR__, 2) . '/config/bootstrap.php';
 
 try {
     $emailService = new EmailService();

@@ -22,7 +22,6 @@ $darkMode = aplicarModoOscuro();
 
 $error = null;
 $usuarioInput = '';
-$esLogout = isset($_GET['logout']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $esAjax = esSolicitudAjax();
@@ -78,10 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Sistema de Alertas de Stock</title>
-    <script src="js/comun.js"></script>
-    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
-    <link rel="stylesheet" href="css/login.css?v=<?= file_exists(__DIR__ . '/css/login.css') ? filemtime(__DIR__ . '/css/login.css') : time() ?>">
-    <script src="js/sweetalert2.all.min.js"></script>
+    <script src="<?= h(assetUrl('js/comun.js')) ?>"></script>
+    <link rel="stylesheet" href="<?= h(assetUrl('css/estilos.css')) ?>">
+    <link rel="stylesheet" href="<?= h(assetUrl('css/login.css')) ?>">
+    <script src="<?= h(assetUrl('js/sweetalert2.all.min.js')) ?>"></script>
 </head>
 <body>
 <div class="login-wrapper">
@@ -98,8 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="login-header">
-            <img src="img/tecnofilm.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm.png') ? filemtime(__DIR__ . '/img/tecnofilm.png') : time() ?>" alt="tecnofilm" class="login-logo logo-claro">
-            <img src="img/tecnofilm_dark.png?v=<?= file_exists(__DIR__ . '/img/tecnofilm_dark.png') ? filemtime(__DIR__ . '/img/tecnofilm_dark.png') : time() ?>" alt="tecnofilm" class="login-logo logo-oscuro">
+            <img src="<?= h(assetUrl('img/tecnofilm.png')) ?>" alt="tecnofilm" class="login-logo logo-claro">
+            <img src="<?= h(assetUrl('img/tecnofilm_dark.png')) ?>" alt="tecnofilm" class="login-logo logo-oscuro">
             <h1>Sistema de Notificaciones</h1>
             <p>Login de Acceso</p>
         </div>
@@ -159,145 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<script>
-// Función global para cerrar/desvanecer cualquier alerta con animación
-function cerrarAlerta(el) {
-    if (!el) return;
-    el.classList.add('oculta');
-    setTimeout(() => {
-        el.style.display = 'none';
-        el.classList.remove('oculta');
-    }, 450);
-}
-
-// Temporizador para auto-desaparecer tras N milisegundos
-function autoDesaparecerAlerta(el, delayMs = 3500) {
-    if (!el) return null;
-    return setTimeout(() => {
-        cerrarAlerta(el);
-    }, delayMs);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('form-login');
-    const inputUsuario = document.getElementById('usuario');
-    const inputClave = document.getElementById('clave');
-    const btnToggleClave = document.getElementById('btn-toggle-clave');
-    const btnSubmit = document.getElementById('btn-submit');
-    const btnTexto = document.getElementById('btn-texto');
-    const divError = document.getElementById('mensaje-error');
-    const divErrorTexto = document.getElementById('mensaje-error-texto');
-    const alertaLogout = document.getElementById('alerta-logout');
-    let timerError = null;
-
-    // Si hay alerta de logout, hacerla desaparecer a los 1.5s y limpiar URL
-    if (alertaLogout) {
-        autoDesaparecerAlerta(alertaLogout, 1500);
-        if (window.history && window.history.replaceState) {
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }
-
-    // Si vino error renderizado desde PHP, hacerlo desaparecer a los 1.5s
-    if (divError && divError.style.display !== 'none' && divErrorTexto && divErrorTexto.textContent.trim() !== '') {
-        timerError = autoDesaparecerAlerta(divError, 1500);
-    }
-
-    // Al escribir en usuario o clave, ocultar el error inmediatamente
-    [inputUsuario, inputClave].forEach(input => {
-        input.addEventListener('input', () => {
-            if (divError && divError.style.display !== 'none') {
-                if (timerError) clearTimeout(timerError);
-                cerrarAlerta(divError);
-            }
-        });
-    });
-
-    // Alternar visibilidad de contraseña
-    btnToggleClave.addEventListener('click', function() {
-        const tipoActual = inputClave.getAttribute('type');
-        if (tipoActual === 'password') {
-            inputClave.setAttribute('type', 'text');
-            btnToggleClave.textContent = '🔒';
-        } else {
-            inputClave.setAttribute('type', 'password');
-            btnToggleClave.textContent = '👁️‍🗨️';
-        }
-    });
-
-    // Envío asíncrono para almacenamiento seguro de token en navegador
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const usuario = inputUsuario.value.trim().toUpperCase();
-        const clave = inputClave.value;
-
-        if (!usuario || !clave) {
-            mostrarError('Por favor complete todos los campos.');
-            return;
-        }
-
-        btnSubmit.disabled = true;
-        btnTexto.textContent = 'Validando credenciales...';
-        if (timerError) clearTimeout(timerError);
-        divError.style.display = 'none';
-
-        const formData = new FormData(form);
-        formData.append('formato', 'json');
-
-        fetch('login.php', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: formData
-        })
-        .then(response => {
-            return response.json().then(data => ({
-                status: response.status,
-                data: data
-            })).catch(() => ({
-                status: response.status,
-                data: { exito: false, error: 'Respuesta inválida del servidor.' }
-            }));
-        })
-        .then(({ status, data }) => {
-            if (data && data.exito) {
-                // Limpiar cualquier residuo de credenciales o tokens en el cliente
-                try {
-                    localStorage.removeItem('auth_token');
-                    sessionStorage.removeItem('auth_token');
-                    localStorage.removeItem('auth_user');
-                } catch (_) {}
-
-                btnTexto.textContent = '¡Acceso concedido!';
-                window.location.href = data.redirigir || 'index.php';
-            } else {
-                mostrarError((data && data.error) ? data.error : 'Usuario o contraseña incorrectos.');
-                btnSubmit.disabled = false;
-                btnTexto.textContent = 'Ingresar al Sistema';
-                inputClave.value = '';
-                inputClave.focus();
-            }
-        })
-        .catch(err => {
-            mostrarError('Error de conexión al servidor. Inténtalo nuevamente.');
-            btnSubmit.disabled = false;
-            btnTexto.textContent = 'Ingresar al Sistema';
-        });
-    });
-
-    function mostrarError(mensaje) {
-        if (timerError) clearTimeout(timerError);
-        divErrorTexto.textContent = mensaje;
-        divError.classList.remove('oculta');
-        divError.style.display = 'flex';
-
-        // Desaparece automáticamente después de 3.0 segundos
-        timerError = autoDesaparecerAlerta(divError, 3000);
-    }
-});
-</script>
+<script src="<?= h(assetUrl('js/login.js')) ?>"></script>
 </body>
 </html>

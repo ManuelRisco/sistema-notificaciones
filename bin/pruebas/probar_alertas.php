@@ -5,9 +5,7 @@ declare(strict_types=1);
 use Manue\SistemaNotificaciones\StockRepository;
 use Manue\SistemaNotificaciones\StockAlertService;
 
-require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
-require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/config/almacenes.php';
+require_once dirname(__DIR__, 2) . '/config/bootstrap.php';
 
 try {
     $conexion = getSqlServerConn();
@@ -16,16 +14,26 @@ try {
 
     $alertService = new StockAlertService($repository);
 
-    // Permite filtrar por almacén vía CLI (ej: php probar_alertas.php 001) o analizar todos
-    $almFiltro = isset($argv[1]) && trim((string)$argv[1]) !== '' ? trim((string)$argv[1]) : null;
+    // Permite filtrar por almacén vía CLI (ej: php probar_alertas.php 001).
+    // Por defecto simula el análisis; pasar --aplicar si se desea actualizar banderas en BD.
+    $aplicarCambios = in_array('--aplicar', $argv ?? [], true);
+    $almFiltro = null;
+    foreach (array_slice($argv ?? [], 1) as $arg) {
+        $arg = trim((string) $arg);
+        if ($arg !== '' && !str_starts_with($arg, '--')) {
+            $almFiltro = $arg;
+            break;
+        }
+    }
 
-    $resultados = $alertService->procesar(true, $almFiltro);
+    $resultados = $alertService->procesar($aplicarCambios, $almFiltro);
 
     $tituloAlmacen = $almFiltro !== null
         ? " (Almacén: {$almFiltro} - " . (function_exists('getNombreAlmacen') ? getNombreAlmacen($almFiltro) : '') . ")"
         : " (Todos los almacenes)";
+    $etiquetaModo = $aplicarCambios ? '[APLICANDO EN BD]' : '[SIMULACIÓN]';
 
-    echo "ANALISIS DE ALERTAS DE STOCK{$tituloAlmacen}\n";
+    echo "ANALISIS DE ALERTAS DE STOCK {$etiquetaModo}{$tituloAlmacen}\n";
     echo "========================================\n";
 
     if (empty($resultados)) {

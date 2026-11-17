@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Manue\SistemaNotificaciones;
 
-use Dotenv\Dotenv;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use RuntimeException;
@@ -23,62 +22,36 @@ class EmailService
     public function __construct()
     {
         $raizProyecto = dirname(__DIR__);
+        $archivoBootstrap = $raizProyecto . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'bootstrap.php';
 
-        if (!class_exists(Dotenv::class)) {
+        if (!is_file($archivoBootstrap)) {
             throw new RuntimeException(
-                'No está instalada la dependencia vlucas/phpdotenv. Ejecuta composer require vlucas/phpdotenv.'
+                'No se encontró el archivo config/bootstrap.php para cargar el archivo .env.'
             );
         }
 
-        if (!is_file($raizProyecto . '/.env')) {
-            throw new RuntimeException(
-                'No se encontró el archivo .env en la raíz del proyecto.'
-            );
+        if (!defined('APP_BOOTSTRAP_CARGADO') || !function_exists('obtenerVariableEntorno')) {
+            require_once $archivoBootstrap;
         }
 
-        // Cargar catálogo de almacenes desde config/almacenes.php si existe
-        $archivoAlmacenes = $raizProyecto . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'almacenes.php';
-        if (is_file($archivoAlmacenes)) {
-            require_once $archivoAlmacenes;
+        $timezone = $this->obtenerVariable('APP_TIMEZONE');
+        if (date_default_timezone_get() !== $timezone) {
+            date_default_timezone_set($timezone);
         }
-
-        // Cargar obligatoriamente la configuración desde el archivo .env.
-        $dotenv = Dotenv::createImmutable($raizProyecto);
-        $dotenv->load();
-
-        $variablesRequeridas = [
-            'APP_TIMEZONE',
-            'SISTEMAS_MAIL_HOST',
-            'SISTEMAS_MAIL_PORT',
-            'SISTEMAS_MAIL_USERNAME',
-            'SISTEMAS_MAIL_PASSWORD',
-            'SISTEMAS_MAIL_FROM',
-            'SISTEMAS_MAIL_FROM_NAME',
-        ];
-
-        // Requerir dinámicamente las variables de destinatarios para cada almacén configurado
-        if (function_exists('getAlmacenesSoportados')) {
-            foreach (array_keys(getAlmacenesSoportados()) as $codAlm) {
-                $variablesRequeridas[] = 'SISTEMAS_MAIL_DESTINO_' . $codAlm;
-            }
-        }
-
-        $dotenv->required($variablesRequeridas)->notEmpty();
-
-        date_default_timezone_set(
-            $this->obtenerVariable('APP_TIMEZONE')
-        );
 
         $this->host = $this->obtenerVariable('SISTEMAS_MAIL_HOST');
         $this->port = (int) $this->obtenerVariable('SISTEMAS_MAIL_PORT');
         $this->username = $this->obtenerVariable('SISTEMAS_MAIL_USERNAME');
         // No aplicar trim a la contraseña: debe conservarse exactamente.
-        $this->password = $this->obtenerVariable(
-            'SISTEMAS_MAIL_PASSWORD',
-            false
-        );
+        $this->password = $this->obtenerVariable('SISTEMAS_MAIL_PASSWORD', false);
         $this->fromEmail = $this->obtenerVariable('SISTEMAS_MAIL_FROM');
         $this->fromName = $this->obtenerVariable('SISTEMAS_MAIL_FROM_NAME');
+
+        if (function_exists('getAlmacenesSoportados')) {
+            foreach (array_keys(getAlmacenesSoportados()) as $codAlm) {
+                $this->obtenerVariable('SISTEMAS_MAIL_DESTINO_' . $codAlm);
+            }
+        }
 
         // Ruta del logo del footer (relativa a la raíz del proyecto).
         $this->rutaLogoFooter = $raizProyecto
@@ -87,25 +60,9 @@ class EmailService
             . DIRECTORY_SEPARATOR . 'tecnofilm.png';
     }
 
-    private function obtenerVariable(
-        string $nombre,
-        bool $recortar = true
-    ): string {
-        if (!array_key_exists($nombre, $_ENV) || !is_string($_ENV[$nombre])) {
-            throw new RuntimeException(
-                "No se configuró la variable {$nombre} en el archivo .env."
-            );
-        }
-
-        $valor = $_ENV[$nombre];
-
-        if ($recortar && trim($valor) === '') {
-            throw new RuntimeException(
-                "La variable {$nombre} del archivo .env está vacía."
-            );
-        }
-
-        return $recortar ? trim($valor) : $valor;
+    private function obtenerVariable(string $nombre, bool $recortar = true): string
+    {
+        return obtenerVariableEntorno($nombre, $recortar);
     }
 
     /**
@@ -141,13 +98,7 @@ class EmailService
         }
 
         $variableAlmacen = 'SISTEMAS_MAIL_DESTINO_' . $almCodigo;
-        $cadena = $_ENV[$variableAlmacen] ?? $_SERVER[$variableAlmacen] ?? getenv($variableAlmacen);
-
-        if (!is_string($cadena) || trim($cadena) === '') {
-            throw new RuntimeException(
-                "No se configuraron destinatarios para el almacén {$almCodigo} en el archivo .env (variable {$variableAlmacen})."
-            );
-        }
+        $cadena = $this->obtenerVariable($variableAlmacen);
 
         $correos = preg_split('/[,;]+/', $cadena) ?: [];
         $limpios = $this->normalizarLista($correos);
@@ -232,80 +183,80 @@ class EmailService
         $lineasTexto = [];
 
         foreach ($articulos as $articulo) {
+            $bloque = $this->formatearArticuloParaCorreo($articulo);
+            $tarjetasHtml .= $bloque['html'];
+            $lineasTexto[] = $bloque['texto'];
+        }
 
-            $codigo = trim((string) ($articulo['art_codigo'] ?? ''));
-            $descripcion = trim((string) ($articulo['descripcion'] ?? ''));
+        $cantidad = count($articulos);
+        $fecha = date('d/m/Y H:i:s');
+        $nombreAlmacen = function_exists('getNombreAlmacen')
+            ? getNombreAlmacen($almCodigo)
+            : "Almacén {$almCodigo}";
 
-            $unidad = trim((string) ($articulo['unidad_medida'] ?? ''));
-            if ($unidad === '') {
-                $unidad = 'UND';
-            }
-            $categoria = trim((string) ($articulo['categoria'] ?? ''));
-            $famNombre = trim((string) ($articulo['fam_nombre'] ?? ''));
-            $tfaNombre = trim((string) ($articulo['tfa_nombre'] ?? ''));
+        $asunto = "[ALERTA DE STOCK] {$nombreAlmacen} - TECNOFILM";
+        $cuerpoHtml = $this->construirCuerpoHtml($almCodigo, $nombreAlmacen, $cantidad, $tarjetasHtml, $fecha);
+        $cuerpoTexto = $this->construirCuerpoTexto($almCodigo, $nombreAlmacen, $cantidad, $lineasTexto, $fecha);
 
-            $stockActual = (float) ($articulo['stock_actual'] ?? 0);
-            $stockMinimo = (float) ($articulo['stock_minimo'] ?? 0);
-            $faltante = max(0.0, $stockMinimo - $stockActual);
+        return $this->enviarCorreo(
+            $listaDestinatarios,
+            $asunto,
+            $cuerpoHtml,
+            $cuerpoTexto
+        );
+    }
 
-            if (
-                $codigo === ''
-                || $descripcion === ''
-            ) {
-                throw new RuntimeException(
-                    'Un artículo contiene datos incompletos.'
-                );
-            }
+    /**
+     * Construye el bloque HTML y la línea de texto plano para un artículo en alerta.
+     *
+     * @return array{html: string, texto: string}
+     */
+    private function formatearArticuloParaCorreo(array $articulo): array
+    {
+        $codigo = trim((string) ($articulo['art_codigo'] ?? ''));
+        $descripcion = trim((string) ($articulo['descripcion'] ?? ''));
 
-            if ($stockActual > $stockMinimo) {
-                throw new RuntimeException(
-                    "El artículo {$codigo} ya no está por debajo del stock."
-                );
-            }
+        $unidad = trim((string) ($articulo['unidad_medida'] ?? ''));
+        if ($unidad === '') {
+            $unidad = 'UND';
+        }
+        $categoria = trim((string) ($articulo['categoria'] ?? ''));
+        $famNombre = trim((string) ($articulo['fam_nombre'] ?? ''));
+        $tfaNombre = trim((string) ($articulo['tfa_nombre'] ?? ''));
 
-            // Escapar los datos provenientes de SQL Server.
-            $codigoHtml = self::esc($codigo);
+        $stockActual = (float) ($articulo['stock_actual'] ?? 0);
+        $stockMinimo = (float) ($articulo['stock_minimo'] ?? 0);
+        $faltante = max(0.0, $stockMinimo - $stockActual);
 
-            $descripcionHtml = self::esc($descripcion);
+        if ($codigo === '' || $descripcion === '') {
+            throw new RuntimeException('Un artículo contiene datos incompletos.');
+        }
 
-            $unidadHtml = self::esc($unidad);
+        if ($stockActual > $stockMinimo) {
+            throw new RuntimeException("El artículo {$codigo} ya no está por debajo del stock.");
+        }
 
-            $categoriaHtml = self::esc($categoria !== '' ? $categoria : '—');
+        // Escapar los datos provenientes de SQL Server.
+        $codigoHtml = self::esc($codigo);
+        $descripcionHtml = self::esc($descripcion);
+        $unidadHtml = self::esc($unidad);
+        $categoriaHtml = self::esc($categoria !== '' ? $categoria : '—');
+        $famNombreHtml = self::esc($famNombre !== '' ? $famNombre : '—');
+        $tfaNombreHtml = self::esc($tfaNombre !== '' ? $tfaNombre : '—');
 
-            $famNombreHtml = self::esc($famNombre !== '' ? $famNombre : '—');
+        $stockFormato = number_format($stockActual, 3, '.', ',');
+        $minimoFormato = number_format($stockMinimo, 3, '.', ',');
+        $faltanteFormato = number_format($faltante, 3, '.', ',');
 
-            $tfaNombreHtml = self::esc($tfaNombre !== '' ? $tfaNombre : '—');
+        if ($faltante > 0) {
+            $faltanteValorHtml = "{$faltanteFormato} {$unidadHtml}";
+            $faltanteValorTexto = "{$faltanteFormato} {$unidad}";
+        } else {
+            $faltanteValorHtml = "{$faltanteFormato} {$unidadHtml} <span style='font-size:12px;font-weight:normal;color:#666666;'>(En el límite)</span>";
+            $faltanteValorTexto = "{$faltanteFormato} {$unidad} (En el límite)";
+        }
 
-            $stockFormato = number_format(
-                $stockActual,
-                3,
-                '.',
-                ','
-            );
-
-            $minimoFormato = number_format(
-                $stockMinimo,
-                3,
-                '.',
-                ','
-            );
-
-            $faltanteFormato = number_format(
-                $faltante,
-                3,
-                '.',
-                ','
-            );
-
-            if ($faltante > 0) {
-                $faltanteValorHtml = "{$faltanteFormato} {$unidadHtml}";
-                $faltanteValorTexto = "{$faltanteFormato} {$unidad}";
-            } else {
-                $faltanteValorHtml = "{$faltanteFormato} {$unidadHtml} <span style='font-size:12px;font-weight:normal;color:#666666;'>(En el límite)</span>";
-                $faltanteValorTexto = "{$faltanteFormato} {$unidad} (En el límite)";
-            }
-
-            $tarjetasHtml .= "
+        $html = "
 <table
     role='presentation'
     width='100%'
@@ -419,34 +370,24 @@ class EmailService
 </table>
 ";
 
-            $lineasTexto[] =
-                "Código: {$codigo}\n"
-                . "Descripción: {$descripcion}\n"
-                . "Categoría: " . ($categoria !== '' ? $categoria : '—') . "\n"
-                . "Familia: " . ($famNombre !== '' ? $famNombre : '—') . "\n"
-                . "Tipo familia: " . ($tfaNombre !== '' ? $tfaNombre : '—') . "\n"
-                . "Stock actual: {$stockFormato} {$unidad}\n"
-                . "Stock mínimo: {$minimoFormato} {$unidad}\n"
-                . "Stock a reponer: {$faltanteValorTexto}\n";
-        }
+        $texto =
+            "Código: {$codigo}\n"
+            . "Descripción: {$descripcion}\n"
+            . "Categoría: " . ($categoria !== '' ? $categoria : '—') . "\n"
+            . "Familia: " . ($famNombre !== '' ? $famNombre : '—') . "\n"
+            . "Tipo familia: " . ($tfaNombre !== '' ? $tfaNombre : '—') . "\n"
+            . "Stock actual: {$stockFormato} {$unidad}\n"
+            . "Stock mínimo: {$minimoFormato} {$unidad}\n"
+            . "Stock a reponer: {$faltanteValorTexto}\n";
 
-        $cantidad = count($articulos);
-        $fecha = date('d/m/Y H:i:s');
+        return [
+            'html' => $html,
+            'texto' => $texto,
+        ];
+    }
 
-        $textoCantidad = $cantidad === 1
-            ? '1 artículo requiere atención'
-            : "{$cantidad} artículos requieren atención";
-
-        $nombreAlmacen = function_exists('getNombreAlmacen')
-            ? getNombreAlmacen($almCodigo)
-            : "Almacén {$almCodigo}";
-
-        $nombreAlmacenHtml = self::esc($nombreAlmacen);
-        $almCodigoHtml = self::esc($almCodigo);
-
-        $asunto = "[ALERTA DE STOCK] {$nombreAlmacen} - TECNOFILM";
-
-        // Logo y aviso en el pie de página
+    private function construirFooterHtml(): string
+    {
         $logoImgHtml = '';
 
         if (is_file($this->rutaLogoFooter)) {
@@ -458,12 +399,10 @@ class EmailService
             style='display:inline-block;max-width:260px;width:100%;height:auto;border:0;'
         >";
         } else {
-            error_log(
-                'Logo del footer no encontrado: ' . $this->rutaLogoFooter
-            );
+            error_log('Logo del footer no encontrado: ' . $this->rutaLogoFooter);
         }
 
-        $footerHtml = "
+        return "
     <div style='
         border-top:1px solid #e2e8f0;
         padding:18px 12px;
@@ -480,8 +419,24 @@ class EmailService
             Este es un correo automático, no mande una respuesta por aquí.
         </p>
     </div>";
+    }
 
-        $cuerpoHtml = "
+    private function construirCuerpoHtml(
+        string $almCodigo,
+        string $nombreAlmacen,
+        int $cantidad,
+        string $tarjetasHtml,
+        string $fecha
+    ): string {
+        $textoCantidad = $cantidad === 1
+            ? '1 artículo requiere atención'
+            : "{$cantidad} artículos requieren atención";
+
+        $nombreAlmacenHtml = self::esc($nombreAlmacen);
+        $almCodigoHtml = self::esc($almCodigo);
+        $footerHtml = $this->construirFooterHtml();
+
+        return "
 <div style='
     width:100%;
     max-width:640px;
@@ -552,26 +507,24 @@ class EmailService
     </div>
 {$footerHtml}
 </div>";
+    }
 
-        $cuerpoTexto =
+    private function construirCuerpoTexto(
+        string $almCodigo,
+        string $nombreAlmacen,
+        int $cantidad,
+        array $lineasTexto,
+        string $fecha
+    ): string {
+        return
             "ALERTA DE STOCK MÍNIMO - {$nombreAlmacen} (Almacén {$almCodigo})\n"
             . "====================================\n"
             . "Artículos que requieren atención: {$cantidad}\n"
             . "Fecha: {$fecha}\n"
             . "====================================\n\n"
-            . implode(
-                "\n------------------------------------\n",
-                $lineasTexto
-            )
+            . implode("\n------------------------------------\n", $lineasTexto)
             . "\nSe requiere gestionar la reposición de estos artículos.\n\n"
             . "Este es un correo automático, no mande una respuesta por aquí.";
-
-        return $this->enviarCorreo(
-            $listaDestinatarios,
-            $asunto,
-            $cuerpoHtml,
-            $cuerpoTexto
-        );
     }
 
     /**

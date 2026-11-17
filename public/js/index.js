@@ -242,194 +242,325 @@ function iniciarIndex(config = {}) {
         });
     }
 
-    // 3. Control animado para botones "Desactivar" y "Reactivar"
-    document.querySelectorAll('.form-eliminar').forEach(function(form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
+    // 3. Control animado para botones "Desactivar" y "Reactivar" (delegado para soportar paginación AJAX)
+    document.addEventListener('submit', function(e) {
+        const form = e.target.closest ? e.target.closest('.form-eliminar') : null;
+        if (!form) return;
 
-            const accion = form.querySelector('input[name="accion"]')?.value || 'eliminar';
-            const artCodigo = form.querySelector('input[name="art_codigo"]')?.value || '';
-            const artNombre = form.querySelector('input[name="art_nombre"]')?.value || '';
-            const categoria = form.querySelector('input[name="categoria"]')?.value || '';
-            const famNombre = form.querySelector('input[name="fam_nombre"]')?.value || '';
-            const tfaNombre = form.querySelector('input[name="tfa_nombre"]')?.value || '';
-            const esReactivar = (accion === 'reactivar');
+        e.preventDefault();
 
-            let detalleArticulo = '';
-            if (artNombre) {
-                detalleArticulo += `<div style="color: #1e293b; font-size: 14px; font-weight: 600; margin-top: 6px; line-height: 1.35;">${escapeHtml(artNombre)}</div>`;
-            }
+        const accion = form.querySelector('input[name="accion"]')?.value || 'eliminar';
+        const artCodigo = form.querySelector('input[name="art_codigo"]')?.value || '';
+        const artNombre = form.querySelector('input[name="art_nombre"]')?.value || '';
+        const categoria = form.querySelector('input[name="categoria"]')?.value || '';
+        const famNombre = form.querySelector('input[name="fam_nombre"]')?.value || '';
+        const tfaNombre = form.querySelector('input[name="tfa_nombre"]')?.value || '';
+        const esReactivar = (accion === 'reactivar');
 
-            if (categoria || famNombre || tfaNombre) {
-                detalleArticulo += `
-                    <div style="margin-top: 12px; padding: 10px 14px; background: #f8fafc; border: 1px solid var(--color-borde, #e2e8f0); border-radius: 8px; font-size: 12.5px; text-align: left; display: inline-flex; flex-direction: column; gap: 4px; min-width: 260px; max-width: 100%; box-sizing: border-box;">
-                        <div style="display: flex; gap: 8px;"><span style="color: var(--color-texto-muted, #64748b); font-weight: 600; min-width: 82px;">Categoría:</span> <strong style="color: var(--color-texto, #0f172a);">${escapeHtml(categoria || '—')}</strong></div>
-                        <div style="display: flex; gap: 8px;"><span style="color: var(--color-texto-muted, #64748b); font-weight: 600; min-width: 82px;">Familia:</span> <strong style="color: var(--color-texto, #0f172a);">${escapeHtml(famNombre || '—')}</strong></div>
-                        <div style="display: flex; gap: 8px;"><span style="color: var(--color-texto-muted, #64748b); font-weight: 600; min-width: 82px;">Tipo familia:</span> <strong style="color: var(--color-texto, #0f172a);">${escapeHtml(tfaNombre || '—')}</strong></div>
-                    </div>
-                `;
-            }
+        let detalleArticulo = '';
+        if (artNombre) {
+            detalleArticulo += `<div class="swal-articulo-nombre">${escapeHtml(artNombre)}</div>`;
+        }
 
-            const titulo = esReactivar ? '¿Reactivar configuración?' : '¿Desactivar configuración?';
-            const mensaje = esReactivar
-                ? `¿Deseas volver a habilitar el artículo <strong>${escapeHtml(artCodigo)}</strong> para el monitoreo de stock?${detalleArticulo}`
-                : `¿Estás seguro de desactivar el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`;
-            const icono = esReactivar ? 'question' : 'warning';
-            const colorConfirmar = esReactivar ? '#059669' : '#dc2626';
-            const textoConfirmar = esReactivar ? 'Sí, reactivar' : 'Sí, desactivar';
+        if (categoria || famNombre || tfaNombre) {
+            detalleArticulo += `
+                <div class="swal-articulo-detalle">
+                    <div class="swal-articulo-detalle-fila"><span>Categoría:</span> <strong>${escapeHtml(categoria || '—')}</strong></div>
+                    <div class="swal-articulo-detalle-fila"><span>Familia:</span> <strong>${escapeHtml(famNombre || '—')}</strong></div>
+                    <div class="swal-articulo-detalle-fila"><span>Tipo familia:</span> <strong>${escapeHtml(tfaNombre || '—')}</strong></div>
+                </div>
+            `;
+        }
 
-            Swal.fire({
-                title: titulo,
-                html: mensaje,
-                icon: icono,
-                showCancelButton: true,
-                confirmButtonColor: colorConfirmar,
-                cancelButtonColor: '#64748b',
-                confirmButtonText: textoConfirmar,
-                cancelButtonText: 'No',
-                reverseButtons: true,
-                focusCancel: true
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: esReactivar ? 'Reactivando...' : 'Desactivando...',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
+        const titulo = esReactivar ? '¿Reactivar configuración?' : '¿Desactivar configuración?';
+        const mensaje = esReactivar
+            ? `¿Deseas volver a habilitar el artículo <strong>${escapeHtml(artCodigo)}</strong> para el monitoreo de stock?${detalleArticulo}`
+            : `¿Estás seguro de desactivar el artículo <strong>${escapeHtml(artCodigo)}</strong>?${detalleArticulo}`;
+        const icono = esReactivar ? 'question' : 'warning';
+        const colorConfirmar = esReactivar ? '#059669' : '#dc2626';
+        const textoConfirmar = esReactivar ? 'Sí, reactivar' : 'Sí, desactivar';
 
-                    const formData = new FormData(form);
-                    formData.append('formato', 'json');
+        Swal.fire({
+            title: titulo,
+            html: mensaje,
+            icon: icono,
+            showCancelButton: true,
+            confirmButtonColor: colorConfirmar,
+            cancelButtonColor: '#64748b',
+            confirmButtonText: textoConfirmar,
+            cancelButtonText: 'No',
+            reverseButtons: true,
+            focusCancel: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: esReactivar ? 'Reactivando...' : 'Desactivando...',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
 
-                    fetch('cambiar_estado.php', {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: formData
-                    })
-                    .then(response => {
-                        return response.json().then(data => ({
-                            status: response.status,
-                            data: data
-                        })).catch(() => ({
-                            status: response.status,
-                            data: { exito: false, error: 'Respuesta inválida del servidor.' }
-                        }));
-                    })
-                    .then(({ status, data }) => {
-                        if (status === 200 && data.exito) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: esReactivar ? '¡Reactivado!' : '¡Desactivado!',
-                                text: data.mensaje,
-                                timer: 3000,
-                                timerProgressBar: true,
-                                showConfirmButton: false
-                            }).then(() => {
-                                window.location.reload();
-                            });
-                        } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: data.error || 'No se pudo completar la operación.',
-                                confirmButtonColor: '#dc2626'
-                            });
-                        }
-                    })
-                    .catch(err => {
+                const formData = new FormData(form);
+                formData.append('formato', 'json');
+
+                fetch('cambiar_estado.php', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => {
+                    return response.json().then(data => ({
+                        status: response.status,
+                        data: data
+                    })).catch(() => ({
+                        status: response.status,
+                        data: { exito: false, error: 'Respuesta inválida del servidor.' }
+                    }));
+                })
+                .then(({ status, data }) => {
+                    if (status === 200 && data.exito) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: esReactivar ? '¡Reactivado!' : '¡Desactivado!',
+                            text: data.mensaje,
+                            timer: 3000,
+                            timerProgressBar: true,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
                         Swal.fire({
                             icon: 'error',
-                            title: 'Error de conexión',
-                            text: err.message,
+                            title: 'Error',
+                            text: data.error || 'No se pudo completar la operación.',
                             confirmButtonColor: '#dc2626'
                         });
+                    }
+                })
+                .catch(err => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de conexión',
+                        text: err.message,
+                        confirmButtonColor: '#dc2626'
                     });
-                }
-            });
+                });
+            }
         });
     });
 
-    // 4. Búsqueda instantánea en tiempo real sobre la tabla de artículos
+    // 4. Búsqueda de artículos en BD con timer de 300ms y paginación AJAX en index
     const inputArticulo = document.getElementById('articulo');
     const formBusqueda = document.querySelector('.busqueda-form');
-    const tablaCuerpo = document.querySelector('.tabla-contenedor tbody');
+    const tablaContenedor = document.querySelector('.tabla-contenedor');
+    const tablaCuerpo = document.getElementById('tabla-configuraciones-body');
     const parrafoResultados = document.getElementById('busqueda-resultados');
+    const paginacionContenedor = document.getElementById('paginacion-index');
+    const btnLimpiarFiltros = document.getElementById('btn-limpiar-filtros');
+
+    let busquedaActual = (config.busqueda !== undefined && config.busqueda !== null)
+        ? String(config.busqueda).trim()
+        : (inputArticulo ? inputArticulo.value.trim() : '');
+    let paginaActual = Number(config.pagina) || 1;
+    let porPaginaActual = Number(config.porPagina) || 10;
+    let timerBusqueda = null;
+    let abortController = null;
+
+    function sincronizarEnlacesFiltros(q, porPagina) {
+        document.querySelectorAll('.menu-filtro a.opcion-filtro').forEach(enlace => {
+            try {
+                const urlEnlace = new URL(enlace.href, window.location.origin);
+                if (q !== '') {
+                    urlEnlace.searchParams.set('q', q);
+                } else {
+                    urlEnlace.searchParams.delete('q');
+                }
+                if (porPagina !== 10) {
+                    urlEnlace.searchParams.set('por_pagina', String(porPagina));
+                } else {
+                    urlEnlace.searchParams.delete('por_pagina');
+                }
+                urlEnlace.searchParams.delete('pagina');
+                const query = urlEnlace.searchParams.toString();
+                enlace.setAttribute('href', 'index.php' + (query ? `?${query}` : ''));
+            } catch (_) {}
+        });
+
+        const hiddenPorPagina = document.getElementById('hidden-por-pagina');
+        if (hiddenPorPagina) {
+            hiddenPorPagina.value = String(porPagina);
+        }
+    }
+
+    function cargarTablaIndex(opciones = {}) {
+        if (!tablaCuerpo) return;
+
+        const q = opciones.q !== undefined ? String(opciones.q).trim() : busquedaActual;
+        const pagina = opciones.pagina !== undefined ? Math.max(1, Number(opciones.pagina) || 1) : paginaActual;
+        const porPagina = opciones.porPagina !== undefined ? (Number(opciones.porPagina) || 10) : porPaginaActual;
+
+        const urlNavegador = new URL(window.location.href);
+        urlNavegador.searchParams.delete('ok');
+        urlNavegador.searchParams.delete('error');
+        urlNavegador.searchParams.delete('ajax');
+
+        if (q !== '') {
+            urlNavegador.searchParams.set('q', q);
+        } else {
+            urlNavegador.searchParams.delete('q');
+        }
+
+        if (pagina > 1) {
+            urlNavegador.searchParams.set('pagina', String(pagina));
+        } else {
+            urlNavegador.searchParams.delete('pagina');
+        }
+
+        if (porPagina !== 10) {
+            urlNavegador.searchParams.set('por_pagina', String(porPagina));
+        } else {
+            urlNavegador.searchParams.delete('por_pagina');
+        }
+
+        const urlFetch = new URL(urlNavegador.toString());
+        urlFetch.searchParams.set('ajax', '1');
+
+        if (abortController) {
+            abortController.abort();
+        }
+        abortController = new AbortController();
+
+        if (tablaContenedor) {
+            tablaContenedor.classList.add('tabla-cargando');
+        }
+
+        fetch(urlFetch.toString(), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            signal: abortController.signal
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data || !data.exito) {
+                throw new Error((data && data.error) || 'No se pudo actualizar la tabla.');
+            }
+
+            busquedaActual = q;
+            paginaActual = Number(data.pagina) || 1;
+            porPaginaActual = Number(data.por_pagina) || porPagina;
+
+            if (paginaActual > 1) {
+                urlNavegador.searchParams.set('pagina', String(paginaActual));
+            } else {
+                urlNavegador.searchParams.delete('pagina');
+            }
+
+            if (window.history.replaceState) {
+                const searchStr = urlNavegador.searchParams.toString();
+                window.history.replaceState({}, document.title, urlNavegador.pathname + (searchStr ? `?${searchStr}` : ''));
+            }
+
+            tablaCuerpo.innerHTML = data.tbody_html || '';
+
+            if (paginacionContenedor && data.paginacion_html !== undefined) {
+                paginacionContenedor.innerHTML = data.paginacion_html;
+            }
+
+            if (parrafoResultados) {
+                if (data.hay_filtros_activos && data.resumen_html) {
+                    parrafoResultados.style.display = 'block';
+                    parrafoResultados.innerHTML = data.resumen_html;
+                } else {
+                    parrafoResultados.style.display = 'none';
+                    parrafoResultados.innerHTML = '';
+                }
+            }
+
+            if (btnLimpiarFiltros) {
+                btnLimpiarFiltros.style.display = data.hay_filtros_activos ? '' : 'none';
+            }
+
+            sincronizarEnlacesFiltros(q, porPaginaActual);
+
+            if (opciones.scrollTabla && tablaContenedor) {
+                tablaContenedor.scrollTop = 0;
+            }
+        })
+        .catch(err => {
+            if (err && err.name === 'AbortError') {
+                return;
+            }
+            Swal.fire({
+                icon: 'error',
+                title: 'Error al consultar',
+                text: (err && err.message) || 'No se pudo actualizar el listado.',
+                confirmButtonColor: '#dc2626'
+            });
+        })
+        .finally(() => {
+            if (tablaContenedor) {
+                tablaContenedor.classList.remove('tabla-cargando');
+            }
+        });
+    }
 
     if (inputArticulo && tablaCuerpo) {
         if (formBusqueda) {
             formBusqueda.addEventListener('submit', function(e) {
                 e.preventDefault();
+                clearTimeout(timerBusqueda);
+                const nuevoTermino = inputArticulo.value.trim();
+                if (nuevoTermino !== busquedaActual) {
+                    cargarTablaIndex({ q: nuevoTermino, pagina: 1 });
+                }
             });
         }
 
-        const filas = Array.from(tablaCuerpo.querySelectorAll('tr')).filter(tr => {
-            return !tr.querySelector('td[colspan]');
+        inputArticulo.addEventListener('input', function() {
+            clearTimeout(timerBusqueda);
+            timerBusqueda = setTimeout(() => {
+                const nuevoTermino = inputArticulo.value.trim();
+                if (nuevoTermino === busquedaActual) {
+                    return;
+                }
+                cargarTablaIndex({ q: nuevoTermino, pagina: 1 });
+            }, 300);
         });
 
-        let filaSinResultados = document.getElementById('fila-sin-resultados');
-        if (!filaSinResultados) {
-            filaSinResultados = document.createElement('tr');
-            filaSinResultados.id = 'fila-sin-resultados';
-            filaSinResultados.style.display = 'none';
-            filaSinResultados.innerHTML = `
-                <td colspan="11" style="text-align: center; padding: 34px 16px; color: var(--color-texto-muted);">
-                    No se encontraron artículos que coincidan con la búsqueda.
-                </td>
-            `;
-            tablaCuerpo.appendChild(filaSinResultados);
-        }
-
-        function ejecutarFiltroEnVivo() {
-            const termino = inputArticulo.value.toLowerCase().trim();
-            let visibles = 0;
-
-            filas.forEach(fila => {
-                const codigo = (fila.dataset.codigo || fila.querySelector('.articulo-titulo')?.textContent || '').toLowerCase().trim();
-                const nombre = (fila.dataset.nombre || fila.querySelector('strong')?.textContent || '').toLowerCase().trim();
-
-                const coincideCodigo = codigo.startsWith(termino) || codigo.replace(/^0+/, '').startsWith(termino);
-                const palabrasNombre = nombre.split(/\s+/);
-                const coincideNombre = nombre.startsWith(termino) || palabrasNombre.some(p => p.startsWith(termino));
-
-                if (termino === '' || coincideCodigo || coincideNombre) {
-                    fila.style.display = '';
-                    visibles++;
-                } else {
-                    fila.style.display = 'none';
-                }
-            });
-
-            if (filas.length > 0) {
-                filaSinResultados.style.display = (visibles === 0 && termino !== '') ? '' : 'none';
+        inputArticulo.addEventListener('search', function() {
+            clearTimeout(timerBusqueda);
+            const nuevoTermino = inputArticulo.value.trim();
+            if (nuevoTermino !== busquedaActual) {
+                cargarTablaIndex({ q: nuevoTermino, pagina: 1 });
             }
+        });
+    }
 
-            if (parrafoResultados) {
-                if (termino !== '') {
-                    parrafoResultados.style.display = 'block';
-                    parrafoResultados.innerHTML = `Coincidencias en tiempo real: <strong>${visibles}</strong> de <strong>${filas.length}</strong> artículos.`;
-                } else {
-                    if (config.hayFiltrosActivos) {
-                        const total = config.totalRegistros !== undefined ? config.totalRegistros : filas.length;
-                        parrafoResultados.style.display = 'block';
-                        parrafoResultados.innerHTML = `Filtros activos en base de datos — <strong>${total}</strong> ${total === 1 ? 'registro encontrado' : 'registros encontrados'}. <a href="index.php" style="margin-left: 8px; color: var(--color-primario); text-decoration: underline;">Quitar todos los filtros</a>`;
-                    } else {
-                        parrafoResultados.style.display = 'none';
-                    }
-                }
+    if (paginacionContenedor) {
+        paginacionContenedor.addEventListener('click', function(e) {
+            const enlace = e.target.closest ? e.target.closest('a.paginacion-btn[data-pagina]') : null;
+            if (!enlace) return;
+            e.preventDefault();
+            clearTimeout(timerBusqueda);
+            const nuevaPagina = Number(enlace.dataset.pagina) || 1;
+            cargarTablaIndex({ pagina: nuevaPagina, scrollTabla: true });
+        });
+
+        paginacionContenedor.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'por-pagina-index') {
+                clearTimeout(timerBusqueda);
+                const nuevoTam = Number(e.target.value) || 10;
+                cargarTablaIndex({ pagina: 1, porPagina: nuevoTam, scrollTabla: true });
             }
-        }
-
-        inputArticulo.addEventListener('input', ejecutarFiltroEnVivo);
-        inputArticulo.addEventListener('search', ejecutarFiltroEnVivo);
-
-        if (inputArticulo.value.trim() !== '') {
-            ejecutarFiltroEnVivo();
-        }
+        });
     }
 }
 

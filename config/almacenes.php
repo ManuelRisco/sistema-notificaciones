@@ -49,3 +49,15 @@ function esAlmacenSoportado(string $almCodigo): bool
     return isset($alms[$codigo]);
 }
 
+/**
+ * Retorna el código de empresa por defecto configurado mediante APP_EMPRESA en .env.
+ */
+function getEmpresaDefecto(): string
+{
+    if (!function_exists('obtenerVariableEntorno')) {
+        require_once __DIR__ . '/bootstrap.php';
+    }
+
+    return obtenerVariableEntorno('APP_EMPRESA');
+}
+

@@ -80,3 +80,105 @@ function mostrarGuardando(titulo, detalle) {
         }
     });
 }
+
+/**
+ * Calcula la secuencia compacta de páginas con elipsis ('...') para barras de paginación.
+ *
+ * @param {number} actual Página actual (>= 1)
+ * @param {number} total  Total de páginas (>= 1)
+ * @returns {Array<number|string>}
+ */
+function calcularPaginasVisibles(actual, total) {
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, idx) => idx + 1);
+    }
+
+    const paginas = [1];
+    const inicio = Math.max(2, actual - 1);
+    const fin = Math.min(total - 1, actual + 1);
+
+    if (inicio > 2) {
+        paginas.push('...');
+    }
+    for (let p = inicio; p <= fin; p++) {
+        paginas.push(p);
+    }
+    if (fin < total - 1) {
+        paginas.push('...');
+    }
+
+    paginas.push(total);
+    return paginas;
+}
+
+/**
+ * Construye el HTML de una barra de paginación compacta para modales u otros contenedores dinámicos.
+ *
+ * @param {Object} opts
+ * @param {number} opts.pagina      Página actual (>= 1)
+ * @param {number} opts.totalPaginas Total de páginas (>= 1)
+ * @param {number} opts.total       Total de registros filtrados
+ * @param {number} opts.porPagina   Registros por página
+ * @param {string} [opts.etiquetaItem] Sustantivo en plural ('artículos', 'registros', etc.)
+ * @param {string} [opts.sufijoExtra]  Texto adicional junto al resumen
+ * @param {number[]} [opts.opcionesTamano]
+ * @returns {string}
+ */
+function construirHtmlPaginacion(opts) {
+    const pagina = Math.max(1, Number(opts.pagina) || 1);
+    const totalPaginas = Math.max(1, Number(opts.totalPaginas) || 1);
+    const total = Math.max(0, Number(opts.total) || 0);
+    const porPagina = Math.max(1, Number(opts.porPagina) || 10);
+    const etiqueta = opts.etiquetaItem || 'registros';
+    const sufijo = opts.sufijoExtra ? ` <span class="paginacion-sufijo">${escapeHtml(opts.sufijoExtra)}</span>` : '';
+    const opciones = Array.isArray(opts.opcionesTamano) ? opts.opcionesTamano : [10, 15, 25, 50];
+
+    const inicio = total === 0 ? 0 : ((pagina - 1) * porPagina) + 1;
+    const fin = total === 0 ? 0 : Math.min(total, pagina * porPagina);
+
+    const resumenHtml = total === 0
+        ? `0 ${escapeHtml(etiqueta)}${sufijo}`
+        : `Mostrando <strong>${inicio}–${fin}</strong> de <strong>${total}</strong> ${escapeHtml(etiqueta)}${sufijo}`;
+
+    const selectHtml = `
+        <label class="paginacion-tamano">
+            <span>Por pág.:</span>
+            <select class="paginacion-select js-paginacion-tamano" aria-label="Registros por página">
+                ${opciones.map(n => `<option value="${n}" ${n === porPagina ? 'selected' : ''}>${n}</option>`).join('')}
+            </select>
+        </label>
+    `;
+
+    const secuencia = calcularPaginasVisibles(pagina, totalPaginas);
+    let botonesHtml = `
+        <button type="button" class="paginacion-btn js-paginacion-btn" data-pagina="${pagina - 1}" ${pagina <= 1 ? 'disabled' : ''} aria-label="Página anterior">
+            ‹ Anterior
+        </button>
+    `;
+
+    secuencia.forEach(item => {
+        if (item === '...') {
+            botonesHtml += '<span class="paginacion-ellipsis">…</span>';
+        } else if (item === pagina) {
+            botonesHtml += `<button type="button" class="paginacion-btn activo" data-pagina="${item}" aria-current="page">${item}</button>`;
+        } else {
+            botonesHtml += `<button type="button" class="paginacion-btn js-paginacion-btn" data-pagina="${item}">${item}</button>`;
+        }
+    });
+
+    botonesHtml += `
+        <button type="button" class="paginacion-btn js-paginacion-btn" data-pagina="${pagina + 1}" ${pagina >= totalPaginas ? 'disabled' : ''} aria-label="Página siguiente">
+            Siguiente ›
+        </button>
+    `;
+
+    return `
+        <div class="paginacion-contenedor paginacion-modal">
+            <div class="paginacion-info">
+                <span>${resumenHtml}</span>
+                ${selectHtml}
+            </div>
+            <nav class="paginacion-controles" aria-label="Paginación">${botonesHtml}</nav>
+        </div>
+    `;
+}

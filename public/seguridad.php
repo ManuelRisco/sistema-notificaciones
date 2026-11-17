@@ -6,11 +6,54 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
-require_once __DIR__ . '/autenticacion.php';
+/**
+ * Genera una URL versionada (?v=filemtime) para invalidación automática de caché.
+ */
+function assetUrl(string $rutaRelativa): string
+{
+    $rutaLimpia = ltrim($rutaRelativa, '/');
+    $rutaFisica = __DIR__ . '/' . $rutaLimpia;
+    $version = is_file($rutaFisica) ? (string) filemtime($rutaFisica) : (string) time();
 
-// Si no es una página pública (como login.php o logout.php), exigir sesión
-if (!defined('PAGINA_PUBLICA') || PAGINA_PUBLICA !== true) {
-    requerirAutenticacion();
+    return $rutaRelativa . '?v=' . $version;
+}
+
+/**
+ * Formatea una cantidad de stock con decimales y unidad de medida (ej.: "1,250.000 KG").
+ */
+function formatearStockCantidad(?float $stock, string $unidadMedida, int $decimales = 3): string
+{
+    $unidad = trim($unidadMedida);
+    $numero = $stock !== null
+        ? number_format($stock, $decimales, '.', ',')
+        : number_format(0.0, $decimales, '.', ',');
+
+    return trim($numero . ($unidad !== '' ? ' ' . $unidad : ''));
+}
+
+/**
+ * Normaliza un valor numérico DECIMAL/NUMERIC(14,5) a formato 'entero.cincoDecimales',
+ * corrigiendo cadenas sin cero inicial devueltas por SQL Server (ej.: '.00000' -> '0.00000').
+ */
+function normalizarStock(mixed $valor): string
+{
+    $valor = trim((string) $valor);
+    if ($valor === '') {
+        return '0.00000';
+    }
+
+    $partes = explode('.', $valor, 2);
+
+    $entero = ltrim($partes[0], '0');
+    if ($entero === '') {
+        $entero = '0';
+    }
+
+    $decimal = $partes[1] ?? '';
+    $decimal = str_pad($decimal, 5, '0');
+    $decimal = substr($decimal, 0, 5);
+
+    return $entero . '.' . $decimal;
 }
 
 /**
@@ -99,4 +142,11 @@ function aplicarModoOscuro(): bool
     }
     header('Location: ' . $urlLimpia);
     exit;
+}
+
+require_once __DIR__ . '/autenticacion.php';
+
+// Si no es una página pública (como login.php o logout.php), exigir sesión
+if (!defined('PAGINA_PUBLICA') || PAGINA_PUBLICA !== true) {
+    requerirAutenticacion();
 }

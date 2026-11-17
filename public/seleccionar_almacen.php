@@ -9,10 +9,10 @@ requerirAutenticacion();
 
 $usuario = obtenerUsuarioAutenticado();
 $usrCodigo = (string) ($usuario['usr_codigo'] ?? '');
-$usrNombre = (string) ($usuario['usr_nombre'] ?? $usrCodigo);
+$empCodigo = (string) ($usuario['emp_codigo'] ?? getEmpresaDefecto());
 
-// Obtener los almacenes autorizados para el usuario
-$almacenesAutorizados = obtenerAlmacenesAutorizadosUsuario($usrCodigo);
+// Obtener los almacenes autorizados para el usuario en su empresa
+$almacenesAutorizados = obtenerAlmacenesAutorizadosUsuario($usrCodigo, $empCodigo);
 $todosSoportados = getAlmacenesSoportados();
 
 // Modo oscuro (cookie compartida entre todas las páginas)
@@ -60,46 +60,19 @@ if (isset($_GET['alm'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lista de Almacenes - Sistema de Alertas de Stock</title>
-    <script src="js/comun.js"></script>
-    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
-    <link rel="stylesheet" href="css/almacenes.css?v=<?= file_exists(__DIR__ . '/css/almacenes.css') ? filemtime(__DIR__ . '/css/almacenes.css') : time() ?>">
-    <script src="js/sweetalert2.all.min.js"></script>
+    <script src="<?= h(assetUrl('js/comun.js')) ?>"></script>
+    <link rel="stylesheet" href="<?= h(assetUrl('css/estilos.css')) ?>">
+    <link rel="stylesheet" href="<?= h(assetUrl('css/almacenes.css')) ?>">
+    <script src="<?= h(assetUrl('js/sweetalert2.all.min.js')) ?>"></script>
 </head>
 <body>
 <main class="contenedor">
-    <header class="encabezado">
-        <div class="encabezado-info">
-            <h1>LISTA DE ALMACENES</h1>
-        </div>
-
-        <div class="encabezado-base-datos">
-                <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
-        </div>
-
-        <div class="encabezado-derecha">
-            <div class="encabezado-usuario-barra">
-                <?php if (!empty($usuario)): ?>
-                    <div class="usuario-sesion-pill" title="Usuario: <?= htmlspecialchars($usuario['usr_codigo'] ?? '', ENT_QUOTES, 'UTF-8') ?> | Rol: <?= htmlspecialchars($usuario['pus_codigo'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <span>USUARIO: </span>
-                            <strong>
-                                <span class="usuario-sesion-nombre"><?= htmlspecialchars($usuario['usr_nombre'] ?: $usuario['usr_codigo'], ENT_QUOTES, 'UTF-8') ?></span>
-                            </strong>
-                    </div>
-                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
-                        Salir
-                    </a>
-                <?php endif; ?>
-                <!-- Botón para alternar el modo -->
-                <a href="?toggle_dark_mode=1"
-                   id="btn-toggle-dark"
-                   onclick="toggleDarkMode(event)"
-                   class="btn-toggle-dark"
-                   title="Alternar modo claro / oscuro">
-                    <?= $darkMode ? '🌞' : '🌚' ?>
-                </a>
-            </div>
-        </div>
-    </header>
+    <?php
+    $tituloEncabezado = 'LISTA DE ALMACENES';
+    $usuarioEncabezado = $usuario;
+    $accionesEncabezadoHtml = '';
+    require __DIR__ . '/includes/encabezado_usuario.php';
+    ?>
 
     <?php if (!empty($almacenesAutorizados)): ?>
         <div class="almacenes-grid">

@@ -17,25 +17,37 @@ class StockRepository
     public function __construct(mixed $connection, ?string $database = null)
     {
         $this->connection = $connection;
+
         if ($database !== null && trim($database) !== '') {
-            $cleaned = trim($database);
-            if (!preg_match('/\A[A-Za-z0-9_]+\z/', $cleaned)) {
-                throw new RuntimeException("El nombre de la base de datos '{$cleaned}' contiene caracteres no permitidos.");
-            }
-            $this->database = $cleaned;
-        } elseif (function_exists('getDatabaseName')) {
-            $this->database = getDatabaseName();
-        } else {
-            $rawDb = $_ENV['DB_DATABASE'] ?? $_SERVER['DB_DATABASE'] ?? getenv('DB_DATABASE');
-            if (!is_string($rawDb) || trim($rawDb) === '') {
-                throw new RuntimeException('Falta configurar la variable DB_DATABASE en el archivo .env.');
-            }
-            $cleaned = trim($rawDb);
-            if (!preg_match('/\A[A-Za-z0-9_]+\z/', $cleaned)) {
-                throw new RuntimeException("El nombre de la base de datos '{$cleaned}' contiene caracteres no permitidos.");
-            }
-            $this->database = $cleaned;
+            $this->database = $this->validarDatabase($database);
+            return;
         }
+
+        if (!function_exists('getDatabaseName')) {
+            $archivoBootstrap = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'bootstrap.php';
+            if (!is_file($archivoBootstrap)) {
+                throw new RuntimeException(
+                    'No se encontró config/bootstrap.php para cargar la configuración .env.'
+                );
+            }
+            require_once $archivoBootstrap;
+        }
+
+        $this->database = $this->validarDatabase(getDatabaseName());
+    }
+
+    private function validarDatabase(string $db): string
+    {
+        if (function_exists('validarNombreBaseDatos')) {
+            return validarNombreBaseDatos($db);
+        }
+
+        $cleaned = trim($db);
+        if (!preg_match('/\A[A-Za-z0-9_]+\z/', $cleaned)) {
+            throw new RuntimeException("El nombre de la base de datos '{$cleaned}' contiene caracteres no permitidos.");
+        }
+
+        return $cleaned;
     }
 
     /**
@@ -56,38 +68,10 @@ class StockRepository
             $params = [$almLimpio, $almLimpio];
         }
 
-        $stock = $this->expresionStock();
+        $cte = $this->cteStockConfigurado("AND cfg.disponible = 1\n                  {$condicionAlmCte}");
 
         $sql = "
-            ;WITH StockCalculado AS
-            (
-                SELECT
-                    cfg.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo,
-
-                    {$stock} AS stock_actual
-
-                FROM [{$this->database}].dbo.cfg_alerta_stock cfg
-
-                INNER JOIN [{$this->database}].dbo.log_detmov a
-                    ON a.emp_codigo = cfg.emp_codigo
-                    AND a.art_codigo = cfg.art_codigo
-
-                INNER JOIN [{$this->database}].dbo.log_cabmov b
-                    ON a.mov_id = b.mov_id
-                    AND b.alm_codigo = cfg.alm_codigo
-
-                WHERE b.mov_flag <> 'A'
-                  AND b.mov_fecemi <= GETDATE()
-                  AND cfg.disponible = 1
-                  {$condicionAlmCte}
-
-                GROUP BY
-                    cfg.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo
-            )
+            {$cte}
 
             SELECT
                 cfg.emp_codigo,
@@ -126,43 +110,11 @@ class StockRepository
             ORDER BY cfg.alm_codigo, cfg.art_codigo;
         ";
 
-        $stmt = sqlsrv_query($this->connection, $sql, $params);
-
-        if ($stmt === false) {
-            throw $this->crearErrorSql(
-                'No se pudo obtener el stock configurado'
-            );
-        }
-
-        $resultados = [];
-
-        try {
-
-            while (true) {
-
-                $fila = sqlsrv_fetch_array(
-                    $stmt,
-                    SQLSRV_FETCH_ASSOC
-                );
-
-                if ($fila === null) {
-                    break;
-                }
-
-                if ($fila === false) {
-                    throw $this->crearErrorSql(
-                        'Error al recuperar los resultados'
-                    );
-                }
-
-                $resultados[] = $fila;
-            }
-
-        } finally {
-            sqlsrv_free_stmt($stmt);
-        }
-
-        return $resultados;
+        return $this->consultar(
+            $sql,
+            $params,
+            'No se pudo obtener el stock configurado'
+        );
     }
 
     /**
@@ -175,7 +127,6 @@ class StockRepository
         int $bandStock,
         int $bandCorreo
     ): void {
-
         if (!in_array($bandStock, [0, 1], true)
             || !in_array($bandCorreo, [0, 1], true)) {
             throw new RuntimeException(
@@ -199,29 +150,20 @@ class StockRepository
                 );
         ";
 
-        $params = [
-            $bandStock,
-            $bandCorreo,
-            $empresa,
-            $articulo,
-            $almacen,
-            $bandStock,
-            $bandCorreo
-        ];
-
-        $stmt = sqlsrv_query(
-            $this->connection,
+        $this->ejecutar(
             $sql,
-            $params
+            [
+                $bandStock,
+                $bandCorreo,
+                $empresa,
+                $articulo,
+                $almacen,
+                $bandStock,
+                $bandCorreo
+            ],
+            'No se pudieron actualizar las banderas',
+            true
         );
-
-        if ($stmt === false) {
-            throw $this->crearErrorSql(
-                'No se pudieron actualizar las banderas'
-            );
-        }
-
-        sqlsrv_free_stmt($stmt);
     }
 
     /**
@@ -232,7 +174,6 @@ class StockRepository
         string $articulo,
         string $almacen
     ): void {
-
         $sql = "
             UPDATE [{$this->database}].dbo.cfg_alerta_stock
             SET
@@ -246,25 +187,12 @@ class StockRepository
                 AND band_correo = 0;
         ";
 
-        $params = [
-            $empresa,
-            $articulo,
-            $almacen
-        ];
-
-        $stmt = sqlsrv_query(
-            $this->connection,
+        $this->ejecutar(
             $sql,
-            $params
+            [$empresa, $articulo, $almacen],
+            'No se pudo marcar el correo como enviado',
+            true
         );
-
-        if ($stmt === false) {
-            throw $this->crearErrorSql(
-                'No se pudo marcar el correo como enviado'
-            );
-        }
-
-        sqlsrv_free_stmt($stmt);
     }
 
     // ------------------------------------------------------------------
@@ -361,6 +289,40 @@ class StockRepository
     }
 
     /**
+     * CTE reutilizable para calcular el stock físico de los artículos configurados.
+     */
+    private function cteStockConfigurado(string $condicionExtra = ''): string
+    {
+        $db = $this->database;
+        $stock = $this->expresionStock();
+
+        return "
+            ;WITH StockCalculado AS
+            (
+                SELECT
+                    cfg.emp_codigo,
+                    a.art_codigo,
+                    b.alm_codigo,
+                    {$stock} AS stock_actual
+                FROM [{$db}].dbo.cfg_alerta_stock cfg
+                INNER JOIN [{$db}].dbo.log_detmov a
+                    ON a.emp_codigo = cfg.emp_codigo
+                    AND a.art_codigo = cfg.art_codigo
+                INNER JOIN [{$db}].dbo.log_cabmov b
+                    ON a.mov_id = b.mov_id
+                    AND b.alm_codigo = cfg.alm_codigo
+                WHERE b.mov_flag <> 'A'
+                  AND b.mov_fecemi <= GETDATE()
+                  {$condicionExtra}
+                GROUP BY
+                    cfg.emp_codigo,
+                    a.art_codigo,
+                    b.alm_codigo
+            )
+        ";
+    }
+
+    /**
      * Ejecuta una consulta y devuelve todas las filas (arreglo asociativo).
      *
      * @throws RuntimeException Si la consulta falla.
@@ -370,20 +332,57 @@ class StockRepository
         $stmt = sqlsrv_query($this->connection, $sql, $params);
 
         if ($stmt === false) {
-            throw new RuntimeException(
-                $mensajeError . ': ' . print_r(sqlsrv_errors(SQLSRV_ERR_ALL), true)
-            );
+            throw $this->crearErrorSql($mensajeError);
         }
 
         $filas = [];
 
-        while ($fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
-            $filas[] = $fila;
+        try {
+            while (true) {
+                $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+
+                if ($fila === null) {
+                    break;
+                }
+
+                if ($fila === false) {
+                    throw $this->crearErrorSql('Error al recuperar los resultados');
+                }
+
+                $filas[] = $fila;
+            }
+        } finally {
+            sqlsrv_free_stmt($stmt);
         }
 
-        sqlsrv_free_stmt($stmt);
-
         return $filas;
+    }
+
+    /**
+     * Ejecuta una consulta y devuelve la primera fila (o null si no hay resultados).
+     * Si $mensajeError es null y la consulta falla, devuelve null sin lanzar excepción.
+     *
+     * @throws RuntimeException Si $mensajeError no es null y la consulta falla.
+     */
+    private function consultarFila(string $sql, array $params, ?string $mensajeError = null): ?array
+    {
+        $stmt = sqlsrv_query($this->connection, $sql, $params);
+
+        if ($stmt === false) {
+            if ($mensajeError !== null) {
+                throw new RuntimeException($mensajeError);
+            }
+
+            return null;
+        }
+
+        try {
+            $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+        } finally {
+            sqlsrv_free_stmt($stmt);
+        }
+
+        return is_array($fila) ? $fila : null;
     }
 
     /**
@@ -391,8 +390,12 @@ class StockRepository
      *
      * @throws RuntimeException Si la sentencia falla (con el código de error de SQL Server).
      */
-    private function ejecutar(string $sql, array $params, string $mensajeError): int
-    {
+    private function ejecutar(
+        string $sql,
+        array $params,
+        string $mensajeError,
+        bool $detallarSql = false
+    ): int {
         $stmt = sqlsrv_query($this->connection, $sql, $params);
 
         if ($stmt === false) {
@@ -413,14 +416,18 @@ class StockRepository
                 }
             }
 
+            if ($detallarSql) {
+                throw $this->crearErrorSql($mensajeError, $codigo);
+            }
+
             throw new RuntimeException($mensajeError, $codigo);
         }
 
-        $filas = (int) sqlsrv_rows_affected($stmt);
-
-        sqlsrv_free_stmt($stmt);
-
-        return $filas;
+        try {
+            return (int) sqlsrv_rows_affected($stmt);
+        } finally {
+            sqlsrv_free_stmt($stmt);
+        }
     }
 
     /**
@@ -459,16 +466,9 @@ class StockRepository
             WHERE cfg.alm_codigo = ?;
         ";
 
-        $stmt = sqlsrv_query($this->connection, $sql, [$almCodigo]);
+        $fila = $this->consultarFila($sql, [$almCodigo]);
 
-        if ($stmt === false) {
-            return $totales;
-        }
-
-        $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
-        sqlsrv_free_stmt($stmt);
-
-        if ($fila) {
+        if ($fila !== null) {
             foreach (array_keys($totales) as $clave) {
                 $totales[$clave] = (int) ($fila[$clave] ?? 0);
             }
@@ -478,20 +478,105 @@ class StockRepository
     }
 
     /**
-     * Lista la configuración de un almacén con su stock físico, aplicando filtros y orden.
+     * Construye condiciones LIKE parametrizadas para buscar por palabras dentro de varias columnas.
      *
-     * @param array $filtros Claves opcionales (cadena vacía = sin filtro):
-     *                       disponible, catalogo ('no_encontrado'), stock, correo,
-     *                       categoria, familia, tfa.
-     * @param string $orden  stock_desc | stock_asc | minimo_desc | minimo_asc | '' (por defecto)
+     * @param string   $busqueda            Texto ingresado por el usuario.
+     * @param string[] $expresionesColumnas Expresiones SQL a evaluar con OR por cada token.
+     * @param array    $params              Arreglo de parámetros por referencia.
      */
-    public function listarConfiguracion(string $almCodigo, array $filtros = [], string $orden = ''): array
+    private function construirClausulasBusqueda(string $busqueda, array $expresionesColumnas, array &$params): ?string
+    {
+        $limpio = trim($busqueda);
+        if ($limpio === '' || empty($expresionesColumnas)) {
+            return null;
+        }
+
+        $tokens = preg_split('/\s+/', $limpio) ?: [];
+        $tokens = array_values(array_filter(array_slice($tokens, 0, 5), static fn(string $t): bool => $t !== ''));
+        if (empty($tokens)) {
+            return null;
+        }
+
+        $clausulasToken = [];
+        foreach ($tokens as $token) {
+            $escapado = strtr($token, [
+                '\\' => '\\\\',
+                '%'  => '\%',
+                '_'  => '\_',
+                '['  => '\[',
+            ]);
+            $patron = '%' . $escapado . '%';
+
+            $subcondiciones = [];
+            foreach ($expresionesColumnas as $expr) {
+                $subcondiciones[] = "{$expr} LIKE ? ESCAPE '\\'";
+                $params[] = $patron;
+            }
+
+            $clausulasToken[] = '(' . implode(' OR ', $subcondiciones) . ')';
+        }
+
+        return implode(' AND ', $clausulasToken);
+    }
+
+    /**
+     * Ejecuta una consulta paginada (conteo + OFFSET/FETCH) asegurando página dentro de rango.
+     *
+     * @return array{items: array<int, array>, total: int, pagina: int, por_pagina: int, total_paginas: int}
+     */
+    private function ejecutarConsultaPaginada(
+        string $sqlConteo,
+        string $sqlDatos,
+        array $paramsBase,
+        int $pagina,
+        int $porPagina,
+        string $mensajeError
+    ): array {
+        $porPagina = max(1, min(100, $porPagina));
+        $pagina = max(1, $pagina);
+
+        $filaConteo = $this->consultarFila($sqlConteo, $paramsBase, $mensajeError);
+        $total = (int) ($filaConteo['total'] ?? 0);
+        $totalPaginas = max(1, (int) ceil($total / $porPagina));
+        $paginaActual = min($pagina, $totalPaginas);
+
+        if ($total === 0) {
+            return [
+                'items' => [],
+                'total' => 0,
+                'pagina' => 1,
+                'por_pagina' => $porPagina,
+                'total_paginas' => 1,
+            ];
+        }
+
+        $offset = ($paginaActual - 1) * $porPagina;
+        $items = $this->consultar(
+            $sqlDatos,
+            array_merge($paramsBase, [$offset, $porPagina]),
+            $mensajeError
+        );
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'pagina' => $paginaActual,
+            'por_pagina' => $porPagina,
+            'total_paginas' => $totalPaginas,
+        ];
+    }
+
+    /**
+     * Construye CTE, FROM/WHERE, ORDER BY y parámetros compartidos para listar configuraciones.
+     *
+     * @return array{cte: string, fromWhere: string, orderBy: string, params: array}
+     */
+    private function construirConsultaConfiguracion(string $almCodigo, array $filtros = [], string $orden = ''): array
     {
         $db = $this->database;
-        $stock = $this->expresionStock();
 
         $condiciones = ['cfg.alm_codigo = ?'];
-        $params = [$almCodigo];
+        $whereParams = [$almCodigo];
 
         $disponible = (string) ($filtros['disponible'] ?? '');
         $catalogo = (string) ($filtros['catalogo'] ?? '');
@@ -500,10 +585,11 @@ class StockRepository
         $categoria = (string) ($filtros['categoria'] ?? '');
         $familia = (string) ($filtros['familia'] ?? '');
         $tfa = (string) ($filtros['tfa'] ?? '');
+        $busqueda = (string) ($filtros['busqueda'] ?? '');
 
         if ($disponible !== '') {
             $condiciones[] = 'cfg.disponible = ?';
-            $params[] = (int) $disponible;
+            $whereParams[] = (int) $disponible;
         }
 
         if ($catalogo === 'no_encontrado') {
@@ -512,27 +598,36 @@ class StockRepository
 
         if ($bandStock !== '') {
             $condiciones[] = 'cfg.band_stock = ? AND m.art_codigo IS NOT NULL';
-            $params[] = (int) $bandStock;
+            $whereParams[] = (int) $bandStock;
         }
 
         if ($bandCorreo !== '') {
             $condiciones[] = 'cfg.band_correo = ? AND m.art_codigo IS NOT NULL';
-            $params[] = (int) $bandCorreo;
+            $whereParams[] = (int) $bandCorreo;
         }
 
         if ($categoria !== '') {
             $condiciones[] = 'RTRIM(l.lin_nombre) = ?';
-            $params[] = $categoria;
+            $whereParams[] = $categoria;
         }
 
         if ($familia !== '') {
             $condiciones[] = 'RTRIM(f.fam_nombre) = ?';
-            $params[] = $familia;
+            $whereParams[] = $familia;
         }
 
         if ($tfa !== '') {
             $condiciones[] = 'RTRIM(tf.tfa_nombre) = ?';
-            $params[] = $tfa;
+            $whereParams[] = $tfa;
+        }
+
+        $clausulaBusqueda = $this->construirClausulasBusqueda(
+            $busqueda,
+            ['RTRIM(cfg.art_codigo)', "ISNULL(RTRIM(m.art_nombre), '')"],
+            $whereParams
+        );
+        if ($clausulaBusqueda !== null) {
+            $condiciones[] = $clausulaBusqueda;
         }
 
         $where = 'WHERE ' . implode(' AND ', $condiciones);
@@ -545,29 +640,47 @@ class StockRepository
             default       => 'ORDER BY cfg.disponible DESC, cfg.emp_codigo, cfg.art_codigo, cfg.alm_codigo',
         };
 
+        $cte = $this->cteStockConfigurado('AND cfg.alm_codigo = ?');
+
+        $fromWhere = "
+            FROM [{$db}].dbo.cfg_alerta_stock cfg
+
+            LEFT JOIN StockCalculado s
+                ON s.emp_codigo = cfg.emp_codigo
+                AND s.art_codigo = cfg.art_codigo
+                AND s.alm_codigo = cfg.alm_codigo
+
+            LEFT JOIN [{$db}].dbo.mae_articulo m
+                ON m.emp_codigo = cfg.emp_codigo
+                AND m.art_codigo = cfg.art_codigo
+
+            {$this->joinsMaestro('m')}
+
+            {$where}
+        ";
+
+        return [
+            'cte' => $cte,
+            'fromWhere' => $fromWhere,
+            'orderBy' => $orderBy,
+            'params' => array_merge([$almCodigo], $whereParams),
+        ];
+    }
+
+    /**
+     * Lista la configuración de un almacén con su stock físico, aplicando filtros y orden.
+     *
+     * @param array $filtros Claves opcionales (cadena vacía = sin filtro):
+     *                       disponible, catalogo ('no_encontrado'), stock, correo,
+     *                       categoria, familia, tfa, busqueda.
+     * @param string $orden  stock_desc | stock_asc | minimo_desc | minimo_asc | '' (por defecto)
+     */
+    public function listarConfiguracion(string $almCodigo, array $filtros = [], string $orden = ''): array
+    {
+        $partes = $this->construirConsultaConfiguracion($almCodigo, $filtros, $orden);
+
         $sql = "
-            ;WITH StockCalculado AS
-            (
-                SELECT
-                    cfg.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo,
-                    {$stock} AS stock_actual
-                FROM [{$db}].dbo.cfg_alerta_stock cfg
-                INNER JOIN [{$db}].dbo.log_detmov a
-                    ON a.emp_codigo = cfg.emp_codigo
-                    AND a.art_codigo = cfg.art_codigo
-                INNER JOIN [{$db}].dbo.log_cabmov b
-                    ON a.mov_id = b.mov_id
-                    AND b.alm_codigo = cfg.alm_codigo
-                WHERE b.mov_flag <> 'A'
-                  AND b.mov_fecemi <= GETDATE()
-                  AND cfg.alm_codigo = ?
-                GROUP BY
-                    cfg.emp_codigo,
-                    a.art_codigo,
-                    b.alm_codigo
-            )
+            {$partes['cte']}
 
             SELECT
                 cfg.emp_codigo,
@@ -584,27 +697,67 @@ class StockRepository
                 s.stock_actual AS stock_actual,
                 cfg.fecha_actualizacion
 
-            FROM [{$db}].dbo.cfg_alerta_stock cfg
+            {$partes['fromWhere']}
 
-            LEFT JOIN StockCalculado s
-                ON s.emp_codigo = cfg.emp_codigo
-                AND s.art_codigo = cfg.art_codigo
-                AND s.alm_codigo = cfg.alm_codigo
-
-            LEFT JOIN [{$db}].dbo.mae_articulo m
-                ON m.emp_codigo = cfg.emp_codigo
-                AND m.art_codigo = cfg.art_codigo
-
-            {$this->joinsMaestro('m')}
-
-            {$where}
-
-            {$orderBy};
+            {$partes['orderBy']};
         ";
 
         return $this->consultar(
             $sql,
-            array_merge([$almCodigo], $params),
+            $partes['params'],
+            'No se pudo consultar la configuración de stock'
+        );
+    }
+
+    /**
+     * Lista la configuración de un almacén de forma paginada aplicando filtros, búsqueda y orden.
+     *
+     * @return array{items: array<int, array>, total: int, pagina: int, por_pagina: int, total_paginas: int}
+     */
+    public function listarConfiguracionPaginada(
+        string $almCodigo,
+        array $filtros = [],
+        string $orden = '',
+        int $pagina = 1,
+        int $porPagina = 10
+    ): array {
+        $partes = $this->construirConsultaConfiguracion($almCodigo, $filtros, $orden);
+
+        $sqlConteo = "
+            {$partes['cte']}
+            SELECT COUNT(*) AS total
+            {$partes['fromWhere']};
+        ";
+
+        $sqlDatos = "
+            {$partes['cte']}
+
+            SELECT
+                cfg.emp_codigo,
+                cfg.art_codigo,
+                cfg.alm_codigo,
+                cfg.stock_minimo,
+                cfg.band_stock,
+                cfg.band_correo,
+                cfg.disponible,
+
+                m.art_codigo AS mae_art_codigo,
+                {$this->columnasMaestro()},
+
+                s.stock_actual AS stock_actual
+
+            {$partes['fromWhere']}
+
+            {$partes['orderBy']}
+            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
+        ";
+
+        return $this->ejecutarConsultaPaginada(
+            $sqlConteo,
+            $sqlDatos,
+            $partes['params'],
+            $pagina,
+            $porPagina,
             'No se pudo consultar la configuración de stock'
         );
     }
@@ -636,25 +789,26 @@ class StockRepository
         $familias = [];
         $tipos = [];
 
-        $stmt = sqlsrv_query($this->connection, $sql, [$almCodigo]);
+        try {
+            $filas = $this->consultar($sql, [$almCodigo], 'No se pudieron consultar las clasificaciones');
+        } catch (RuntimeException) {
+            $filas = [];
+        }
 
-        if ($stmt !== false) {
-            while ($fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
-                $cat = trim((string) ($fila['categoria'] ?? ''));
-                $fam = trim((string) ($fila['fam_nombre'] ?? ''));
-                $tfa = trim((string) ($fila['tfa_nombre'] ?? ''));
+        foreach ($filas as $fila) {
+            $cat = trim((string) ($fila['categoria'] ?? ''));
+            $fam = trim((string) ($fila['fam_nombre'] ?? ''));
+            $tfa = trim((string) ($fila['tfa_nombre'] ?? ''));
 
-                if ($cat !== '') {
-                    $categorias[$cat] = true;
-                }
-                if ($fam !== '') {
-                    $familias[$fam] = true;
-                }
-                if ($tfa !== '') {
-                    $tipos[$tfa] = true;
-                }
+            if ($cat !== '') {
+                $categorias[$cat] = true;
             }
-            sqlsrv_free_stmt($stmt);
+            if ($fam !== '') {
+                $familias[$fam] = true;
+            }
+            if ($tfa !== '') {
+                $tipos[$tfa] = true;
+            }
         }
 
         $categorias = array_keys($categorias);
@@ -704,13 +858,11 @@ class StockRepository
               AND cfg.alm_codigo = ?;
         ";
 
-        $filas = $this->consultar(
+        return $this->consultarFila(
             $sql,
             [$almacen, $empresa, $articulo, $empresa, $articulo, $almacen],
             'No se pudo consultar el registro'
         );
-
-        return $filas[0] ?? null;
     }
 
     /**
@@ -719,21 +871,12 @@ class StockRepository
     public function existeArticulo(string $empresa, string $articulo): bool
     {
         $sql = "
-            SELECT 1
+            SELECT 1 AS existe
             FROM [{$this->database}].dbo.mae_articulo
             WHERE emp_codigo = ? AND art_codigo = ?;
         ";
 
-        $stmt = sqlsrv_query($this->connection, $sql, [$empresa, $articulo]);
-
-        if ($stmt === false) {
-            return false;
-        }
-
-        $existe = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_NUMERIC) !== null;
-        sqlsrv_free_stmt($stmt);
-
-        return $existe;
+        return $this->consultarFila($sql, [$empresa, $articulo]) !== null;
     }
 
     /**
@@ -747,14 +890,7 @@ class StockRepository
             WHERE emp_codigo = ? AND art_codigo = ?;
         ";
 
-        $stmt = sqlsrv_query($this->connection, $sql, [$empresa, $articulo]);
-
-        if ($stmt === false) {
-            return '';
-        }
-
-        $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
-        sqlsrv_free_stmt($stmt);
+        $fila = $this->consultarFila($sql, [$empresa, $articulo]);
 
         return $fila ? trim((string) ($fila['art_nombre'] ?? '')) : '';
     }
@@ -780,34 +916,25 @@ class StockRepository
             WHERE m.emp_codigo = ? AND m.art_codigo = ?;
         ";
 
-        $stmt = sqlsrv_query(
-            $this->connection,
+        $fila = $this->consultarFila(
             $sql,
             [$almacen, $empresa, $articulo, $empresa, $articulo]
         );
-
-        if ($stmt === false) {
-            return null;
-        }
-
-        $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
-        sqlsrv_free_stmt($stmt);
 
         return ($fila && isset($fila['art_nombre'])) ? $fila : null;
     }
 
     /**
-     * Catálogo de artículos con movimientos o configuración en un almacén,
-     * con su stock físico y su disponibilidad actual (null si no está configurado).
+     * Construye CTE y FROM/JOIN compartidos para consultas del catálogo de artículos por almacén.
      *
-     * @throws RuntimeException Si la consulta falla.
+     * @return array{cte: string, fromJoins: string}
      */
-    public function listarCatalogo(string $empresa, string $almacen): array
+    private function construirBaseCatalogo(): array
     {
         $db = $this->database;
         $stock = $this->expresionStock();
 
-        $sql = "
+        $cte = "
             ;WITH StockCalculado AS
             (
                 SELECT
@@ -835,11 +962,9 @@ class StockRepository
                 FROM [{$db}].dbo.cfg_alerta_stock
                 WHERE emp_codigo = ? AND alm_codigo = ?
             )
-            SELECT
-                RTRIM(m.art_codigo) AS art_codigo,
-                {$this->columnasMaestro()},
-                s.stock_actual,
-                c.disponible
+        ";
+
+        $fromJoins = "
             FROM ArticulosObjetivo obj
             INNER JOIN [{$db}].dbo.mae_articulo m
                 ON m.emp_codigo = obj.emp_codigo
@@ -853,12 +978,127 @@ class StockRepository
                 ON c.emp_codigo = obj.emp_codigo
                 AND c.alm_codigo = obj.alm_codigo
                 AND c.art_codigo = obj.art_codigo
+        ";
+
+        return [
+            'cte' => $cte,
+            'fromJoins' => $fromJoins,
+        ];
+    }
+
+    /**
+     * Catálogo de artículos con movimientos o configuración en un almacén,
+     * con su stock físico y su disponibilidad actual (null si no está configurado).
+     *
+     * @throws RuntimeException Si la consulta falla.
+     */
+    public function listarCatalogo(string $empresa, string $almacen): array
+    {
+        $base = $this->construirBaseCatalogo();
+
+        $sql = "
+            {$base['cte']}
+            SELECT
+                RTRIM(m.art_codigo) AS art_codigo,
+                {$this->columnasMaestro()},
+                s.stock_actual,
+                c.disponible
+            {$base['fromJoins']}
             ORDER BY m.art_codigo ASC;
         ";
 
         return $this->consultar(
             $sql,
             [$almacen, $empresa, $empresa, $almacen],
+            'Error al consultar el catálogo de artículos'
+        );
+    }
+
+    /**
+     * Catálogo paginado de artículos disponibles para configurar en un almacén,
+     * con búsqueda por código/nombre/clasificación, filtro opcional solo con stock y ordenamiento.
+     *
+     * @param array $filtros Claves opcionales: busqueda (string), solo_stock (bool), art_actual (string).
+     * @param string $orden  defecto | desc | asc
+     * @return array{items: array<int, array>, total: int, pagina: int, por_pagina: int, total_paginas: int}
+     * @throws RuntimeException Si la consulta falla.
+     */
+    public function listarCatalogoPaginado(
+        string $empresa,
+        string $almacen,
+        array $filtros = [],
+        string $orden = 'defecto',
+        int $pagina = 1,
+        int $porPagina = 10
+    ): array {
+        $base = $this->construirBaseCatalogo();
+        $params = [$almacen, $empresa, $empresa, $almacen];
+        $condiciones = [];
+
+        $artActual = trim((string) ($filtros['art_actual'] ?? ''));
+        $soloStock = !empty($filtros['solo_stock']);
+        $busqueda = (string) ($filtros['busqueda'] ?? '');
+
+        if ($artActual !== '') {
+            $condiciones[] = '(c.disponible IS NULL OR c.disponible <> 1 OR RTRIM(m.art_codigo) = ?)';
+            $params[] = $artActual;
+        } else {
+            $condiciones[] = '(c.disponible IS NULL OR c.disponible <> 1)';
+        }
+
+        if ($soloStock) {
+            $condiciones[] = 'ISNULL(s.stock_actual, 0) > 0';
+        }
+
+        $clausulaBusqueda = $this->construirClausulasBusqueda(
+            $busqueda,
+            [
+                'RTRIM(m.art_codigo)',
+                "ISNULL(RTRIM(m.art_nombre), '')",
+                "ISNULL(RTRIM(l.lin_nombre), '')",
+                "ISNULL(RTRIM(f.fam_nombre), '')",
+                "ISNULL(RTRIM(tf.tfa_nombre), '')",
+            ],
+            $params
+        );
+        if ($clausulaBusqueda !== null) {
+            $condiciones[] = $clausulaBusqueda;
+        }
+
+        $where = 'WHERE ' . implode(' AND ', $condiciones);
+
+        $orderBy = match ($orden) {
+            'desc' => 'ORDER BY ISNULL(s.stock_actual, 0) DESC, m.art_codigo ASC',
+            'asc'  => 'ORDER BY ISNULL(s.stock_actual, 0) ASC, m.art_codigo ASC',
+            default => 'ORDER BY m.art_codigo ASC',
+        };
+
+        $sqlConteo = "
+            {$base['cte']}
+            SELECT COUNT(*) AS total
+            {$base['fromJoins']}
+            {$where};
+        ";
+
+        $sqlDatos = "
+            {$base['cte']}
+            SELECT
+                RTRIM(m.art_codigo) AS art_codigo,
+                {$this->columnasMaestro()},
+                s.stock_actual,
+                c.disponible
+            {$base['fromJoins']}
+            {$where}
+            {$orderBy}
+            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
+        ";
+
+        return $this->ejecutarConsultaPaginada(
+            $sqlConteo,
+            $sqlDatos,
+            $params,
+            $pagina,
+            $porPagina,
             'Error al consultar el catálogo de artículos'
         );
     }
@@ -879,20 +1119,13 @@ class StockRepository
               AND alm_codigo = ?;
         ";
 
-        $stmt = sqlsrv_query($this->connection, $sql, [$empresa, $articulo, $almacen]);
+        $fila = $this->consultarFila(
+            $sql,
+            [$empresa, $articulo, $almacen],
+            'No se pudo verificar el registro existente.'
+        );
 
-        if ($stmt === false) {
-            throw new RuntimeException('No se pudo verificar el registro existente.');
-        }
-
-        $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
-        sqlsrv_free_stmt($stmt);
-
-        if ($fila === null || $fila === false) {
-            return null;
-        }
-
-        return (int) ($fila['disponible'] ?? 0);
+        return $fila === null ? null : (int) ($fila['disponible'] ?? 0);
     }
 
     /**
@@ -1068,7 +1301,7 @@ class StockRepository
     /**
      * Construye una excepción con los errores de SQL Server.
      */
-    private function crearErrorSql(string $mensaje): RuntimeException
+    private function crearErrorSql(string $mensaje, int $codigo = 0): RuntimeException
     {
         $errores = sqlsrv_errors(SQLSRV_ERR_ALL) ?: [];
 
@@ -1083,7 +1316,8 @@ class StockRepository
         }
 
         return new RuntimeException(
-            $mensaje . ': ' . implode(' | ', $detalles)
+            $mensaje . ': ' . implode(' | ', $detalles),
+            $codigo
         );
     }
 }

@@ -1,30 +1,32 @@
 <?php
 
-$raizProyecto = dirname(__DIR__);
+declare(strict_types=1);
 
-// Asegurar carga de autoload si aún no está disponible
-if (!class_exists(\Dotenv\Dotenv::class) && file_exists($raizProyecto . '/vendor/autoload.php')) {
-    require_once $raizProyecto . '/vendor/autoload.php';
+require_once __DIR__ . '/bootstrap.php';
+
+/**
+ * Valida y limpia el identificador de la base de datos.
+ *
+ * @throws RuntimeException Si el nombre está vacío o contiene caracteres no permitidos.
+ */
+function validarNombreBaseDatos(mixed $db): string
+{
+    if (!is_string($db) || trim($db) === '') {
+        throw new RuntimeException(
+            'Falta configurar la variable DB_DATABASE en el archivo .env.'
+        );
+    }
+
+    $limpia = trim($db);
+
+    if (!preg_match('/\A[A-Za-z0-9_]+\z/', $limpia)) {
+        throw new RuntimeException(
+            "El nombre de la base de datos '{$limpia}' configurado en DB_DATABASE contiene caracteres no permitidos. Solo se permiten letras, números y guiones bajos."
+        );
+    }
+
+    return $limpia;
 }
-
-// Cargar variables de entorno si Dotenv existe y aún no se han cargado
-if (class_exists(\Dotenv\Dotenv::class) && file_exists($raizProyecto . '/.env') && empty($_ENV['DB_SERVER'])) {
-    $dotenv = \Dotenv\Dotenv::createImmutable($raizProyecto);
-    $dotenv->safeLoad();
-}
-
-// Configurar zona horaria de la aplicación con fallback
-$zonaHoraria = !empty($_ENV['APP_TIMEZONE'])
-    ? (string)$_ENV['APP_TIMEZONE']
-    : ((string)getenv('APP_TIMEZONE'));
-
-if (trim($zonaHoraria) === '') {
-    $zonaHoraria = 'America/Lima';
-}
-
-date_default_timezone_set($zonaHoraria);
-
-require_once __DIR__ . '/almacenes.php';
 
 /**
  * Retorna el nombre de la base de datos configurada en las variables de entorno (.env).
@@ -33,25 +35,16 @@ require_once __DIR__ . '/almacenes.php';
  */
 function getDatabaseName(): string
 {
-    $db = $_ENV['DB_DATABASE'] ?? $_SERVER['DB_DATABASE'] ?? getenv('DB_DATABASE');
-
-    if (!is_string($db) || trim($db) === '') {
-        throw new RuntimeException(
-            'Falta configurar la variable DB_DATABASE en el archivo .env.'
-        );
+    if (!function_exists('obtenerVariableEntorno')) {
+        require_once __DIR__ . '/bootstrap.php';
     }
 
-    $db = trim($db);
-
-    if (!preg_match('/\A[A-Za-z0-9_]+\z/', $db)) {
-        throw new RuntimeException(
-            "El nombre de la base de datos '{$db}' configurado en DB_DATABASE contiene caracteres no permitidos. Solo se permiten letras, números y guiones bajos."
-        );
-    }
-
-    return $db;
+    return validarNombreBaseDatos(obtenerVariableEntorno('DB_DATABASE'));
 }
 
+/**
+ * Devuelve una conexión reutilizable con SQL Server mediante la extensión sqlsrv.
+ */
 function getSqlServerConn(): mixed
 {
     static $conn = null;
@@ -66,25 +59,19 @@ function getSqlServerConn(): mixed
         );
     }
 
-    // Configuración del driver
     if (function_exists('sqlsrv_configure')) {
         sqlsrv_configure('WarningsReturnAsErrors', 0);
     }
 
-    $serverName = $_ENV['DB_SERVER'] ?? $_SERVER['DB_SERVER'] ?? getenv('DB_SERVER');
-    $database   = getDatabaseName();
-    $username   = $_ENV['DB_USERNAME'] ?? $_SERVER['DB_USERNAME'] ?? getenv('DB_USERNAME');
-    $password   = $_ENV['DB_PASSWORD'] ?? $_SERVER['DB_PASSWORD'] ?? getenv('DB_PASSWORD');
-
-    if (
-        $serverName === '' ||
-        $username === '' ||
-        $password === ''
-    ) {
-        throw new RuntimeException(
-            'Faltan datos de configuración de SQL Server.'
-        );
+    if (!function_exists('obtenerVariableEntorno')) {
+        require_once __DIR__ . '/bootstrap.php';
     }
+
+    $serverName = obtenerVariableEntorno('DB_SERVER');
+    $database   = getDatabaseName();
+    $username   = obtenerVariableEntorno('DB_USERNAME');
+    // No aplicar trim a la contraseña: debe conservarse exactamente.
+    $password   = obtenerVariableEntorno('DB_PASSWORD', false);
 
     $connectionInfo = [
         'Database' => $database,
@@ -97,9 +84,7 @@ function getSqlServerConn(): mixed
     $conn = sqlsrv_connect($serverName, $connectionInfo);
 
     if ($conn === false) {
-
         $errors = sqlsrv_errors(SQLSRV_ERR_ALL) ?: [];
-
         $details = [];
 
         foreach ($errors as $error) {

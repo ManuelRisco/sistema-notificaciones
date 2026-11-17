@@ -2,9 +2,7 @@
 
 use Manue\SistemaNotificaciones\StockRepository;
 
-require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
-require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/config/almacenes.php';
+require_once dirname(__DIR__, 2) . '/config/bootstrap.php';
 
 try {
     // Obtener la conexión existente

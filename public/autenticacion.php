@@ -2,18 +2,17 @@
 
 declare(strict_types=1);
 
-$raizProyecto = dirname(__DIR__);
+use Manue\SistemaNotificaciones\AuthRepository;
 
-if (!class_exists(\Dotenv\Dotenv::class) && file_exists($raizProyecto . '/vendor/autoload.php')) {
-    require_once $raizProyecto . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/config/bootstrap.php';
+
+/**
+ * Instancia el repositorio de autenticación con la conexión activa.
+ */
+function obtenerAuthRepository(): AuthRepository
+{
+    return new AuthRepository(getSqlServerConn(), getDatabaseName());
 }
-
-if (class_exists(\Dotenv\Dotenv::class) && file_exists($raizProyecto . '/.env') && empty($_ENV['DB_SERVER'])) {
-    $dotenv = \Dotenv\Dotenv::createImmutable($raizProyecto);
-    $dotenv->safeLoad();
-}
-
-require_once $raizProyecto . '/config/database.php';
 
 /**
  * Codifica una contraseña utilizando el algoritmo de ERPTECNOFILM.
@@ -21,28 +20,7 @@ require_once $raizProyecto . '/config/database.php';
  */
 function encodePassword(string $text): string
 {
-    if ($text === '') {
-        return '';
-    }
-
-    $raw = mb_convert_encoding($text, 'Windows-1252', 'UTF-8');
-    $len = strlen($raw);
-
-    if ($len === 0) {
-        return '';
-    }
-
-    $firstByte = ord($raw[0]);
-    $shift = intdiv($firstByte, 2);
-
-    $encoded = '';
-
-    for ($i = 0; $i < $len; $i++) {
-        $byte = ord($raw[$i]);
-        $encoded .= chr(($byte + $shift) % 256);
-    }
-
-    return $encoded;
+    return AuthRepository::encodePassword($text);
 }
 
 /**
@@ -50,17 +28,7 @@ function encodePassword(string $text): string
  */
 function verifyPassword(string $plainPassword, string $storedPassword): bool
 {
-    $dbClaveRaw = rtrim($storedPassword);
-    $inputClaveRaw = encodePassword($plainPassword);
-
-    $inputClaveUtf8 = mb_convert_encoding(
-        $inputClaveRaw,
-        'UTF-8',
-        'Windows-1252'
-    );
-
-    return hash_equals($dbClaveRaw, $inputClaveRaw)
-        || hash_equals($dbClaveRaw, $inputClaveUtf8);
+    return AuthRepository::verifyPassword($plainPassword, $storedPassword);
 }
 
 /**
@@ -70,14 +38,11 @@ function verifyPassword(string $plainPassword, string $storedPassword): bool
  */
 function obtenerSecretoAuth(): string
 {
-    $secreto = $_ENV['AUTH_SECRET'] ?? $_SERVER['AUTH_SECRET'] ?? getenv('AUTH_SECRET');
-    if (!is_string($secreto) || trim($secreto) === '') {
-        throw new RuntimeException(
-            'Falta configurar la variable AUTH_SECRET en el archivo .env.'
-        );
+    if (!function_exists('obtenerVariableEntorno')) {
+        require_once dirname(__DIR__) . '/config/bootstrap.php';
     }
 
-    $secreto = trim($secreto);
+    $secreto = obtenerVariableEntorno('AUTH_SECRET');
     if (strlen($secreto) < 32) {
         throw new RuntimeException(
             'La variable AUTH_SECRET configurada en .env debe tener al menos 32 caracteres.'
@@ -111,8 +76,9 @@ function usuarioEsAdministradorGlobal(?array $usuario = null): bool
  */
 function generarTokenAuth(array $usuario): string
 {
+    $empresaDefecto = getEmpresaDefecto();
     $payloadData = [
-        'emp_codigo' => trim((string) ($usuario['emp_codigo'] ?? '001')),
+        'emp_codigo' => trim((string) ($usuario['emp_codigo'] ?? $empresaDefecto)),
         'usr_codigo' => trim((string) ($usuario['usr_codigo'] ?? '')),
         'usr_nombre' => trim((string) ($usuario['usr_nombre'] ?? '')),
         'pus_codigo' => trim((string) ($usuario['pus_codigo'] ?? '')),
@@ -174,7 +140,7 @@ function validarTokenAuth(string $token): ?array
     }
 
     return [
-        'emp_codigo' => trim((string) ($datos['emp_codigo'] ?? '001')),
+        'emp_codigo' => trim((string) ($datos['emp_codigo'] ?? getEmpresaDefecto())),
         'usr_codigo' => trim((string) $datos['usr_codigo']),
         'usr_nombre' => trim((string) ($datos['usr_nombre'] ?? '')),
         'pus_codigo' => trim((string) ($datos['pus_codigo'] ?? '')),
@@ -194,28 +160,7 @@ function autenticarUsuario(string $usuario, string $clave, ?string $almCodigo = 
         return null;
     }
 
-    $conn = getSqlServerConn();
-    $db = getDatabaseName();
-    $sql = "
-       SELECT TOP 1
-            RTRIM(u.emp_codigo) AS emp_codigo,
-            RTRIM(u.usr_codigo) AS usr_codigo,
-            RTRIM(u.pus_codigo) AS pus_codigo,
-            RTRIM(u.usr_nombre) AS usr_nombre,
-            u.usr_clave,
-            u.usr_status
-        FROM [{$db}].dbo.adm_usuario u
-        WHERE UPPER(RTRIM(u.usr_codigo)) = ?;
-    ";
-
-    $stmt = sqlsrv_query($conn, $sql, [$usuario]);
-    if ($stmt === false) {
-        return null;
-    }
-
-    $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
-    sqlsrv_free_stmt($stmt);
-
+    $fila = obtenerAuthRepository()->buscarUsuarioPorCodigo($usuario, true);
     if (!$fila) {
         return null;
     }
@@ -231,9 +176,9 @@ function autenticarUsuario(string $usuario, string $clave, ?string $almCodigo = 
     }
 
     $usrCodigo = trim((string) $fila['usr_codigo']);
-    $empCodigo = trim((string) ($fila['emp_codigo'] ?? '001'));
+    $empCodigo = trim((string) ($fila['emp_codigo'] ?? ''));
     if ($empCodigo === '') {
-        $empCodigo = '001';
+        $empCodigo = getEmpresaDefecto();
     }
 
     // 3. Obtener almacenes asignados filtrando por usuario y empresa
@@ -268,51 +213,16 @@ function autenticarUsuario(string $usuario, string $clave, ?string $almCodigo = 
  * se basa en la existencia del registro en log_almusr para (usr_codigo, emp_codigo),
  * sin imponer usr_admalm = 1 para no bloquear a los encargados reales de almacén.
  */
-function obtenerAlmacenesAutorizadosUsuario(string $usrCodigo, string $empCodigo = '001'): array
+function obtenerAlmacenesAutorizadosUsuario(string $usrCodigo, string $empCodigo = ''): array
 {
-    $usrCodigo = strtoupper(trim($usrCodigo));
-    $empCodigo = trim($empCodigo);
-    if ($usrCodigo === '') {
-        return [];
-    }
-
-    if ($empCodigo === '') {
-        $empCodigo = '001';
-    }
-
-    $conn = getSqlServerConn();
-    $db = getDatabaseName();
-
-    $sql = "
-        SELECT DISTINCT RTRIM(a.alm_codigo) AS alm_codigo
-        FROM [{$db}].dbo.log_almusr a
-        WHERE UPPER(RTRIM(a.usr_codigo)) = ?
-          AND RTRIM(a.emp_codigo) = ?;
-    ";
-
-    $stmt = sqlsrv_query($conn, $sql, [$usrCodigo, $empCodigo]);
-    if ($stmt === false) {
-        return [];
-    }
-
-    $almacenes = [];
-    $soportados = getAlmacenesSoportados();
-
-    while ($fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
-        $alm = trim((string) ($fila['alm_codigo'] ?? ''));
-        if ($alm !== '' && isset($soportados[$alm])) {
-            $almacenes[] = $alm;
-        }
-    }
-    sqlsrv_free_stmt($stmt);
-
-    return array_values(array_unique($almacenes));
+    $empLimpio = trim($empCodigo) !== '' ? trim($empCodigo) : getEmpresaDefecto();
+    return obtenerAuthRepository()->obtenerAlmacenesAutorizadosUsuario($usrCodigo, $empLimpio);
 }
 
 /**
  * Verifica en tiempo real con SQL Server si un usuario tiene permiso asignado para un almacén específico.
  */
-function usuarioTienePermisoAlmacen(string $usrCodigo, string $almCodigo, string $empCodigo = '001'): bool
+function usuarioTienePermisoAlmacen(string $usrCodigo, string $almCodigo, string $empCodigo = ''): bool
 {
     $autorizados = obtenerAlmacenesAutorizadosUsuario($usrCodigo, $empCodigo);
     return in_array(trim($almCodigo), $autorizados, true);
@@ -344,7 +254,7 @@ function establecerAlmacenActivo(string $almCodigo): void
     }
 
     $almCodigo = trim($almCodigo);
-    $empCodigo = (string) ($usuario['emp_codigo'] ?? '001');
+    $empCodigo = (string) ($usuario['emp_codigo'] ?? getEmpresaDefecto());
     if (!esAlmacenSoportado($almCodigo) || !usuarioTienePermisoAlmacen($usuario['usr_codigo'], $almCodigo, $empCodigo)) {
         throw new RuntimeException('No tiene autorización para ingresar a este almacén. Solo el personal encargado de este almacén puede acceder.');
     }
@@ -379,9 +289,9 @@ function requerirAlmacenAutorizado(?string $almCodigo = null): string
     }
 
     // Verificar si el almacén es soportado y si el usuario está autorizado
-    $empCodigo = (string) ($usuario['emp_codigo'] ?? '001');
+    $empCodigo = (string) ($usuario['emp_codigo'] ?? getEmpresaDefecto());
     if (!esAlmacenSoportado($alm) || !usuarioTienePermisoAlmacen($usuario['usr_codigo'], $alm, $empCodigo)) {
-        $esAjax = esSolicitudAjax();
+        $esAjax = function_exists('esSolicitudAjax') && esSolicitudAjax();
 
         if ($esAjax) {
             header('Content-Type: application/json; charset=utf-8');
@@ -414,35 +324,7 @@ function renderizarErrorAutorizacion(string $mensaje): void
 {
     $darkMode = isset($_COOKIE['dark_mode']) && $_COOKIE['dark_mode'] === 'true';
     http_response_code(403);
-    ?>
-    <!DOCTYPE html>
-    <html lang="es" class="<?= $darkMode ? 'dark-mode' : '' ?>">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Acceso Denegado - Tecnofilm</title>
-        <link rel="stylesheet" href="css/estilos.css">
-        <script src="js/sweetalert2.all.min.js"></script>
-    </head>
-    <body class="error-autorizacion-body">
-        <div class="error-autorizacion-card">
-            <div class="error-autorizacion-icono">🚫</div>
-            <h2 class="error-autorizacion-titulo">Acceso No Autorizado</h2>
-            <p class="error-autorizacion-desc">
-                <?= htmlspecialchars($mensaje, ENT_QUOTES, 'UTF-8') ?>
-            </p>
-            <div class="error-autorizacion-acciones">
-                <a href="seleccionar_almacen.php" class="btn btn-primario">
-                    Ir a Selección de Almacén
-                </a>
-                <a href="logout.php" class="btn btn-secundario">
-                    Cerrar Sesión
-                </a>
-            </div>
-        </div>
-    </body>
-    </html>
-    <?php
+    require __DIR__ . '/includes/error_autorizacion.php';
 }
 
 /**
@@ -495,46 +377,34 @@ function obtenerUsuarioAutenticado(): ?array
             $usrCodigo = strtoupper(trim((string) ($datosToken['usr_codigo'] ?? '')));
             if ($usrCodigo !== '') {
                 try {
-                    $conn = getSqlServerConn();
-                    $db = getDatabaseName();
-                    $sql = "
-                        SELECT TOP 1
-                            RTRIM(u.emp_codigo) AS emp_codigo,
-                            RTRIM(u.usr_codigo) AS usr_codigo,
-                            RTRIM(u.pus_codigo) AS pus_codigo,
-                            RTRIM(u.usr_nombre) AS usr_nombre,
-                            u.usr_status
-                        FROM [{$db}].dbo.adm_usuario u
-                        WHERE UPPER(RTRIM(u.usr_codigo)) = ?;
-                    ";
-                    $stmt = sqlsrv_query($conn, $sql, [$usrCodigo]);
-                    if ($stmt !== false) {
-                        $fila = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
-                        sqlsrv_free_stmt($stmt);
+                    $fila = obtenerAuthRepository()->buscarUsuarioPorCodigo($usrCodigo);
 
-                        if ($fila && (!isset($fila['usr_status']) || (int) $fila['usr_status'] === 1)) {
-                            $empCodigo = trim((string) ($fila['emp_codigo'] ?? '001'));
-                            $almacenes = obtenerAlmacenesAutorizadosUsuario($usrCodigo, $empCodigo);
+                    if ($fila && (!isset($fila['usr_status']) || (int) $fila['usr_status'] === 1)) {
+                        $empCodigo = trim((string) ($fila['emp_codigo'] ?? ''));
+                        if ($empCodigo === '') {
+                            $empCodigo = getEmpresaDefecto();
+                        }
 
-                            if (!empty($almacenes)) {
-                                $usuario = [
-                                    'emp_codigo' => $empCodigo !== '' ? $empCodigo : '001',
-                                    'usr_codigo' => trim((string) $fila['usr_codigo']),
-                                    'pus_codigo' => trim((string) $fila['pus_codigo']),
-                                    'usr_nombre' => trim((string) $fila['usr_nombre']),
-                                    'almacenes'  => $almacenes,
-                                ];
+                        $almacenes = obtenerAlmacenesAutorizadosUsuario($usrCodigo, $empCodigo);
 
-                                $_SESSION['usuario'] = $usuario;
-                                $_SESSION['auth_token'] = $tokenCookie;
+                        if (!empty($almacenes)) {
+                            $usuario = [
+                                'emp_codigo' => $empCodigo,
+                                'usr_codigo' => trim((string) $fila['usr_codigo']),
+                                'pus_codigo' => trim((string) $fila['pus_codigo']),
+                                'usr_nombre' => trim((string) $fila['usr_nombre']),
+                                'almacenes'  => $almacenes,
+                            ];
 
-                                // Si el almacén previamente seleccionado en sesión ya no está autorizado, se limpia
-                                if (!empty($_SESSION['almacen_activo']) && !in_array($_SESSION['almacen_activo'], $almacenes, true)) {
-                                    unset($_SESSION['almacen_activo']);
-                                }
+                            $_SESSION['usuario'] = $usuario;
+                            $_SESSION['auth_token'] = $tokenCookie;
 
-                                return $usuario;
+                            // Si el almacén previamente seleccionado en sesión ya no está autorizado, se limpia
+                            if (!empty($_SESSION['almacen_activo']) && !in_array($_SESSION['almacen_activo'], $almacenes, true)) {
+                                unset($_SESSION['almacen_activo']);
                             }
+
+                            return $usuario;
                         }
                     }
                 } catch (Throwable) {
@@ -589,7 +459,7 @@ function requerirAutenticacion(): void
         return;
     }
 
-    $esAjax = esSolicitudAjax();
+    $esAjax = function_exists('esSolicitudAjax') && esSolicitudAjax();
 
     if ($esAjax) {
         header('Content-Type: application/json; charset=utf-8');

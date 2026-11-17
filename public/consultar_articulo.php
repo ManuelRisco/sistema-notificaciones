@@ -9,46 +9,49 @@ require_once __DIR__ . '/seguridad.php';
 $raizProyecto = dirname(__DIR__);
 header('Content-Type: application/json; charset=utf-8');
 
-$emp = '001';
+$emp = getEmpresaDefecto();
 $almParam = trim((string) ($_GET['alm'] ?? ''));
 $alm = requerirAlmacenAutorizado($almParam !== '' ? $almParam : null);
-
-/**
- * Formatea el stock con 3 decimales y la unidad de medida (ej.: "1,250.000 KG").
- */
-function formatearStock(?float $stock, string $unidadMedida): string
-{
-    return ($stock !== null)
-        ? number_format($stock, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '')
-        : trim('0.000 ' . $unidadMedida);
-}
 
 // Si se solicita el catálogo de artículos para la ventana modal
 if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
     $conexion = null;
     $artActual = trim((string) ($_GET['art_actual'] ?? ''));
+    $busqueda = substr(trim((string) ($_GET['q'] ?? '')), 0, 50);
+    $soloStock = ((string) ($_GET['solo_stock'] ?? '') === '1');
+    $orden = in_array((string) ($_GET['orden'] ?? ''), ['defecto', 'desc', 'asc'], true)
+        ? (string) $_GET['orden']
+        : 'defecto';
+    $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
+    $porPaginaRaw = (int) ($_GET['por_pagina'] ?? 10);
+    $porPagina = in_array($porPaginaRaw, [10, 15, 25, 50], true) ? $porPaginaRaw : 10;
 
     try {
         $conexion = getSqlServerConn();
         $repositorio = new StockRepository($conexion);
 
-        $articulos = [];
-
         try {
-            $filas = $repositorio->listarCatalogo($emp, $alm);
+            $resultado = $repositorio->listarCatalogoPaginado(
+                $emp,
+                $alm,
+                [
+                    'busqueda' => $busqueda,
+                    'solo_stock' => $soloStock,
+                    'art_actual' => $artActual,
+                ],
+                $orden,
+                $pagina,
+                $porPagina
+            );
         } catch (Throwable $e) {
             throw new RuntimeException('Error al consultar el catálogo de artículos.');
         }
 
-        foreach ($filas as $fila) {
+        $articulos = [];
+        foreach ($resultado['items'] as $fila) {
             $codigo = (string) $fila['art_codigo'];
             $disponible = $fila['disponible'] !== null ? (int) $fila['disponible'] : null;
             $esArticuloActual = ($artActual !== '' && $codigo === $artActual);
-
-            // Si el artículo ya está activo en cfg_alerta_stock y no es el artículo en edición, se omite
-            if ($disponible === 1 && !$esArticuloActual) {
-                continue;
-            }
 
             $stock = $fila['stock_actual'] !== null ? (float) $fila['stock_actual'] : null;
             $ume = trim((string) ($fila['unidad_medida'] ?? ''));
@@ -61,14 +64,19 @@ if (isset($_GET['catalogo']) || isset($_GET['listar'])) {
                 'fam_nombre' => trim((string) ($fila['fam_nombre'] ?? '')),
                 'tfa_nombre' => trim((string) ($fila['tfa_nombre'] ?? '')),
                 'stock_actual' => $stock,
-                'stock_formateado' => formatearStock($stock, $ume),
+                'stock_formateado' => formatearStockCantidad($stock, $ume),
+                'disponible' => $disponible,
                 'en_uso' => $esArticuloActual
             ];
         }
 
         echo json_encode([
             'exito' => true,
-            'total' => count($articulos),
+            'total' => $resultado['total'],
+            'pagina' => $resultado['pagina'],
+            'por_pagina' => $resultado['por_pagina'],
+            'total_paginas' => $resultado['total_paginas'],
+            'solo_stock' => $soloStock,
             'articulos' => $articulos
         ], JSON_UNESCAPED_UNICODE);
     } catch (Throwable $e) {
@@ -129,7 +137,7 @@ try {
         $famNombre = trim((string) ($filaMae['fam_nombre'] ?? ''));
         $tfaNombre = trim((string) ($filaMae['tfa_nombre'] ?? ''));
         $stockActual = $filaMae['stock_actual'] !== null ? (float) $filaMae['stock_actual'] : null;
-        $stockFormateado = formatearStock($stockActual, $unidadMedida);
+        $stockFormateado = formatearStockCantidad($stockActual, $unidadMedida);
         $encontrado = true;
     }
 

@@ -1,8 +1,7 @@
 // JavaScript compartido para formularios de artículos (crear.php y editar.php)
 // Conserva selectores, validaciones, autocompletado y catálogo interactivo.
 
-let catalogoCache = null;
-let ordenStockModal = "defecto";
+let consultaArticuloAbortController = null;
 
 /**
  * Renderiza en el DOM la información de stock, clasificación y estado de un artículo.
@@ -13,7 +12,6 @@ let ordenStockModal = "defecto";
 function renderInfoArticulo(data, opciones = {}) {
   const infoContainer = document.getElementById("info_articulo");
   const sufijoUme = document.getElementById("sufijo-unidad-minimo");
-  const labelUme = document.getElementById("label-unidad-minimo");
 
   const inputCat = document.getElementById("art_categoria");
   const inputFam = document.getElementById("art_familia");
@@ -22,7 +20,6 @@ function renderInfoArticulo(data, opciones = {}) {
   if (!data || !infoContainer) {
     if (infoContainer) infoContainer.innerHTML = "";
     if (sufijoUme) sufijoUme.textContent = "";
-    if (labelUme) labelUme.textContent = "";
     if (inputCat) inputCat.value = "";
     if (inputFam) inputFam.value = "";
     if (inputTfa) inputTfa.value = "";
@@ -31,12 +28,11 @@ function renderInfoArticulo(data, opciones = {}) {
 
   if (!data.encontrado) {
     infoContainer.innerHTML =
-      '<span class="badge badge-alerta" style="display: inline-block; font-size: 11px;">No encontrado</span>' +
+      '<span class="badge badge-alerta badge-sm">No encontrado</span>' +
       (opciones.modo === "editar"
-        ? ' <span style="display: block; margin-top: 4px; font-size: 12px; color: #dc2626;">Este artículo no existe en el catálogo maestro.</span>'
+        ? ' <span class="alerta-articulo-error">Este artículo no existe en el catálogo maestro.</span>'
         : "");
     if (sufijoUme) sufijoUme.textContent = "";
-    if (labelUme) labelUme.textContent = "";
     if (inputCat) inputCat.value = "";
     if (inputFam) inputFam.value = "";
     if (inputTfa) inputTfa.value = "";
@@ -49,7 +45,6 @@ function renderInfoArticulo(data, opciones = {}) {
 
   const umeTexto = data.unidad_medida || "";
   if (sufijoUme) sufijoUme.textContent = umeTexto;
-  if (labelUme) labelUme.textContent = umeTexto ? `(${umeTexto})` : "";
 
   const nombreHtml = `<span class="articulo-nombre-destacado">${escapeHtml(data.art_nombre || "")}</span>`;
   const stockTexto =
@@ -66,17 +61,17 @@ function renderInfoArticulo(data, opciones = {}) {
     data.art_codigo === opciones.codigoOriginal
   ) {
     estadoBadge =
-      '<span class="badge badge-activo" style="font-size: 11px;">En uso actualmente</span>';
+      '<span class="badge badge-activo badge-sm">En uso actualmente</span>';
   } else if (data.registrado) {
     if (data.disponible === 1) {
       estadoBadge =
-        '<span class="badge badge-alerta" style="font-size: 11px;">Ya está registrado</span>';
+        '<span class="badge badge-alerta badge-sm">Ya está registrado</span>';
     } else {
       const txt =
         opciones.modo === "crear"
           ? "Inactivo (se reactivará)"
           : "Ya registrado (Inactivo)";
-      estadoBadge = `<span class="badge badge-inactivo" style="font-size: 11px;">${txt}</span>`;
+      estadoBadge = `<span class="badge badge-inactivo badge-sm">${txt}</span>`;
     }
   }
 
@@ -103,6 +98,10 @@ function consultarArticulo(codigo, almCodigo, opciones = {}) {
   const artInput = document.getElementById("art_codigo");
 
   if (!codigo) {
+    if (consultaArticuloAbortController) {
+      consultaArticuloAbortController.abort();
+      consultaArticuloAbortController = null;
+    }
     renderInfoArticulo(null, opciones);
     if (opciones.onData) opciones.onData(null);
     return Promise.resolve(null);
@@ -110,12 +109,17 @@ function consultarArticulo(codigo, almCodigo, opciones = {}) {
 
   if (infoContainer) {
     infoContainer.innerHTML =
-      '<span style="color: #64748b; font-size: 13px;">Buscando artículo...</span>';
+      '<span class="texto-buscando">Buscando artículo...</span>';
   }
+
+  if (consultaArticuloAbortController) {
+    consultaArticuloAbortController.abort();
+  }
+  consultaArticuloAbortController = new AbortController();
 
   const url = `consultar_articulo.php?codigo=${encodeURIComponent(codigo)}&alm=${encodeURIComponent(almCodigo || "")}`;
 
-  return fetch(url)
+  return fetch(url, { signal: consultaArticuloAbortController.signal })
     .then((res) => res.json())
     .then((data) => {
       if (artInput && artInput.value.trim() !== codigo) {
@@ -125,7 +129,10 @@ function consultarArticulo(codigo, almCodigo, opciones = {}) {
       if (opciones.onData) opciones.onData(data);
       return data;
     })
-    .catch(() => {
+    .catch((err) => {
+      if (err && err.name === "AbortError") {
+        return null;
+      }
       if (infoContainer) infoContainer.innerHTML = "";
       if (opciones.onData) opciones.onData(null);
       return null;
@@ -133,7 +140,8 @@ function consultarArticulo(codigo, almCodigo, opciones = {}) {
 }
 
 /**
- * Abre el modal interactivo de catálogo de artículos con búsqueda y ordenamiento en tiempo real.
+ * Abre el modal interactivo de catálogo de artículos con búsqueda en BD (debounce 300ms),
+ * filtro de artículos únicamente con stock, ordenamiento y paginación.
  *
  * @param {string} almCodigo Código del almacén
  * @param {string} almNombre Nombre descriptivo del almacén
@@ -141,83 +149,71 @@ function consultarArticulo(codigo, almCodigo, opciones = {}) {
 function mostrarModalCatalogo(almCodigo, almNombre) {
   if (typeof Swal === "undefined") return;
 
+  let paginaActual = 1;
+  let porPaginaActual = 10;
+  let soloConStock = false;
+  let ordenStock = "defecto";
+  let busquedaConsultada = "";
+  let timerBusqueda = null;
+  let abortController = null;
+  let itemsPaginaActual = [];
+
   Swal.fire({
     title: `Catálogo de Artículos (Almacén ${escapeHtml(almCodigo)} - ${escapeHtml(almNombre)})`,
     html: `
-            <div style="text-align: left; font-size: 13px;">
-                <p style="color: var(--color-texto-muted); margin-bottom: 12px;">
+            <div class="catalogo-modal">
+                <p class="catalogo-subtitulo">
                     Buscar artículo por código o nombre
                 </p>
-                <div style="margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <input type="search" id="swal-buscador-catalogo" class="swal2-input" placeholder="020100149 | AMARILLO HUEVO" style="flex: 1; min-width: 240px; margin: 0; font-size: 13.5px; height: 40px; box-sizing: border-box;" autocomplete="off">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <label for="swal-orden-stock" style="font-weight: 600; font-size: 12px; color: var(--color-texto-muted); white-space: nowrap;">Ordenar:</label>
-                        <select id="swal-orden-stock" style="height: 40px; padding: 0 10px; border: 1.5px solid var(--color-borde-campo); border-radius: var(--radio-control); font-size: 12.5px; font-weight: 600; color: var(--color-texto); background-color: var(--color-tarjeta); cursor: pointer;">
+                <div class="catalogo-controles">
+                    <input type="search" id="swal-buscador-catalogo" class="swal2-input catalogo-buscador" placeholder="020100149 | AMARILLO HUEVO" autocomplete="off">
+                    <button type="button" id="swal-btn-solo-stock" class="btn btn-secundario catalogo-btn-solo-stock" aria-pressed="false" title="Mostrar únicamente artículos con stock físico mayor a cero">
+                        Solo con stock
+                    </button>
+                    <div class="catalogo-orden">
+                        <label for="swal-orden-stock" class="catalogo-orden-label">Ordenar:</label>
+                        <select id="swal-orden-stock" class="catalogo-orden-select">
                             <option value="defecto">Por defecto (Código)</option>
                             <option value="desc">Stock: mayor a menor (↓)</option>
                             <option value="asc">Stock: menor a mayor (↑)</option>
                         </select>
                     </div>
                 </div>
-                <div id="swal-lista-catalogo" style="max-height: 400px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--color-borde); border-radius: 8px; background: var(--color-tarjeta);">
-                    <div style="padding: 30px; text-align: center; color: var(--color-texto-muted);">
+                <div id="swal-lista-catalogo" class="catalogo-lista">
+                    <div class="catalogo-cargando">
                         Cargando artículos...
                     </div>
                 </div>
-                <div id="swal-contador-catalogo" style="margin-top: 8px; font-size: 12px; color: var(--color-texto-muted); text-align: right;"></div>
+                <div id="swal-paginacion-catalogo"></div>
             </div>
         `,
     width: "min(1160px, 96vw)",
     customClass: { popup: "swal-catalogo-ancho" },
     showConfirmButton: false,
     showCloseButton: true,
+    didClose: () => {
+      clearTimeout(timerBusqueda);
+      if (abortController) {
+        abortController.abort();
+        abortController = null;
+      }
+    },
     didOpen: () => {
       const buscador = document.getElementById("swal-buscador-catalogo");
+      const btnSoloStock = document.getElementById("swal-btn-solo-stock");
       const lista = document.getElementById("swal-lista-catalogo");
-      const contador = document.getElementById("swal-contador-catalogo");
+      const paginacionContenedor = document.getElementById("swal-paginacion-catalogo");
       const selectorOrden = document.getElementById("swal-orden-stock");
 
-      function obtenerItemsOrdenados() {
-        if (!catalogoCache) return [];
-        const copia = [...catalogoCache];
-        if (ordenStockModal === "desc") {
-          copia.sort((a, b) => {
-            const valA =
-              a.stock_actual !== null && a.stock_actual !== undefined
-                ? Number(a.stock_actual)
-                : -Infinity;
-            const valB =
-              b.stock_actual !== null && b.stock_actual !== undefined
-                ? Number(b.stock_actual)
-                : -Infinity;
-            if (valB !== valA) return valB - valA;
-            return (a.codigo || "").localeCompare(b.codigo || "");
-          });
-        } else if (ordenStockModal === "asc") {
-          copia.sort((a, b) => {
-            const valA =
-              a.stock_actual !== null && a.stock_actual !== undefined
-                ? Number(a.stock_actual)
-                : Infinity;
-            const valB =
-              b.stock_actual !== null && b.stock_actual !== undefined
-                ? Number(b.stock_actual)
-                : Infinity;
-            if (valA !== valB) return valA - valB;
-            return (a.codigo || "").localeCompare(b.codigo || "");
-          });
-        }
-        return copia;
-      }
+      function renderizarTabla(items) {
+        itemsPaginaActual = Array.isArray(items) ? items : [];
 
-      function renderizar(items) {
-        if (!items || items.length === 0) {
-          lista.innerHTML = `
-                        <div style="padding: 36px 16px; text-align: center; color: var(--color-texto-muted); font-size: 13px;">
-                            No hay artículos pendientes de configurar en este almacén.
-                        </div>
-                    `;
-          if (contador) contador.textContent = "0 artículos disponibles";
+        if (itemsPaginaActual.length === 0) {
+          const tieneFiltros = soloConStock || (buscador && buscador.value.trim() !== "");
+          const mensajeVacio = tieneFiltros
+            ? "No se encontraron artículos que coincidan con los filtros aplicados."
+            : "No hay artículos pendientes de configurar en este almacén.";
+          lista.innerHTML = `<div class="catalogo-vacio">${mensajeVacio}</div>`;
           return;
         }
 
@@ -225,206 +221,254 @@ function mostrarModalCatalogo(almCodigo, almNombre) {
           document.getElementById("art_codigo")?.value || ""
         ).trim();
 
-        let html =
-          '<table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; text-align: left;">';
+        let html = '<table class="catalogo-tabla">';
         html += `
                     <thead>
-                        <tr style="background: var(--color-secundario-fondo); position: sticky; top: 0; z-index: 2; border-bottom: 1.5px solid var(--color-borde);">
-                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase;">Código</th>
-                            <th style="padding: 8px 6px; font-size: 11px; text-transform: uppercase;">Artículo</th>
-                            <th style="padding: 8px 6px; width: 230px; font-size: 11px; text-transform: uppercase;">Clasificación</th>
-                            <th style="padding: 8px 6px; width: 125px; font-size: 11px; text-transform: uppercase; text-align: right; user-select: none;">
-                                <span style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                        <tr>
+                            <th class="catalogo-th-codigo">Código</th>
+                            <th>Artículo</th>
+                            <th class="catalogo-th-clasificacion">Clasificación</th>
+                            <th class="catalogo-th-stock">
+                                <span class="catalogo-th-stock-wrap">
                                     <span>Stock real</span>
-                                    <button type="button" id="th-sort-stock-modal" style="background:none;border:none;cursor:pointer;padding:0;color:inherit;">
+                                    <button type="button" id="th-sort-stock-modal" class="catalogo-btn-orden-stock" title="Ordenar por stock real">
                                         <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
                                             <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"></path>
                                         </svg>
                                     </button>
                                 </span>
                             </th>
-                            <th style="padding: 8px 6px; width: 95px; font-size: 11px; text-transform: uppercase; text-align: center;">Acción</th>
+                            <th class="catalogo-th-accion">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                 `;
 
-        items.forEach((art) => {
-          const metaTexto =
-            `${art.categoria || ""} ${art.fam_nombre || ""} ${art.tfa_nombre || ""}`.trim();
+        itemsPaginaActual.forEach((art) => {
           const esEnUso =
             codigoActualEnFormulario !== "" &&
             art.codigo === codigoActualEnFormulario;
 
           html += `
-                        <tr class="fila-catalogo-modal" style="border-bottom: 1px solid var(--color-borde);" data-codigo="${escapeHtml(art.codigo)}" data-nombre="${escapeHtml(art.nombre)}" data-meta="${escapeHtml(metaTexto)}">
-                            <td style="padding: 8px 6px; font-weight: 700; font-family: monospace; font-size: 12.5px; word-break: break-all;">
+                        <tr class="fila-catalogo-modal">
+                            <td class="catalogo-celda-codigo">
                                 ${escapeHtml(art.codigo)}
                             </td>
-                            <td style="padding: 8px 6px; line-height: 1.3; font-size: 12.5px; font-weight: 600; color: #1e293b; word-break: break-word;">
+                            <td class="catalogo-celda-nombre">
                                 ${escapeHtml(art.nombre)}
                             </td>
-                            <td style="padding: 6px; font-size: 12px; line-height: 1.35; color: #334155;">
-                                <div style="display: flex; flex-direction: column; gap: 2px;">
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Categoría:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeHtml(art.categoria || "—")}</strong></div>
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Familia:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeHtml(art.fam_nombre || "—")}</strong></div>
-                                    <div style="display: flex; gap: 6px;"><span style="color: #64748b; font-weight: 600; min-width: 68px; font-size: 11px;">Tipo fam:</span> <strong style="color: #1e293b; font-size: 11.5px; font-weight: 600;">${escapeHtml(art.tfa_nombre || "—")}</strong></div>
+                            <td class="catalogo-celda-clasificacion">
+                                <div class="catalogo-meta">
+                                    <div class="catalogo-meta-fila"><span class="catalogo-meta-clave">Categoría:</span> <strong class="catalogo-meta-valor">${escapeHtml(art.categoria || "—")}</strong></div>
+                                    <div class="catalogo-meta-fila"><span class="catalogo-meta-clave">Familia:</span> <strong class="catalogo-meta-valor">${escapeHtml(art.fam_nombre || "—")}</strong></div>
+                                    <div class="catalogo-meta-fila"><span class="catalogo-meta-clave">Tipo fam:</span> <strong class="catalogo-meta-valor">${escapeHtml(art.tfa_nombre || "—")}</strong></div>
                                 </div>
                             </td>
-                            <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
-                                <span class="articulo-stock-tag" style="font-size: 11.5px; padding: 2px 6px;">
+                            <td class="catalogo-celda-stock">
+                                <span class="articulo-stock-tag">
                                     ${escapeHtml(art.stock_formateado || "0.000")}
                                 </span>
                             </td>
-                            <td style="padding: 8px 6px; text-align: center; white-space: nowrap;">
+                            <td class="catalogo-celda-accion">
                                 ${
                                   esEnUso
-                                    ? `<span class="badge badge-activo" style="font-size: 11px; padding: 4px 6px;">En uso</span>`
-                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeHtml(art.codigo)}" style="padding: 2px 10px; font-size: 11.5px; height: 26px; line-height: 26px; font-weight: 600;">Elegir</button>`
+                                    ? `<span class="badge badge-activo badge-sm">En uso</span>`
+                                    : `<button type="button" class="btn btn-primario btn-elegir-art" data-codigo="${escapeHtml(art.codigo)}">Elegir</button>`
                                 }
                             </td>
                         </tr>
                     `;
         });
 
-        html += `
-                    <tr id="swal-fila-vacia" style="display: none;">
-                        <td colspan="5" style="padding: 30px 16px; text-align: center; color: var(--color-texto-muted);">
-                            No se encontraron artículos que coincidan con la búsqueda.
-                        </td>
-                    </tr>
-                `;
-
         html += "</tbody></table>";
         lista.innerHTML = html;
-        if (contador)
-          contador.innerHTML = `Mostrando <strong>${items.length}</strong> de <strong>${catalogoCache.length}</strong> artículos`;
+      }
 
-        const thStock = lista.querySelector("#th-sort-stock-modal");
-        if (thStock) {
-          thStock.addEventListener("click", function () {
-            if (ordenStockModal === "defecto") {
-              ordenStockModal = "desc";
-            } else if (ordenStockModal === "desc") {
-              ordenStockModal = "asc";
-            } else {
-              ordenStockModal = "defecto";
-            }
-            if (selectorOrden) selectorOrden.value = ordenStockModal;
-            aplicarOrdenYRenderizar();
-          });
+      function cargarCatalogo(opciones = {}) {
+        const termino = buscador ? buscador.value.trim() : "";
+
+        if (abortController) {
+          abortController.abort();
+        }
+        abortController = new AbortController();
+
+        if (!lista.querySelector("table")) {
+          lista.innerHTML =
+            '<div class="catalogo-cargando">Cargando artículos...</div>';
+        } else {
+          lista.classList.add("catalogo-cargando-estado");
         }
 
-        lista.querySelectorAll(".btn-elegir-art").forEach((b) => {
-          b.addEventListener("click", function () {
-            const cod = this.getAttribute("data-codigo");
-            const inp = document.getElementById("art_codigo");
-            const artObj = catalogoCache
-              ? catalogoCache.find((x) => x.codigo === cod)
-              : null;
-            if (artObj) {
-              const inputCat = document.getElementById("art_categoria");
-              const inputFam = document.getElementById("art_familia");
-              const inputTfa = document.getElementById("art_tipo_familia");
-              if (inputCat) inputCat.value = artObj.categoria || "";
-              if (inputFam) inputFam.value = artObj.fam_nombre || "";
-              if (inputTfa) inputTfa.value = artObj.tfa_nombre || "";
-            }
-            if (inp) {
-              inp.value = cod;
-              inp.dispatchEvent(new Event("input", { bubbles: true }));
-              const inpStock = document.getElementById("stock_minimo");
-              if (inpStock) inpStock.focus();
-            }
-            Swal.close();
-          });
+        const params = new URLSearchParams({
+          catalogo: "1",
+          alm: almCodigo || "",
+          q: termino,
+          solo_stock: soloConStock ? "1" : "0",
+          orden: ordenStock,
+          pagina: String(paginaActual),
+          por_pagina: String(porPaginaActual),
         });
+
+        fetch(`consultar_articulo.php?${params.toString()}`, {
+          signal: abortController.signal,
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (!res || !res.exito || !Array.isArray(res.articulos)) {
+              throw new Error(
+                (res && res.error) || "No se pudo cargar el catálogo.",
+              );
+            }
+
+            busquedaConsultada = termino;
+            paginaActual = Number(res.pagina) || 1;
+            porPaginaActual = Number(res.por_pagina) || porPaginaActual;
+
+            renderizarTabla(res.articulos);
+
+            if (paginacionContenedor && typeof construirHtmlPaginacion === "function") {
+              paginacionContenedor.innerHTML = construirHtmlPaginacion({
+                pagina: paginaActual,
+                totalPaginas: Number(res.total_paginas) || 1,
+                total: Number(res.total) || 0,
+                porPagina: porPaginaActual,
+                etiquetaItem: "artículos",
+                sufijoExtra: soloConStock ? "(solo con stock)" : "",
+              });
+            }
+
+            if (opciones.scrollArriba) {
+              lista.scrollTop = 0;
+            }
+          })
+          .catch((err) => {
+            if (err && err.name === "AbortError") {
+              return;
+            }
+            lista.innerHTML = `<div class="catalogo-error">Error: ${escapeHtml((err && err.message) || "No se pudo cargar el catálogo.")}</div>`;
+            if (paginacionContenedor) {
+              paginacionContenedor.innerHTML = "";
+            }
+          })
+          .finally(() => {
+            lista.classList.remove("catalogo-cargando-estado");
+          });
       }
 
-      function aplicarOrdenYRenderizar() {
-        const ordenados = obtenerItemsOrdenados();
-        renderizar(ordenados);
-        filtrar();
-      }
-
-      function filtrar() {
-        if (!catalogoCache) return;
-        const q = (buscador ? buscador.value : "").toLowerCase().trim();
-        let visibles = 0;
-
-        const filasModal = lista.querySelectorAll(
-          "tbody tr:not(#swal-fila-vacia)",
-        );
-        filasModal.forEach((fila) => {
-          const c = (fila.dataset.codigo || "").toLowerCase().trim();
-          const n = (fila.dataset.nombre || "").toLowerCase().trim();
-          const m = (fila.dataset.meta || "").toLowerCase().trim();
-
-          const coincideCodigo =
-            c.startsWith(q) || c.replace(/^0+/, "").startsWith(q);
-          const palabrasNombre = n.split(/\s+/);
-          const coincideNombre =
-            n.startsWith(q) || palabrasNombre.some((p) => p.startsWith(q));
-          const coincideMeta = m.includes(q);
-
-          if (q === "" || coincideCodigo || coincideNombre || coincideMeta) {
-            fila.style.display = "";
-            visibles++;
+      lista.addEventListener("click", function (e) {
+        const thSort = e.target.closest ? e.target.closest("#th-sort-stock-modal") : null;
+        if (thSort) {
+          if (ordenStock === "defecto") {
+            ordenStock = "desc";
+          } else if (ordenStock === "desc") {
+            ordenStock = "asc";
           } else {
-            fila.style.display = "none";
+            ordenStock = "defecto";
+          }
+          if (selectorOrden) selectorOrden.value = ordenStock;
+          paginaActual = 1;
+          cargarCatalogo({ scrollArriba: true });
+          return;
+        }
+
+        const btnElegir = e.target.closest ? e.target.closest(".btn-elegir-art") : null;
+        if (btnElegir) {
+          const cod = btnElegir.getAttribute("data-codigo");
+          const inp = document.getElementById("art_codigo");
+          const artObj = itemsPaginaActual.find((x) => x.codigo === cod) || null;
+          if (artObj) {
+            const inputCat = document.getElementById("art_categoria");
+            const inputFam = document.getElementById("art_familia");
+            const inputTfa = document.getElementById("art_tipo_familia");
+            if (inputCat) inputCat.value = artObj.categoria || "";
+            if (inputFam) inputFam.value = artObj.fam_nombre || "";
+            if (inputTfa) inputTfa.value = artObj.tfa_nombre || "";
+          }
+          if (inp) {
+            inp.value = cod;
+            inp.dispatchEvent(new Event("input", { bubbles: true }));
+            const inpStock = document.getElementById("stock_minimo");
+            if (inpStock) inpStock.focus();
+          }
+          Swal.close();
+        }
+      });
+
+      if (paginacionContenedor) {
+        paginacionContenedor.addEventListener("click", function (e) {
+          const btn = e.target.closest ? e.target.closest(".js-paginacion-btn[data-pagina]") : null;
+          if (!btn || btn.disabled) return;
+          paginaActual = Number(btn.dataset.pagina) || 1;
+          cargarCatalogo({ scrollArriba: true });
+        });
+
+        paginacionContenedor.addEventListener("change", function (e) {
+          if (e.target && e.target.classList.contains("js-paginacion-tamano")) {
+            porPaginaActual = Number(e.target.value) || 10;
+            paginaActual = 1;
+            cargarCatalogo({ scrollArriba: true });
           }
         });
+      }
 
-        const filaVacia = document.getElementById("swal-fila-vacia");
-        if (filaVacia) {
-          filaVacia.style.display = visibles === 0 && q !== "" ? "" : "none";
-        }
-
-        if (contador) {
-          contador.innerHTML = `Mostrando <strong>${visibles}</strong> de <strong>${catalogoCache.length}</strong> artículos`;
-        }
+      if (btnSoloStock) {
+        btnSoloStock.addEventListener("click", function () {
+          soloConStock = !soloConStock;
+          btnSoloStock.classList.toggle("activo", soloConStock);
+          btnSoloStock.setAttribute("aria-pressed", soloConStock ? "true" : "false");
+          btnSoloStock.textContent = soloConStock ? "✓ Solo con stock" : "Solo con stock";
+          paginaActual = 1;
+          cargarCatalogo({ scrollArriba: true });
+        });
       }
 
       if (selectorOrden) {
-        selectorOrden.value = ordenStockModal;
+        selectorOrden.value = ordenStock;
         selectorOrden.addEventListener("change", function () {
-          ordenStockModal = this.value;
-          aplicarOrdenYRenderizar();
+          ordenStock = this.value;
+          paginaActual = 1;
+          cargarCatalogo({ scrollArriba: true });
         });
       }
 
       if (buscador) {
-        buscador.addEventListener("input", filtrar);
-        buscador.addEventListener("search", filtrar);
-        buscador.addEventListener("keydown", function (e) {
-          if (e.key === "Enter") e.preventDefault();
+        buscador.addEventListener("input", function () {
+          clearTimeout(timerBusqueda);
+          timerBusqueda = setTimeout(() => {
+            const nuevoQ = buscador.value.trim();
+            if (nuevoQ === busquedaConsultada) {
+              return;
+            }
+            paginaActual = 1;
+            cargarCatalogo({ scrollArriba: true });
+          }, 300);
         });
-      }
 
-      if (catalogoCache) {
-        aplicarOrdenYRenderizar();
-        if (buscador) setTimeout(() => buscador.focus(), 80);
-        return;
-      }
-
-      fetch(
-        "consultar_articulo.php?catalogo=1&alm=" +
-          encodeURIComponent(almCodigo || ""),
-      )
-        .then((r) => r.json())
-        .then((res) => {
-          if (res && res.exito && Array.isArray(res.articulos)) {
-            catalogoCache = res.articulos;
-            aplicarOrdenYRenderizar();
-            if (buscador) setTimeout(() => buscador.focus(), 80);
-          } else {
-            lista.innerHTML =
-              '<div style="padding: 24px; text-align: center; color: #dc2626;">No se pudo cargar el catálogo.</div>';
+        buscador.addEventListener("search", function () {
+          clearTimeout(timerBusqueda);
+          const nuevoQ = buscador.value.trim();
+          if (nuevoQ !== busquedaConsultada) {
+            paginaActual = 1;
+            cargarCatalogo({ scrollArriba: true });
           }
-        })
-        .catch((err) => {
-          lista.innerHTML = `<div style="padding: 24px; text-align: center; color: #dc2626;">Error: ${escapeHtml(err.message)}</div>`;
         });
+
+        buscador.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            clearTimeout(timerBusqueda);
+            const nuevoQ = buscador.value.trim();
+            if (nuevoQ !== busquedaConsultada) {
+              paginaActual = 1;
+              cargarCatalogo({ scrollArriba: true });
+            }
+          }
+        });
+
+        setTimeout(() => buscador.focus(), 80);
+      }
+
+      cargarCatalogo();
     },
   });
 }
@@ -508,7 +552,7 @@ function iniciarFormularioArticulo(config) {
         return;
       }
 
-      const detalleArticulo = `<br><span style="color: #64748b; font-size: 13px; font-weight: 500;">${escapeHtml(nombreOriginal)}</span>`;
+      const detalleArticulo = `<br><span class="swal-articulo-subtitulo">${escapeHtml(nombreOriginal)}</span>`;
 
       Swal.fire({
         title: "¿Guardar cambios?",
@@ -562,7 +606,7 @@ function iniciarFormularioArticulo(config) {
         Swal.fire({
           icon: "warning",
           title: "Artículo ya registrado",
-          html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ""}<br><br><span style="color: #dc2626;">Ya cuenta con una configuración activa registrada.</span>`,
+          html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small class="swal-articulo-subtitulo">${escapeHtml(artNombre)}</small>` : ""}<br><br><span class="swal-articulo-alerta">Ya cuenta con una configuración activa registrada.</span>`,
           confirmButtonColor: "#dc2626",
           confirmButtonText: "Entendido",
         });
@@ -581,7 +625,7 @@ function iniciarFormularioArticulo(config) {
           title: seraActivo
             ? "¿Reactivar configuración?"
             : "¿Actualizar configuración?",
-          html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small style="color: #64748b; font-size: 13px;">${escapeHtml(artNombre)}</small>` : ""}<br><br>Ya se encuentra registrado pero está <strong>inactivo</strong>.<br>¿Deseas ${accionTexto} con el nuevo stock mínimo?`,
+          html: `El artículo <strong>${escapeHtml(artCodigo)}</strong>${artNombre ? `<br><small class="swal-articulo-subtitulo">${escapeHtml(artNombre)}</small>` : ""}<br><br>Ya se encuentra registrado pero está <strong>inactivo</strong>.<br>¿Deseas ${accionTexto} con el nuevo stock mínimo?`,
           icon: "question",
           showCancelButton: true,
           confirmButtonColor: "#059669",
@@ -612,7 +656,7 @@ function iniciarFormularioArticulo(config) {
 
       // 4. Caso normal: encontrado y no registrado
       const detalleArticulo = artNombre
-        ? `<span style="color: #000000ff; font-size: 13px; font-weight: 800;">${escapeHtml(artNombre)}</span>`
+        ? `<span class="swal-articulo-destacado">${escapeHtml(artNombre)}</span>`
         : "";
 
       Swal.fire({

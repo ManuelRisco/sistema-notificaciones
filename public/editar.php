@@ -40,7 +40,7 @@ try {
 
     // 1. Validar identificación original.
     if (
-        $empOriginal !== '001'
+        $empOriginal !== getEmpresaDefecto()
         || !esAlmacenSoportado($almOriginal)
         || $artOriginal === ''
         || strlen($artOriginal) > 30
@@ -62,6 +62,9 @@ try {
         // 4. Recuperar los nuevos valores.
         $artCodigo = trim($_POST['art_codigo'] ?? '');
         $stockMinimo = trim($_POST['stock_minimo'] ?? '');
+        if (str_starts_with($stockMinimo, '.')) {
+            $stockMinimo = '0' . $stockMinimo;
+        }
         $disponible = isset($_POST['disponible']) ? (int) $_POST['disponible'] : 1;
         $categoria = trim($_POST['categoria'] ?? '');
         $famNombre = trim($_POST['fam_nombre'] ?? '');
@@ -180,7 +183,7 @@ try {
         $famNombre = trim((string) ($registro['fam_nombre'] ?? ''));
         $tfaNombre = trim((string) ($registro['tfa_nombre'] ?? ''));
         $stockActual = $registro['stock_actual'] !== null ? (float) $registro['stock_actual'] : null;
-        $stockMinimo = (string) $registro['stock_minimo'];
+        $stockMinimo = normalizarStock($registro['stock_minimo']);
         $disponible = (int) ($registro['disponible'] ?? 1);
         $registroEncontrado = true;
     }
@@ -205,27 +208,6 @@ if ($actualizado) {
 
 $mostrarFormulario = $registroEncontrado || $esPost;
 
-// Normalizar números para comparar NUMERIC(14,5).
-function normalizarStock(mixed $valor): string
-{
-    $valor = trim((string) $valor);
-
-    $partes = explode('.', $valor, 2);
-
-    $entero = ltrim($partes[0], '0');
-
-    if ($entero === '') {
-        $entero = '0';
-    }
-
-    $decimal = $partes[1] ?? '';
-
-    $decimal = str_pad($decimal, 5, '0');
-    $decimal = substr($decimal, 0, 5);
-
-    return $entero . '.' . $decimal;
-}
-
 // Escapar los valores antes de mostrarlos en HTML.
 // Modo oscuro (cookie compartida entre todas las páginas)
 $darkMode = aplicarModoOscuro();
@@ -243,56 +225,18 @@ $nombreBD = getDatabaseName();
         content="width=device-width, initial-scale=1.0"
     >
     <title>Editar Stock Mínimo</title>
-    <script src="js/comun.js"></script>
-    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
-    <script src="js/sweetalert2.all.min.js"></script>
-    <script src="js/formulario-articulo.js"></script>
+    <script src="<?= h(assetUrl('js/comun.js')) ?>"></script>
+    <link rel="stylesheet" href="<?= h(assetUrl('css/estilos.css')) ?>">
+    <script src="<?= h(assetUrl('js/sweetalert2.all.min.js')) ?>"></script>
+    <script src="<?= h(assetUrl('js/formulario-articulo.js')) ?>"></script>
 </head>
 <body>
 <main class="contenedor contenedor-formulario">
-    <header class="encabezado">
-        <div class="encabezado-info">
-            <h1>Editar Stock Mínimo - <?= h($almNombre) ?></h1>
-        </div>
-        <div class="encabezado-derecha">
-            <div class="encabezado-usuario-barra">
-                <?php
-                $usuarioSesion = obtenerUsuarioAutenticado();
-                if (!empty($usuarioSesion)):
-                ?>
-                    <div class="encabezado-base-datos">
-                        <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
-                     </div>
-                     <span>USUARIO: </span>
-                     <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
-                            <strong>
-                                <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
-                            </strong>
-                    </div>
-                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
-                        Salir
-                    </a>
-                <?php endif; ?>
-                <!-- Botón para alternar el modo -->
-                <?php
-                $paramsToggle = $_GET;
-                $paramsToggle['toggle_dark_mode'] = 1;
-                ?>
-                <a href="?<?= htmlspecialchars(http_build_query($paramsToggle), ENT_QUOTES, 'UTF-8') ?>"
-                   id="btn-toggle-dark"
-                   onclick="toggleDarkMode(event)"
-                   class="btn-toggle-dark"
-                   title="Alternar modo claro / oscuro">
-                    <?php echo $darkMode ? '🌞' : '🌚'; ?>
-                </a>
-            </div>
-            <div class="encabezado-acciones">
-                <a href="index.php" class="btn btn-secundario">
-                    ← Volver
-                </a>
-            </div>
-        </div>
-    </header>
+    <?php
+    $tituloEncabezado = 'Editar Stock Mínimo - ' . $almNombre;
+    $accionesEncabezadoHtml = '<a href="index.php" class="btn btn-secundario">← Volver</a>';
+    require __DIR__ . '/includes/encabezado_usuario.php';
+    ?>
 
     <?php if ($mostrarFormulario): ?>
         <form method="POST" class="formulario">
@@ -340,7 +284,7 @@ $nombreBD = getDatabaseName();
                         <div class="info-articulo-fila">
                             <span class="articulo-nombre-destacado"><?= h($artNombre) ?></span>
                             <span class="articulo-stock-tag">
-                                Stock real: <strong><?= h($stockActual !== null ? number_format((float) $stockActual, 3, '.', ',') . ($unidadMedida !== '' ? ' ' . $unidadMedida : '') : '0.000 ' . $unidadMedida) ?></strong>
+                                Stock real: <strong><?= h(formatearStockCantidad($stockActual !== null ? (float) $stockActual : null, $unidadMedida)) ?></strong>
                             </span>
                         </div>
                     <?php else: ?>
@@ -350,103 +294,11 @@ $nombreBD = getDatabaseName();
                 </div>
             </div>
 
-            <!-- Categoría -->
-            <div class="campo">
-                <label for="art_categoria">
-                    Categoría
-                </label>
-                <input
-                    type="text"
-                    id="art_categoria"
-                    name="categoria"
-                    value="<?= h($categoria) ?>"
-                    autocomplete="off"
-                    readonly
-                    placeholder="—"
-                >
-            </div>
-
-            <!-- Familia -->
-            <div class="campo">
-                <label for="art_familia">
-                    Familia
-                </label>
-                <input
-                    type="text"
-                    id="art_familia"
-                    name="fam_nombre"
-                    value="<?= h($famNombre) ?>"
-                    autocomplete="off"
-                    readonly
-                    placeholder="—"
-                >
-            </div>
-
-            <!-- Tipo familia -->
-            <div class="campo">
-                <label for="art_tipo_familia">
-                    Tipo familia
-                </label>
-                <input
-                    type="text"
-                    id="art_tipo_familia"
-                    name="tfa_nombre"
-                    value="<?= h($tfaNombre) ?>"
-                    autocomplete="off"
-                    readonly
-                    placeholder="—"
-                >
-            </div>
-
-            <!-- Stock mínimo editable. -->
-            <div class="campo">
-                <label for="stock_minimo">
-                    Stock mínimo
-                </label>
-                <div class="campo-con-sufijo">
-                    <input
-                        type="number"
-                        id="stock_minimo"
-                        name="stock_minimo"
-                        min="0"
-                        max="999999999.99999"
-                        step="0.00001"
-                        required
-                        value="<?= h($stockMinimo) ?>"
-                    >
-                    <span id="sufijo-unidad-minimo" class="sufijo-unidad"><?= h($unidadMedida) ?></span>
-                </div>
-            </div>
-
-            <!-- Disponibilidad editable. -->
-            <div class="campo">
-                <label for="disponible">
-                    Disponibilidad
-                </label>
-                <select id="disponible" name="disponible">
-                    <option value="1" <?= $disponible === 1 ? 'selected' : '' ?>>
-                        Activo
-                    </option>
-                    <option value="0" <?= $disponible === 0 ? 'selected' : '' ?>>
-                        Inactivo
-                    </option>
-                </select>
-            </div>
-
-            <div class="acciones">
-                <button
-                    type="submit"
-                    class="btn btn-primario"
-                >
-                    Guardar cambios
-                </button>
-                <a
-                    href="index.php"
-                    class="btn btn-secundario"
-                >
-                    Cancelar
-                </a>
-            </div>
+            <?php
+            $placeholderStockMinimo = '';
+            $textoBotonGuardar = 'Guardar cambios';
+            require __DIR__ . '/includes/campos_articulo_form.php';
+            ?>
         </form>
     <?php endif; ?>
 </main>

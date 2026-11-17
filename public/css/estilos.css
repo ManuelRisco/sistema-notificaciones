@@ -624,6 +624,22 @@ body {
    9. USUARIO Y SESIÓN
    ========================================================================== */
 
+.encabezado-base-datos {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-texto-secundario);
+    white-space: nowrap;
+}
+
+.encabezado-base-datos span {
+    font-weight: 600;
+    color: var(--color-texto-muted);
+}
+
 .usuario-sesion-pill {
     display: inline-flex;
     align-items: center;
@@ -637,7 +653,397 @@ body {
 }
 
 /* ========================================================================== 
-   10. PANTALLA DE ERROR DE AUTORIZACIÓN (403)
+   9B. MODAL DE CATÁLOGO Y UTILIDADES DE FORMULARIO / ALERTAS
+   ========================================================================== */
+
+.texto-buscando {
+    color: var(--color-secundario);
+    font-size: 13px;
+}
+
+.swal-articulo-subtitulo {
+    display: inline-block;
+    margin-top: 4px;
+    color: var(--color-secundario);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.swal-articulo-alerta {
+    color: var(--color-peligro-texto);
+}
+
+.swal-articulo-destacado {
+    color: var(--color-texto);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.catalogo-modal {
+    text-align: left;
+    font-size: 13px;
+}
+
+.catalogo-subtitulo {
+    color: var(--color-texto-muted);
+    margin-bottom: 12px;
+}
+
+.catalogo-controles {
+    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.swal2-popup .catalogo-buscador {
+    flex: 1;
+    min-width: 240px;
+    margin: 0;
+    font-size: 13.5px;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.btn.catalogo-btn-solo-stock {
+    height: 40px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1.5px solid var(--color-borde-campo);
+    background-color: var(--color-tarjeta);
+    color: var(--color-texto-secundario);
+}
+
+.btn.catalogo-btn-solo-stock:hover {
+    background-color: var(--color-secundario-fondo);
+    border-color: var(--color-secundario);
+    color: var(--color-texto);
+}
+
+.btn.catalogo-btn-solo-stock.activo {
+    background-color: var(--color-ejecutar);
+    border-color: var(--color-ejecutar);
+    color: #ffffff;
+}
+
+.btn.catalogo-btn-solo-stock.activo:hover {
+    background-color: var(--color-ejecutar-hover);
+    border-color: var(--color-ejecutar-hover);
+    color: #ffffff;
+}
+
+.catalogo-orden {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.catalogo-orden-label {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--color-texto-muted);
+    white-space: nowrap;
+}
+
+.catalogo-orden-select {
+    height: 40px;
+    padding: 0 10px;
+    border: 1.5px solid var(--color-borde-campo);
+    border-radius: var(--radio-control);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-texto);
+    background-color: var(--color-tarjeta);
+    cursor: pointer;
+}
+
+.catalogo-lista {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid var(--color-borde);
+    border-radius: 8px;
+    background: var(--color-tarjeta);
+    transition: opacity 0.15s ease;
+}
+
+.catalogo-lista.catalogo-cargando-estado {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.catalogo-cargando {
+    padding: 30px;
+    text-align: center;
+    color: var(--color-texto-muted);
+}
+
+.catalogo-vacio {
+    padding: 36px 16px;
+    text-align: center;
+    color: var(--color-texto-muted);
+    font-size: 13px;
+}
+
+.catalogo-error {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--color-peligro-texto);
+    font-weight: 600;
+}
+
+.catalogo-tabla {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    text-align: left;
+}
+
+.catalogo-tabla thead tr {
+    background: var(--color-secundario-fondo);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: 1.5px solid var(--color-borde);
+}
+
+.catalogo-tabla th {
+    padding: 8px 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.catalogo-th-codigo {
+    width: 95px;
+}
+
+.catalogo-th-clasificacion {
+    width: 230px;
+}
+
+.catalogo-th-stock {
+    width: 125px;
+    text-align: right;
+    user-select: none;
+}
+
+.catalogo-th-stock-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.catalogo-btn-orden-stock {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: inherit;
+}
+
+.catalogo-th-accion {
+    width: 95px;
+    text-align: center;
+}
+
+.fila-catalogo-modal {
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.catalogo-celda-codigo {
+    padding: 8px 6px;
+    font-weight: 700;
+    font-family: monospace;
+    font-size: 12.5px;
+    word-break: break-all;
+}
+
+.catalogo-celda-nombre {
+    padding: 8px 6px;
+    line-height: 1.3;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-texto);
+    word-break: break-word;
+}
+
+.catalogo-celda-clasificacion {
+    padding: 6px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--color-texto-secundario);
+}
+
+.catalogo-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.catalogo-meta-fila {
+    display: flex;
+    gap: 6px;
+}
+
+.catalogo-meta-clave {
+    color: var(--color-secundario);
+    font-weight: 600;
+    min-width: 68px;
+    font-size: 11px;
+}
+
+.catalogo-meta-valor {
+    color: var(--color-texto);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.catalogo-celda-stock {
+    padding: 8px 6px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.catalogo-celda-stock .articulo-stock-tag {
+    font-size: 11.5px;
+    padding: 2px 6px;
+}
+
+.catalogo-celda-accion {
+    padding: 8px 6px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.btn.btn-elegir-art {
+    padding: 2px 10px;
+    font-size: 11.5px;
+    height: 26px;
+    line-height: 22px;
+    font-weight: 600;
+}
+
+/* ========================================================================== 
+   10. PAGINACIÓN COMPARTIDA (INDEX Y MODALS)
+   ========================================================================== */
+
+.paginacion-contenedor {
+    max-width: 1350px;
+    margin: 14px auto 0;
+    padding: 12px 16px;
+    background: var(--color-tarjeta);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-tarjeta);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.paginacion-contenedor.paginacion-modal {
+    max-width: 100%;
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+}
+
+.paginacion-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--color-texto-muted);
+}
+
+.paginacion-sufijo {
+    font-weight: 900;
+}
+
+.paginacion-tamano {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 12.5px;
+    color: var(--color-texto-secundario);
+}
+
+.paginacion-select {
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--color-borde-campo);
+    border-radius: 6px;
+    background-color: var(--color-tarjeta);
+    color: var(--color-texto);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.paginacion-controles {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.paginacion-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--color-borde-campo);
+    border-radius: 6px;
+    background-color: var(--color-tarjeta);
+    color: var(--color-texto-secundario);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease,
+                border-color 0.15s ease,
+                color 0.15s ease;
+}
+
+.paginacion-btn:hover:not(.deshabilitado):not(.activo):not(:disabled) {
+    background-color: var(--color-secundario-fondo);
+    border-color: var(--color-secundario);
+    color: var(--color-texto);
+}
+
+.paginacion-btn.activo {
+    background-color: var(--color-primario);
+    border-color: var(--color-primario);
+    color: #ffffff;
+    cursor: default;
+}
+
+.paginacion-btn.deshabilitado,
+.paginacion-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background-color: var(--color-fondo);
+}
+
+.paginacion-ellipsis {
+    padding: 0 4px;
+    color: var(--color-texto-muted);
+    font-weight: 600;
+    user-select: none;
+}
+
+/* ========================================================================== 
+   11. PANTALLA DE ERROR DE AUTORIZACIÓN (403)
    ========================================================================== */
 
 .error-autorizacion-body {
@@ -699,6 +1105,10 @@ html.dark-mode video,
 html.dark-mode th,
 html.dark-mode .no-invert {
     filter: invert(1) hue-rotate(180deg);
+}
+
+html.dark-mode .catalogo-tabla th {
+    filter: none;
 }
 
 /* 3. El ícono con .icono-invertible se invierte junto con la página para verse blanco */
@@ -767,5 +1177,23 @@ html.dark-mode .icono-invertible {
 
     .acciones .btn {
         width: 100%;
+    }
+
+    /* Catálogo modal y paginación */
+    .btn.catalogo-btn-solo-stock,
+    .catalogo-orden,
+    .catalogo-orden-select {
+        width: 100%;
+    }
+
+    .paginacion-contenedor {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .paginacion-info,
+    .paginacion-controles {
+        justify-content: center;
     }
 }

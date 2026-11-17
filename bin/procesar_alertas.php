@@ -2,24 +2,13 @@
 
 declare(strict_types=1);
 
-use Dotenv\Dotenv;
 use Manue\SistemaNotificaciones\EmailService;
 use Manue\SistemaNotificaciones\StockAlertService;
 use Manue\SistemaNotificaciones\StockNotificationService;
 use Manue\SistemaNotificaciones\StockRepository;
 
 $raizProyecto = dirname(__DIR__);
-
-require_once $raizProyecto . '/vendor/autoload.php';
-// Cargar variables de entorno antes de conectar a SQL Server.
-$dotenv = Dotenv::createImmutable($raizProyecto);
-$dotenv->safeLoad();
-
-require_once $raizProyecto . '/config/database.php';
-require_once $raizProyecto . '/config/almacenes.php';
-
-$zonaHoraria = !empty($_ENV['APP_TIMEZONE']) ? (string)$_ENV['APP_TIMEZONE'] : ((string)getenv('APP_TIMEZONE'));
-date_default_timezone_set($zonaHoraria);
+require_once $raizProyecto . '/config/bootstrap.php';
 
 // Argumentos de consola:
 // --simular : no actualiza BD ni envía correos
@@ -35,6 +24,9 @@ foreach ($argv ?? [] as $arg) {
     if (str_starts_with($arg, '--almacen=')) {
         $candAlm = trim(substr($arg, 10));
         if (function_exists('esAlmacenSoportado') && !esAlmacenSoportado($candAlm)) {
+            if (defined('PROCESAR_ALERTAS_EMBEBIDO')) {
+                throw new RuntimeException("El almacén '{$candAlm}' no está soportado en la configuración.");
+            }
             $fechaHora = date('d/m/Y H:i:s');
             fwrite(STDERR, "[{$fechaHora}] ERROR: El almacén '{$candAlm}' no está soportado en la configuración." . PHP_EOL);
             exit(1);
@@ -66,6 +58,9 @@ if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
     if ($lockHandle) {
         fclose($lockHandle);
     }
+    if (defined('PROCESAR_ALERTAS_EMBEBIDO')) {
+        return;
+    }
     exit(0);
 }
 
@@ -74,48 +69,51 @@ if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
 @fwrite($lockHandle, "PID: " . getmypid() . " | Inicio: " . date('Y-m-d H:i:s') . PHP_EOL);
 @fflush($lockHandle);
 
-/**
- * Registra una entrada en el log según la estructura jerárquica:
- * logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log
- */
-function registrarLogAlmacen(
-    string $raizProyecto,
-    string $dbNombre,
-    string $almCodigo,
-    string $contenido
-): void {
-    $contenido = trim($contenido);
-    if ($contenido === '') {
-        return;
+if (!function_exists('registrarLogAlmacen')) {
+    /**
+     * Registra una entrada en el log según la estructura jerárquica:
+     * logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log
+     */
+    function registrarLogAlmacen(
+        string $raizProyecto,
+        string $dbNombre,
+        string $almCodigo,
+        string $contenido
+    ): void {
+        $contenido = trim($contenido);
+        if ($contenido === '') {
+            return;
+        }
+
+        $dbSegura = preg_replace('/[^A-Za-z0-9_]/', '', trim($dbNombre)) ?: 'DEFAULT';
+        $almSeguro = preg_replace('/[^A-Za-z0-9_]/', '', trim($almCodigo)) ?: 'SIN_ALMACEN';
+
+        $fecha = date('Y-m-d');
+        $anioMes = date('Y-m');
+        $dirLog = $raizProyecto
+            . DIRECTORY_SEPARATOR . 'logs'
+            . DIRECTORY_SEPARATOR . $dbSegura
+            . DIRECTORY_SEPARATOR . $almSeguro
+            . DIRECTORY_SEPARATOR . $anioMes;
+
+        if (!is_dir($dirLog)) {
+            @mkdir($dirLog, 0777, true);
+        }
+
+        $archivoLog = $dirLog . DIRECTORY_SEPARATOR . "procesamiento_{$fecha}.log";
+        @file_put_contents(
+            $archivoLog,
+            $contenido . PHP_EOL,
+            FILE_APPEND | LOCK_EX
+        );
     }
-
-    $dbSegura = preg_replace('/[^A-Za-z0-9_]/', '', trim($dbNombre)) ?: 'DEFAULT';
-    $almSeguro = preg_replace('/[^A-Za-z0-9_]/', '', trim($almCodigo)) ?: 'SIN_ALMACEN';
-
-    $fecha = date('Y-m-d');
-    $anioMes = date('Y-m');
-    $dirLog = $raizProyecto
-        . DIRECTORY_SEPARATOR . 'logs'
-        . DIRECTORY_SEPARATOR . $dbSegura
-        . DIRECTORY_SEPARATOR . $almSeguro
-        . DIRECTORY_SEPARATOR . $anioMes;
-
-    if (!is_dir($dirLog)) {
-        @mkdir($dirLog, 0777, true);
-    }
-
-    $archivoLog = $dirLog . DIRECTORY_SEPARATOR . "procesamiento_{$fecha}.log";
-    @file_put_contents(
-        $archivoLog,
-        $contenido . PHP_EOL,
-        FILE_APPEND | LOCK_EX
-    );
 }
 
-/**
- * Formatea la salida de un almacén para el log y consola.
- */
-function formatearSalidaAlmacen(
+if (!function_exists('formatearSalidaAlmacen')) {
+    /**
+     * Formatea la salida de un almacén para el log y consola.
+     */
+    function formatearSalidaAlmacen(
     string $almCodigo,
     array $articulos,
     bool $modoSimulacion,
@@ -213,6 +211,7 @@ function formatearSalidaAlmacen(
     }
 
     return implode(PHP_EOL, $lineas);
+    }
 }
 
 $conexion = null;
@@ -295,6 +294,9 @@ try {
     }
 
 } catch (Throwable $e) {
+    if (defined('PROCESAR_ALERTAS_EMBEBIDO')) {
+        throw $e;
+    }
 
     $fechaHora = date('d/m/Y H:i:s');
     fwrite(

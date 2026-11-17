@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 use Manue\SistemaNotificaciones\StockRepository;
 
-// 1.1 Protección del formulario de eliminación
+// 1.1 Protección del formulario de eliminación y componentes visuales
 require_once __DIR__ . '/seguridad.php';
+require_once __DIR__ . '/includes/componentes_index.php';
 
 // 2. Cargar las variables de entorno.
 $raizProyecto = dirname(__DIR__);
@@ -16,6 +17,9 @@ $nombreAlmacen = getNombreAlmacen($almActivo);
 
 $conexion = null;
 $registros = [];
+$totalRegistrosFiltrados = 0;
+$paginaActual = 1;
+$totalPaginas = 1;
 $error = null;
 // Filtros recibidos por GET (consultados directamente a la base de datos)
 $filtroDisponible = isset($_GET['disponible']) && in_array((string)$_GET['disponible'], ['0', '1'], true)
@@ -43,6 +47,12 @@ $orden = isset($_GET['orden']) && in_array((string)$_GET['orden'], $ordenValidos
     ? (string)$_GET['orden']
     : '';
 
+$busqueda = substr(trim((string) ($_GET['q'] ?? '')), 0, 50);
+$pagina = max(1, (int) ($_GET['pagina'] ?? 1));
+$porPaginaRaw = (int) ($_GET['por_pagina'] ?? 10);
+$porPagina = in_array($porPaginaRaw, [10, 15, 25, 50], true) ? $porPaginaRaw : 10;
+$esAjax = (($_GET['ajax'] ?? '') === '1');
+
 $opcionesCategoria = [];
 $opcionesFamilia = [];
 $opcionesTfa = [];
@@ -65,24 +75,35 @@ try {
     $repositorio = new StockRepository($conexion);
 
     // 5. Totales generales del almacén activo
-    $totales = $repositorio->obtenerTotalesConfiguracion($almActivo);
+    if (!$esAjax) {
+        $totales = $repositorio->obtenerTotalesConfiguracion($almActivo);
+    }
 
-    // 6. Registros del almacén activo con su stock físico (filtrados y ordenados en la BD)
-    $registros = $repositorio->listarConfiguracion($almActivo, [
+    // 6. Registros del almacén activo paginados con filtros, búsqueda y orden en BD
+    $resultadoPaginado = $repositorio->listarConfiguracionPaginada($almActivo, [
         'disponible' => $filtroDisponible,
         'catalogo' => $filtroCatalogo,
         'stock' => $filtroStock,
         'correo' => $filtroCorreo,
         'categoria' => $filtroCategoria,
         'familia' => $filtroFamilia,
-        'tfa' => $filtroTfa
-    ], $orden);
+        'tfa' => $filtroTfa,
+        'busqueda' => $busqueda
+    ], $orden, $pagina, $porPagina);
+
+    $registros = $resultadoPaginado['items'];
+    $totalRegistrosFiltrados = $resultadoPaginado['total'];
+    $paginaActual = $resultadoPaginado['pagina'];
+    $porPagina = $resultadoPaginado['por_pagina'];
+    $totalPaginas = $resultadoPaginado['total_paginas'];
 
     // 7. Opciones de Detalle (Categoría, Familia, Tipo familia) para los filtros
-    $opcionesDetalle = $repositorio->obtenerOpcionesClasificacion($almActivo);
-    $opcionesCategoria = $opcionesDetalle['categorias'];
-    $opcionesFamilia = $opcionesDetalle['familias'];
-    $opcionesTfa = $opcionesDetalle['tipos_familia'];
+    if (!$esAjax) {
+        $opcionesDetalle = $repositorio->obtenerOpcionesClasificacion($almActivo);
+        $opcionesCategoria = $opcionesDetalle['categorias'];
+        $opcionesFamilia = $opcionesDetalle['familias'];
+        $opcionesTfa = $opcionesDetalle['tipos_familia'];
+    }
 
 } catch (Throwable $e) {
 
@@ -102,7 +123,7 @@ if (!function_exists('urlConFiltros')) {
     function urlConFiltros(array $cambios = []): string
     {
         $parametros = $_GET;
-        unset($parametros['ok'], $parametros['error']);
+        unset($parametros['ok'], $parametros['error'], $parametros['ajax']);
 
         foreach ($cambios as $clave => $valor) {
             if ($valor === null || $valor === '') {
@@ -125,8 +146,48 @@ $hayFiltrosActivos = (
     $filtroCategoria !== '' ||
     $filtroFamilia !== '' ||
     $filtroTfa !== '' ||
-    $orden !== ''
+    $orden !== '' ||
+    $busqueda !== ''
 );
+
+$urlPagina = static fn(int $p): string => urlConFiltros(['pagina' => $p > 1 ? (string) $p : '']);
+
+if ($esAjax) {
+    header('Content-Type: application/json; charset=utf-8');
+    if ($error !== null) {
+        http_response_code(500);
+        echo json_encode([
+            'exito' => false,
+            'error' => $error,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    ob_start();
+    renderFilasTablaConfiguracion($registros, $hayFiltrosActivos);
+    $tbodyHtml = (string) ob_get_clean();
+
+    ob_start();
+    renderPaginacionIndex($paginaActual, $totalPaginas, $totalRegistrosFiltrados, $porPagina, $urlPagina);
+    $paginacionHtml = (string) ob_get_clean();
+
+    ob_start();
+    renderResumenFiltrosIndex($hayFiltrosActivos, $busqueda, $totalRegistrosFiltrados);
+    $resumenHtml = trim((string) ob_get_clean());
+
+    echo json_encode([
+        'exito' => true,
+        'tbody_html' => $tbodyHtml,
+        'paginacion_html' => $paginacionHtml,
+        'resumen_html' => $resumenHtml,
+        'hay_filtros_activos' => $hayFiltrosActivos,
+        'total_registros' => $totalRegistrosFiltrados,
+        'pagina' => $paginaActual,
+        'por_pagina' => $porPagina,
+        'total_paginas' => $totalPaginas,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // Gestión de mensajes de notificación (éxito, advertencia o error)
 $mensajeExito = null;
@@ -184,76 +245,43 @@ $nombreBD = getDatabaseName();
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
-    <title>Almacén <?= htmlspecialchars(getNombreAlmacen($almActivo), ENT_QUOTES, 'UTF-8') ?> - Alertas de Stock</title>
-    <script src="js/comun.js"></script>
-    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
-    <link rel="stylesheet" href="css/index.css?v=<?= file_exists(__DIR__ . '/css/index.css') ? filemtime(__DIR__ . '/css/index.css') : time() ?>">
-    <script src="js/sweetalert2.all.min.js"></script>
+    <title>Almacén <?= h(getNombreAlmacen($almActivo)) ?> - Alertas de Stock</title>
+    <script src="<?= h(assetUrl('js/comun.js')) ?>"></script>
+    <link rel="stylesheet" href="<?= h(assetUrl('css/estilos.css')) ?>">
+    <link rel="stylesheet" href="<?= h(assetUrl('css/index.css')) ?>">
+    <script src="<?= h(assetUrl('js/sweetalert2.all.min.js')) ?>"></script>
 </head>
 <body>
 <main class="contenedor">
-    <header class="encabezado">
-        <div class="encabezado-info">
-            <h1>ALMACÉN - <?= htmlspecialchars(strtoupper(getNombreAlmacen($almActivo)), ENT_QUOTES, 'UTF-8') ?></h1>
-            <p>Sistema de Alertas y Monitoreo de Stock Mínimo (Almacén <?= htmlspecialchars($almActivo, ENT_QUOTES, 'UTF-8') ?>)</p>
-        </div>
-
-        <div class="encabezado-derecha">
-            <div class="encabezado-usuario-barra">
-                <?php
-                $usuarioSesion = obtenerUsuarioAutenticado();
-                if (!empty($usuarioSesion)):
-                ?>
-                        <div class="encabezado-base-datos">
-                <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
-        </div>
-                    <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
-                        <span>USUARIO: </span>
-                            <strong>
-                                <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
-                            </strong>
-                    </div>
-                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
-                        Salir
-                    </a>
-                <?php endif; ?>
-                <!-- Botón para alternar el modo -->
-                <a href="?toggle_dark_mode=1"
-                   id="btn-toggle-dark"
-                   onclick="toggleDarkMode(event)"
-                   class="btn-toggle-dark"
-                   title="Alternar modo claro / oscuro">
-                    <?php echo $darkMode ? '🌞' : '🌚'; ?>
-                </a>
-            </div>
-
-            <div class="encabezado-acciones">
-                <a href="seleccionar_almacen.php" class="btn btn-secundario" title="Cambiar de almacén">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                    </svg>
-                    Cambiar Almacén
-                </a>
-                <a href="index.php" class="btn btn-secundario btn-icono-actualizar" title="Actualizar datos">
-                    <img src="img/repetir.png" class="icono-invertible icono-btn" alt="Actualizar">
-                </a>
-                <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
-                    <input type="hidden" name="csrf_token" value="<?= h(generarTokenCsrf()) ?>">
-                    <input type="hidden" name="almacen" value="<?= h($almActivo) ?>">
-                    <button
-                        type="submit"
-                        class="btn btn-ejecutar"
-                    >
-                        Revisar Stock
-                    </button>
-                </form>
-                <a href="crear.php" class="btn btn-primario">
-                    + Nuevo registro
-                </a>
-            </div>
-        </div>
-    </header>
+    <?php
+    $tituloEncabezado = 'ALMACÉN - ' . strtoupper(getNombreAlmacen($almActivo));
+    $subtituloEncabezado = 'Sistema de Alertas y Monitoreo de Stock Mínimo (Almacén ' . $almActivo . ')';
+    ob_start();
+    ?>
+        <a href="seleccionar_almacen.php" class="btn btn-secundario" title="Cambiar de almacén">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            Cambiar Almacén
+        </a>
+        <a href="index.php" class="btn btn-secundario btn-icono-actualizar" title="Actualizar datos">
+            <img src="<?= h(assetUrl('img/repetir.png')) ?>" class="icono-invertible icono-btn" alt="Actualizar">
+        </a>
+        <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
+            <input type="hidden" name="csrf_token" value="<?= h(generarTokenCsrf()) ?>">
+            <input type="hidden" name="almacen" value="<?= h($almActivo) ?>">
+            <button type="submit" class="btn btn-ejecutar">
+                Revisar Stock
+            </button>
+        </form>
+        <a href="crear.php" class="btn btn-primario">
+            + Nuevo registro
+        </a>
+    <?php
+    $accionesEncabezadoHtml = ob_get_clean();
+    require __DIR__ . '/includes/encabezado_usuario.php';
+    ?>
 
     <?php if ($error === null || !empty($registros) || $hayFiltrosActivos): ?>
         <!-- PANEL RESUMEN CON LOS TOTALES DE LOS ARTÍCULOS -->
@@ -291,6 +319,7 @@ $nombreBD = getDatabaseName();
             <?php if ($orden !== ''): ?>
                 <input type="hidden" name="orden" value="<?= h($orden) ?>">
             <?php endif; ?>
+            <input type="hidden" name="por_pagina" id="hidden-por-pagina" value="<?= (int) $porPagina ?>">
 
             <div class="busqueda-campo busqueda-campo-texto">
                 <label for="articulo">
@@ -299,28 +328,27 @@ $nombreBD = getDatabaseName();
                 <input
                         type="search"
                         id="articulo"
+                        name="q"
                         maxlength="50"
+                        value="<?= h($busqueda) ?>"
                         placeholder="020100427 | ROJO BANDERA 409"
                         autocomplete="off"
                 >
             </div>
             <div class="busqueda-acciones">
-                <?php if ($hayFiltrosActivos): ?>
-                    <a
-                            href="index.php"
-                            class="btn btn-secundario"
-                    >
-                        Limpiar filtros
-                    </a>
-                <?php endif; ?>
+                <a
+                        href="index.php"
+                        id="btn-limpiar-filtros"
+                        class="btn btn-secundario"
+                        style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>"
+                >
+                    Limpiar filtros
+                </a>
             </div>
         </form>
 
         <p id="busqueda-resultados" class="busqueda-resultados" style="<?= $hayFiltrosActivos ? '' : 'display: none;' ?>">
-            <?php if ($hayFiltrosActivos): ?>
-                Filtros activos en base de datos — <strong><?= count($registros) ?></strong> <?= count($registros) === 1 ? 'registro encontrado' : 'registros encontrados' ?>.
-                <a href="index.php" class="busqueda-limpiar-enlace">Quitar todos los filtros</a>
-            <?php endif; ?>
+            <?php renderResumenFiltrosIndex($hayFiltrosActivos, $busqueda, $totalRegistrosFiltrados); ?>
         </p>
     </div>
 
@@ -330,492 +358,191 @@ $nombreBD = getDatabaseName();
                 <thead>
                 <tr>
                     <th>Artículo</th>
-                    <!-- FILTRO TIPO: CATEGORÍA -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Categoría</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= ($filtroCategoria !== '') ? 'filtro-activo' : '' ?>"
-                                title="Filtrar por Categoría"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-categoria')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-categoria" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['categoria' => '']) ?>" class="opcion-filtro <?= ($filtroCategoria === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroCategoria === '') ? '✓' : '' ?></span> Todas las opciones
-                            </a>
-                            <?php foreach ($opcionesCategoria as $cat): ?>
-                                <a href="<?= urlConFiltros(['categoria' => ($filtroCategoria === $cat ? '' : $cat)]) ?>" class="opcion-filtro <?= ($filtroCategoria === $cat) ? 'seleccionada' : '' ?>" title="<?= h($cat) ?>">
-                                    <span class="indicador-check"><?= ($filtroCategoria === $cat) ? '✓' : '' ?></span> <?= h($cat) ?>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </th>
+                    <?php
+                    $construirOpcionesClasificacion = static function (string $claveParam, string $valorActivo, array $lista): array {
+                        $opciones = [[
+                            'href' => urlConFiltros([$claveParam => '', 'pagina' => '']),
+                            'seleccionada' => ($valorActivo === ''),
+                            'texto' => 'Todas las opciones',
+                        ]];
+                        foreach ($lista as $item) {
+                            $opciones[] = [
+                                'href' => urlConFiltros([$claveParam => ($valorActivo === $item ? '' : $item), 'pagina' => '']),
+                                'seleccionada' => ($valorActivo === $item),
+                                'texto' => $item,
+                                'title' => $item,
+                            ];
+                        }
+                        return $opciones;
+                    };
 
-                    <!-- FILTRO TIPO: FAMILIA -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Familia</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= ($filtroFamilia !== '') ? 'filtro-activo' : '' ?>"
-                                title="Filtrar por Familia"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-familia')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-familia" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['familia' => '']) ?>" class="opcion-filtro <?= ($filtroFamilia === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroFamilia === '') ? '✓' : '' ?></span> Todas las opciones
-                            </a>
-                            <?php foreach ($opcionesFamilia as $fam): ?>
-                                <a href="<?= urlConFiltros(['familia' => ($filtroFamilia === $fam ? '' : $fam)]) ?>" class="opcion-filtro <?= ($filtroFamilia === $fam) ? 'seleccionada' : '' ?>" title="<?= h($fam) ?>">
-                                    <span class="indicador-check"><?= ($filtroFamilia === $fam) ? '✓' : '' ?></span> <?= h($fam) ?>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </th>
+                    renderThFiltro(
+                        'Categoría',
+                        'menu-filtro-categoria',
+                        $filtroCategoria !== '',
+                        'Filtrar por Categoría',
+                        $construirOpcionesClasificacion('categoria', $filtroCategoria, $opcionesCategoria)
+                    );
+                    renderThFiltro(
+                        'Familia',
+                        'menu-filtro-familia',
+                        $filtroFamilia !== '',
+                        'Filtrar por Familia',
+                        $construirOpcionesClasificacion('familia', $filtroFamilia, $opcionesFamilia)
+                    );
+                    renderThFiltro(
+                        'Tipo familia',
+                        'menu-filtro-tfa',
+                        $filtroTfa !== '',
+                        'Filtrar por Tipo familia',
+                        $construirOpcionesClasificacion('tfa', $filtroTfa, $opcionesTfa)
+                    );
 
-                    <!-- FILTRO TIPO: TIPO FAMILIA -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Tipo familia</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= ($filtroTfa !== '') ? 'filtro-activo' : '' ?>"
-                                title="Filtrar por Tipo familia"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-tfa')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-tfa" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['tfa' => '']) ?>" class="opcion-filtro <?= ($filtroTfa === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroTfa === '') ? '✓' : '' ?></span> Todas las opciones
-                            </a>
-                            <?php foreach ($opcionesTfa as $tf): ?>
-                                <a href="<?= urlConFiltros(['tfa' => ($filtroTfa === $tf ? '' : $tf)]) ?>" class="opcion-filtro <?= ($filtroTfa === $tf) ? 'seleccionada' : '' ?>" title="<?= h($tf) ?>">
-                                    <span class="indicador-check"><?= ($filtroTfa === $tf) ? '✓' : '' ?></span> <?= h($tf) ?>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </th>
-                    <!-- FILTRO / ORDEN: STOCK FÍSICO -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Stock físico</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= in_array($orden, ['stock_desc', 'stock_asc'], true) ? 'filtro-activo' : '' ?>"
-                                title="Ordenar por Stock físico"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-stock-fisico')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-stock-fisico" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['orden' => '']) ?>" class="opcion-filtro <?= !in_array($orden, ['stock_desc', 'stock_asc'], true) ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= !in_array($orden, ['stock_desc', 'stock_asc'], true) ? '✓' : '' ?></span> Por defecto
-                            </a>
-                            <a href="<?= urlConFiltros(['orden' => ($orden === 'stock_desc' ? '' : 'stock_desc')]) ?>" class="opcion-filtro <?= ($orden === 'stock_desc') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($orden === 'stock_desc') ? '✓' : '' ?></span> De mayor a menor (↓)
-                            </a>
-                            <a href="<?= urlConFiltros(['orden' => ($orden === 'stock_asc' ? '' : 'stock_asc')]) ?>" class="opcion-filtro <?= ($orden === 'stock_asc') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($orden === 'stock_asc') ? '✓' : '' ?></span> De menor a mayor (↑)
-                            </a>
-                        </div>
-                    </th>
+                    renderThFiltro(
+                        'Stock físico',
+                        'menu-filtro-stock-fisico',
+                        in_array($orden, ['stock_desc', 'stock_asc'], true),
+                        'Ordenar por Stock físico',
+                        [
+                            [
+                                'href' => urlConFiltros(['orden' => '', 'pagina' => '']),
+                                'seleccionada' => !in_array($orden, ['stock_desc', 'stock_asc'], true),
+                                'texto' => 'Por defecto',
+                            ],
+                            [
+                                'href' => urlConFiltros(['orden' => ($orden === 'stock_desc' ? '' : 'stock_desc'), 'pagina' => '']),
+                                'seleccionada' => ($orden === 'stock_desc'),
+                                'texto' => 'De mayor a menor (↓)',
+                            ],
+                            [
+                                'href' => urlConFiltros(['orden' => ($orden === 'stock_asc' ? '' : 'stock_asc'), 'pagina' => '']),
+                                'seleccionada' => ($orden === 'stock_asc'),
+                                'texto' => 'De menor a mayor (↑)',
+                            ],
+                        ]
+                    );
 
-                    <!-- FILTRO / ORDEN: STOCK MÍNIMO -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Stock mínimo</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= in_array($orden, ['minimo_desc', 'minimo_asc'], true) ? 'filtro-activo' : '' ?>"
-                                title="Ordenar por Stock mínimo"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-stock-minimo')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-stock-minimo" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['orden' => '']) ?>" class="opcion-filtro <?= !in_array($orden, ['minimo_desc', 'minimo_asc'], true) ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= !in_array($orden, ['minimo_desc', 'minimo_asc'], true) ? '✓' : '' ?></span> Por defecto
-                            </a>
-                            <a href="<?= urlConFiltros(['orden' => ($orden === 'minimo_desc' ? '' : 'minimo_desc')]) ?>" class="opcion-filtro <?= ($orden === 'minimo_desc') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($orden === 'minimo_desc') ? '✓' : '' ?></span> De mayor a menor (↓)
-                            </a>
-                            <a href="<?= urlConFiltros(['orden' => ($orden === 'minimo_asc' ? '' : 'minimo_asc')]) ?>" class="opcion-filtro <?= ($orden === 'minimo_asc') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($orden === 'minimo_asc') ? '✓' : '' ?></span> De menor a mayor (↑)
-                            </a>
-                        </div>
-                    </th>
+                    renderThFiltro(
+                        'Stock mínimo',
+                        'menu-filtro-stock-minimo',
+                        in_array($orden, ['minimo_desc', 'minimo_asc'], true),
+                        'Ordenar por Stock mínimo',
+                        [
+                            [
+                                'href' => urlConFiltros(['orden' => '', 'pagina' => '']),
+                                'seleccionada' => !in_array($orden, ['minimo_desc', 'minimo_asc'], true),
+                                'texto' => 'Por defecto',
+                            ],
+                            [
+                                'href' => urlConFiltros(['orden' => ($orden === 'minimo_desc' ? '' : 'minimo_desc'), 'pagina' => '']),
+                                'seleccionada' => ($orden === 'minimo_desc'),
+                                'texto' => 'De mayor a menor (↓)',
+                            ],
+                            [
+                                'href' => urlConFiltros(['orden' => ($orden === 'minimo_asc' ? '' : 'minimo_asc'), 'pagina' => '']),
+                                'seleccionada' => ($orden === 'minimo_asc'),
+                                'texto' => 'De menor a mayor (↑)',
+                            ],
+                        ]
+                    );
 
-                    <!-- FILTRO TIPO: BAND. STOCK -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Band. stock</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= ($filtroStock !== '' || $filtroCatalogo === 'no_encontrado') ? 'filtro-activo' : '' ?>"
-                                title="Filtrar por Stock"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-stock')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-stock" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['stock' => '', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '' && $filtroCatalogo === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroStock === '' && $filtroCatalogo === '') ? '✓' : '' ?></span> Todas las opciones
-                            </a>
-                            <a href="<?= urlConFiltros(['stock' => '0', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '0') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroStock === '0') ? '✓' : '' ?></span> Con Stock
-                            </a>
-                            <a href="<?= urlConFiltros(['stock' => '1', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroStock === '1') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroStock === '1') ? '✓' : '' ?></span> Sin Stock
-                            </a>
-                            <?php if ($totales['no_encontrados'] > 0): ?>
-                                <a href="<?= urlConFiltros(['catalogo' => 'no_encontrado', 'stock' => '', 'correo' => '']) ?>" class="opcion-filtro <?= ($filtroCatalogo === 'no_encontrado') ? 'seleccionada' : '' ?>">
-                                    <span class="indicador-check"><?= ($filtroCatalogo === 'no_encontrado') ? '✓' : '' ?></span> No encontrado en catálogo
-                                </a>
-                            <?php endif; ?>
-                        </div>
-                    </th>
+                    $opcionesFiltroStock = [
+                        [
+                            'href' => urlConFiltros(['stock' => '', 'catalogo' => '', 'pagina' => '']),
+                            'seleccionada' => ($filtroStock === '' && $filtroCatalogo === ''),
+                            'texto' => 'Todas las opciones',
+                        ],
+                        [
+                            'href' => urlConFiltros(['stock' => '0', 'catalogo' => '', 'pagina' => '']),
+                            'seleccionada' => ($filtroStock === '0'),
+                            'texto' => 'Con Stock',
+                        ],
+                        [
+                            'href' => urlConFiltros(['stock' => '1', 'catalogo' => '', 'pagina' => '']),
+                            'seleccionada' => ($filtroStock === '1'),
+                            'texto' => 'Sin Stock',
+                        ],
+                    ];
+                    if ($totales['no_encontrados'] > 0) {
+                        $opcionesFiltroStock[] = [
+                            'href' => urlConFiltros(['catalogo' => 'no_encontrado', 'stock' => '', 'correo' => '', 'pagina' => '']),
+                            'seleccionada' => ($filtroCatalogo === 'no_encontrado'),
+                            'texto' => 'No encontrado en catálogo',
+                        ];
+                    }
+                    renderThFiltro(
+                        'Band. stock',
+                        'menu-filtro-stock',
+                        ($filtroStock !== '' || $filtroCatalogo === 'no_encontrado'),
+                        'Filtrar por Stock',
+                        $opcionesFiltroStock
+                    );
 
-                    <!-- FILTRO TIPO: BAND. CORREO -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Band. correo</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= ($filtroCorreo !== '') ? 'filtro-activo' : '' ?>"
-                                title="Filtrar por Correo"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-correo')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-correo" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['correo' => '', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroCorreo === '') ? '✓' : '' ?></span> Todas las opciones
-                            </a>
-                            <a href="<?= urlConFiltros(['correo' => '1', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '1') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroCorreo === '1') ? '✓' : '' ?></span> Correo enviado
-                            </a>
-                            <a href="<?= urlConFiltros(['correo' => '0', 'catalogo' => '']) ?>" class="opcion-filtro <?= ($filtroCorreo === '0') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroCorreo === '0') ? '✓' : '' ?></span> Correo no enviado
-                            </a>
-                        </div>
-                    </th>
+                    renderThFiltro(
+                        'Band. correo',
+                        'menu-filtro-correo',
+                        $filtroCorreo !== '',
+                        'Filtrar por Correo',
+                        [
+                            [
+                                'href' => urlConFiltros(['correo' => '', 'catalogo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroCorreo === ''),
+                                'texto' => 'Todas las opciones',
+                            ],
+                            [
+                                'href' => urlConFiltros(['correo' => '1', 'catalogo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroCorreo === '1'),
+                                'texto' => 'Correo enviado',
+                            ],
+                            [
+                                'href' => urlConFiltros(['correo' => '0', 'catalogo' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroCorreo === '0'),
+                                'texto' => 'Correo no enviado',
+                            ],
+                        ]
+                    );
 
-                    <!-- FILTRO: ESTADO (DISPONIBILIDAD) -->
-                    <th class="th-filtrable">
-                        <div class="th-contenido">
-                            <span>Estado</span>
-                            <button
-                                type="button"
-                                class="btn-filtro-columna <?= ($filtroDisponible !== '') ? 'filtro-activo' : '' ?>"
-                                title="Filtrar por Estado"
-                                onclick="toggleMenuFiltro(event, 'menu-filtro-estado')"
-                            >
-                                <svg class="icono-filtro" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                    <path d="M1.5 2.5a.5.5 0 0 1 .5-.5h12a.5.5 0 0 1 .38.82L9 8.24V13.5a.5.5 0 0 1-.76.42l-2-1.25A.5.5 0 0 1 6 12.25V8.24L1.62 2.82a.5.5 0 0 1-.12-.32z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="menu-filtro-estado" class="menu-filtro">
-                            <a href="<?= urlConFiltros(['disponible' => '']) ?>" class="opcion-filtro <?= ($filtroDisponible === '') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroDisponible === '') ? '✓' : '' ?></span> Todas las opciones
-                            </a>
-                            <a href="<?= urlConFiltros(['disponible' => '1']) ?>" class="opcion-filtro <?= ($filtroDisponible === '1') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroDisponible === '1') ? '✓' : '' ?></span> Disponible
-                            </a>
-                            <a href="<?= urlConFiltros(['disponible' => '0']) ?>" class="opcion-filtro <?= ($filtroDisponible === '0') ? 'seleccionada' : '' ?>">
-                                <span class="indicador-check"><?= ($filtroDisponible === '0') ? '✓' : '' ?></span> No disponible
-                            </a>
-                        </div>
-                    </th>
+                    renderThFiltro(
+                        'Estado',
+                        'menu-filtro-estado',
+                        $filtroDisponible !== '',
+                        'Filtrar por Estado',
+                        [
+                            [
+                                'href' => urlConFiltros(['disponible' => '', 'pagina' => '']),
+                                'seleccionada' => ($filtroDisponible === ''),
+                                'texto' => 'Todas las opciones',
+                            ],
+                            [
+                                'href' => urlConFiltros(['disponible' => '1', 'pagina' => '']),
+                                'seleccionada' => ($filtroDisponible === '1'),
+                                'texto' => 'Disponible',
+                            ],
+                            [
+                                'href' => urlConFiltros(['disponible' => '0', 'pagina' => '']),
+                                'seleccionada' => ($filtroDisponible === '0'),
+                                'texto' => 'No disponible',
+                            ],
+                        ]
+                    );
+                    ?>
 
-                    <th>Fecha actualización</th>
                     <th>Acciones</th>
                 </tr>
                 </thead>
-                <tbody>
-                <?php if (empty($registros)): ?>
-                    <tr>
-                        <td colspan="11" class="tabla-vacia">
-                            <?= $hayFiltrosActivos
-                                ? 'No existen configuraciones que coincidan con los filtros aplicados en la base de datos.'
-                                : 'No existen configuraciones registradas.' ?>
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($registros as $registro): ?>
-                        <?php
-                        $estaDisponible = ((int) ($registro['disponible'] ?? 1) === 1);
-                        $artCodigo = trim((string) ($registro['art_codigo'] ?? ''));
-                        $artNombre = trim((string) ($registro['art_nombre'] ?? ''));
-                        $artEncontrado = !empty($registro['mae_art_codigo']);
-                        ?>
-                        <tr class="<?= $estaDisponible ? '' : 'fila-inactiva' ?>"
-                            data-codigo="<?= h($artCodigo) ?>"
-                            data-nombre="<?= h($artNombre) ?>">
-                            <td>
-                                <strong>
-                                    <?= $artEncontrado ? h($artNombre) : '<span class="badge badge-alerta" title="El artículo no existe en el catálogo maestro (mae_articulo)">No encontrado</span>' ?>
-                                </strong>
-                                <span class="articulo-titulo">
-                                    <?= h($artCodigo) ?>
-                                </span>
-                            </td>
-                            <td>
-                                <?php if ($artEncontrado && !empty($registro['categoria'])): ?>
-                                    <span class="texto-clasificacion"><?= h($registro['categoria']) ?></span>
-                                <?php else: ?>
-                                    <span class="badge badge-sin-datos" title="Sin categoría">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if ($artEncontrado && !empty($registro['fam_nombre'])): ?>
-                                    <span class="texto-clasificacion"><?= h($registro['fam_nombre']) ?></span>
-                                <?php else: ?>
-                                    <span class="badge badge-sin-datos" title="Sin familia">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if ($artEncontrado && !empty($registro['tfa_nombre'])): ?>
-                                    <span class="texto-clasificacion"><?= h($registro['tfa_nombre']) ?></span>
-                                <?php else: ?>
-                                    <span class="badge badge-sin-datos" title="Sin tipo de familia">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if (!$artEncontrado): ?>
-                                    <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
-                                <?php elseif ($registro['stock_actual'] === null): ?>
-                                    <span class="badge badge-sin-datos">
-                                    NULL
-                                    </span>
-                                <?php else: ?>
-                                    <strong>
-                                        <?= h(
-                                                number_format(
-                                                        (float) $registro['stock_actual'],
-                                                        5,
-                                                        '.',
-                                                        ','
-                                                )
-                                        ) . (!empty($registro['unidad_medida']) ? ' ' . h($registro['unidad_medida']) : '') ?>
-                                    </strong>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?= h(
-                                        number_format(
-                                                (float) $registro['stock_minimo'],
-                                                        5,
-                                                        '.',
-                                                        ','
-                                        )
-                                ) . (!empty($registro['unidad_medida']) ? ' ' . h($registro['unidad_medida']) : '') ?>
-                            </td>
-                            <td>
-                                <?php if (!$artEncontrado): ?>
-                                    <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
-                                <?php elseif ($registro['band_stock']): ?>
-                                    <span class="badge badge-alerta">Alerta de stock</span>
-                                <?php else: ?>
-                                    <span class="badge badge-activo">Con Stock</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if (!$artEncontrado): ?>
-                                    <span class="badge badge-sin-datos" title="No existe en el catálogo maestro">—</span>
-                                <?php elseif ($registro['band_correo']): ?>
-                                    <span class="badge badge-alerta">Correo enviado</span>
-                                <?php else: ?>
-                                    <span class="badge badge-inactivo">Correo no enviado</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if ($estaDisponible): ?>
-                                    <span class="badge badge-activo">Disponible</span>
-                                <?php else: ?>
-                                    <span class="badge badge-inactivo">No disponible</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php
-                                $fecha = $registro['fecha_actualizacion'];
-                                if ($fecha instanceof DateTimeInterface) {
-                                    echo '<div class="fecha-contenedor">';
-                                    echo '<span class="fecha-dia">' . h($fecha->format('d/m/Y')) . '</span>';
-                                    echo '<span class="fecha-hora">' . h($fecha->format('H:i:s')) . '</span>';
-                                    echo '</div>';
-                                } else {
-                                    echo h($fecha);
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <div class="acciones-celda">
-                                    <a
-                                        href="editar.php?emp=<?= urlencode(trim($registro['emp_codigo'])) ?>&art=<?= urlencode(trim($registro['art_codigo'])) ?>&alm=<?= urlencode(trim($registro['alm_codigo'])) ?>"
-                                        class="btn btn-editar"
-                                    >
-                                        Editar
-                                    </a>
-
-                                    <?php if ($estaDisponible): ?>
-                                        <!-- Borrado lógico (Desactivar) -->
-                                        <form
-                                            action="cambiar_estado.php"
-                                            method="POST"
-                                            class="form-eliminar"
-                                        >
-                                            <input
-                                                type="hidden"
-                                                name="emp_codigo"
-                                                value="<?= h(trim($registro['emp_codigo'])) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="art_codigo"
-                                                value="<?= h(trim($registro['art_codigo'])) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="alm_codigo"
-                                                value="<?= h(trim($registro['alm_codigo'])) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="art_nombre"
-                                                value="<?= h(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="categoria"
-                                                value="<?= h(trim((string) ($registro['categoria'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="fam_nombre"
-                                                value="<?= h(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="tfa_nombre"
-                                                value="<?= h(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="accion"
-                                                value="eliminar"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="csrf_token"
-                                                value="<?= h(generarTokenCsrf()) ?>"
-                                            >
-                                            <button
-                                                type="submit"
-                                                class="btn btn-eliminar"
-                                            >
-                                                Desactivar
-                                            </button>
-                                        </form>
-                                    <?php else: ?>
-                                        <!-- Reactivar registro -->
-                                        <form
-                                            action="cambiar_estado.php"
-                                            method="POST"
-                                            class="form-eliminar"
-                                        >
-                                            <input
-                                                type="hidden"
-                                                name="emp_codigo"
-                                                value="<?= h(trim($registro['emp_codigo'])) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="art_codigo"
-                                                value="<?= h(trim($registro['art_codigo'])) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="alm_codigo"
-                                                value="<?= h(trim($registro['alm_codigo'])) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="art_nombre"
-                                                value="<?= h(trim((string) ($registro['art_nombre'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="categoria"
-                                                value="<?= h(trim((string) ($registro['categoria'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="fam_nombre"
-                                                value="<?= h(trim((string) ($registro['fam_nombre'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="tfa_nombre"
-                                                value="<?= h(trim((string) ($registro['tfa_nombre'] ?? ''))) ?>"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="accion"
-                                                value="reactivar"
-                                            >
-                                            <input
-                                                type="hidden"
-                                                name="csrf_token"
-                                                value="<?= h(generarTokenCsrf()) ?>"
-                                            >
-                                            <button
-                                                type="submit"
-                                                class="btn btn-reactivar"
-                                            >
-                                                Reactivar
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                <tbody id="tabla-configuraciones-body">
+                <?php renderFilasTablaConfiguracion($registros, $hayFiltrosActivos); ?>
                 </tbody>
             </table>
+        </div>
+
+        <div id="paginacion-index">
+            <?php renderPaginacionIndex($paginaActual, $totalPaginas, $totalRegistrosFiltrados, $porPagina, $urlPagina); ?>
         </div>
     <?php endif; ?>
 </main>
 
-<script src="js/index.js?v=<?= file_exists(__DIR__ . '/js/index.js') ? filemtime(__DIR__ . '/js/index.js') : time() ?>"></script>
+<script src="<?= h(assetUrl('js/index.js')) ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     iniciarIndex({
@@ -823,7 +550,11 @@ document.addEventListener('DOMContentLoaded', function() {
         mensajeAdvertencia: <?= json_encode($mensajeAdvertencia, JSON_UNESCAPED_UNICODE) ?>,
         error: <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>,
         hayFiltrosActivos: <?= json_encode($hayFiltrosActivos) ?>,
-        totalRegistros: <?= count($registros) ?>
+        totalRegistros: <?= (int) $totalRegistrosFiltrados ?>,
+        pagina: <?= (int) $paginaActual ?>,
+        porPagina: <?= (int) $porPagina ?>,
+        totalPaginas: <?= (int) $totalPaginas ?>,
+        busqueda: <?= json_encode($busqueda, JSON_UNESCAPED_UNICODE) ?>
     });
 });
 </script>

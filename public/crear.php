@@ -11,7 +11,7 @@ $raizProyecto = dirname(__DIR__);
 // Validar autorización y obtener el almacén activo
 $almCodigo = requerirAlmacenAutorizado($_GET['alm'] ?? null);
 $almNombre = getNombreAlmacen($almCodigo);
-$empCodigo = '001';
+$empCodigo = getEmpresaDefecto();
 
 $artCodigo = '';
 $artNombre = '';
@@ -36,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 2. Recibir los datos editables.
         $artCodigo = trim($_POST['art_codigo'] ?? '');
         $stockMinimo = trim($_POST['stock_minimo'] ?? '');
+        if (str_starts_with($stockMinimo, '.')) {
+            $stockMinimo = '0' . $stockMinimo;
+        }
         $categoria = trim($_POST['categoria'] ?? '');
         $famNombre = trim($_POST['fam_nombre'] ?? '');
         $tfaNombre = trim($_POST['tfa_nombre'] ?? '');
@@ -150,53 +153,18 @@ $nombreBD = getDatabaseName();
         content="width=device-width, initial-scale=1.0"
     >
     <title>Nuevo registro de stock</title>
-    <script src="js/comun.js"></script>
-    <link rel="stylesheet" href="css/estilos.css?v=<?= file_exists(__DIR__ . '/css/estilos.css') ? filemtime(__DIR__ . '/css/estilos.css') : time() ?>">
-    <script src="js/sweetalert2.all.min.js"></script>
-    <script src="js/formulario-articulo.js"></script>
+    <script src="<?= h(assetUrl('js/comun.js')) ?>"></script>
+    <link rel="stylesheet" href="<?= h(assetUrl('css/estilos.css')) ?>">
+    <script src="<?= h(assetUrl('js/sweetalert2.all.min.js')) ?>"></script>
+    <script src="<?= h(assetUrl('js/formulario-articulo.js')) ?>"></script>
 </head>
 <body>
 <main class="contenedor contenedor-formulario">
-    <header class="encabezado">
-        <div class="encabezado-info">
-            <h1>Nuevo registro - <?= h($almNombre) ?></h1>
-        </div>
-        <div class="encabezado-derecha">
-            <div class="encabezado-usuario-barra">
-                <?php
-                $usuarioSesion = obtenerUsuarioAutenticado();
-                if (!empty($usuarioSesion)):
-                ?>
-                    <div class="encabezado-base-datos">
-                        <span>BD: </span><?= htmlspecialchars($nombreBD, ENT_QUOTES, 'UTF-8') ?>
-                    </div>
-
-                    <div class="usuario-sesion-pill" title="Usuario: <?= h($usuarioSesion['usr_codigo'] ?? '') ?> | Rol: <?= h($usuarioSesion['pus_codigo'] ?? '') ?>">
-                    <span>USUARIO: </span>    
-                    <strong>
-                            <span class="usuario-sesion-nombre"><?= h($usuarioSesion['usr_nombre'] ?: $usuarioSesion['usr_codigo']) ?></span>
-                        </strong>    
-                    </div>
-                    <a href="logout.php" class="btn btn-logout" title="Cerrar sesión">
-                        Salir
-                    </a>
-                <?php endif; ?>
-                <!-- Botón para alternar el modo -->
-                <a href="?toggle_dark_mode=1"
-                   id="btn-toggle-dark"
-                   onclick="toggleDarkMode(event)"
-                   class="btn-toggle-dark"
-                   title="Alternar modo claro / oscuro">
-                    <?php echo $darkMode ? '🌞' : '🌚'; ?>
-                </a>
-            </div>
-            <div class="encabezado-acciones">
-                <a href="index.php" class="btn btn-secundario">
-                    ← Volver
-                </a>
-            </div>
-        </div>
-    </header>
+    <?php
+    $tituloEncabezado = 'Nuevo registro - ' . $almNombre;
+    $accionesEncabezadoHtml = '<a href="index.php" class="btn btn-secundario">← Volver</a>';
+    require __DIR__ . '/includes/encabezado_usuario.php';
+    ?>
 
     <form method="POST" class="formulario">
         <!-- Token CSRF -->
@@ -235,111 +203,19 @@ $nombreBD = getDatabaseName();
             <div id="info_articulo" class="info-articulo"></div>
         </div>
 
-        <!-- Categoría -->
-        <div class="campo">
-            <label for="art_categoria">
-                Categoría
-            </label>
-            <input
-                type="text"
-                id="art_categoria"
-                name="categoria"
-                value="<?= h($categoria) ?>"
-                autocomplete="off"
-                readonly
-                placeholder="—"
-            >
-        </div>
-
-        <!-- Familia -->
-        <div class="campo">
-            <label for="art_familia">
-                Familia
-            </label>
-            <input
-                type="text"
-                id="art_familia"
-                name="fam_nombre"
-                value="<?= h($famNombre) ?>"
-                autocomplete="off"
-                readonly
-                placeholder="—"
-            >
-        </div>
-
-        <!-- Tipo familia -->
-        <div class="campo">
-            <label for="art_tipo_familia">
-                Tipo familia
-            </label>
-            <input
-                type="text"
-                id="art_tipo_familia"
-                name="tfa_nombre"
-                value="<?= h($tfaNombre) ?>"
-                autocomplete="off"
-                readonly
-                placeholder="—"
-            >
-        </div>
-
-        <!-- Stock mínimo -->
-        <div class="campo">
-            <label for="stock_minimo">
-                Stock mínimo
-            </label>
-            <div class="campo-con-sufijo">
-                <input
-                    type="number"
-                    id="stock_minimo"
-                    name="stock_minimo"
-                    min="0"
-                    max="999999999.99999"
-                    step="0.00001"
-                    required
-                    placeholder="20.00000"
-                    value="<?= h($stockMinimo) ?>"
-                >
-                <span id="sufijo-unidad-minimo" class="sufijo-unidad"></span>
-            </div>
-        </div>
-
-        <!-- Disponibilidad -->
-        <div class="campo">
-            <label for="disponible">
-                Disponibilidad
-            </label>
-            <select id="disponible" name="disponible">
-                <option value="1" <?= $disponible === 1 ? 'selected' : '' ?>>
-                    Activo
-                </option>
-                <option value="0" <?= $disponible === 0 ? 'selected' : '' ?>>
-                    Inactivo
-                </option>
-            </select>
-        </div>
-
-        <div class="acciones">
-            <button
-                type="submit"
-                class="btn btn-primario"
-            >
-                Guardar registro
-            </button>
-            <a
-                href="index.php"
-                class="btn btn-secundario"
-            >
-                Cancelar
-            </a>
-        </div>
+        <?php
+        $unidadMedida = '';
+        $placeholderStockMinimo = '20.00000';
+        $textoBotonGuardar = 'Guardar registro';
+        require __DIR__ . '/includes/campos_articulo_form.php';
+        ?>
     </form>
 </main>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     <?php if ($error !== null): ?>
-    swalEntendido('error', 'AtenciÃ³n', <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>);
+    swalEntendido('error', 'Atención', <?= json_encode($error, JSON_UNESCAPED_UNICODE) ?>);
     <?php endif; ?>
 
     iniciarFormularioArticulo({

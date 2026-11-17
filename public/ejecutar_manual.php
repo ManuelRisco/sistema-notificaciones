@@ -122,10 +122,12 @@ try {
         session_write_close();
     }
 
-    // Ruta del ejecutable PHP: configurable con PHP_EXE en .env (por defecto, el de XAMPP)
-    $phpExe = trim((string) ($_ENV['PHP_EXE'] ?? '')) ?: 'C:\xampp\php\php.exe';
-    if (!file_exists($phpExe)) {
-        $phpExe = PHP_BINARY ?: 'php';
+    // Ruta del ejecutable PHP: leída estrictamente desde PHP_EXE en .env
+    $phpExe = obtenerVariableEntorno('PHP_EXE');
+    if (!is_file($phpExe)) {
+        throw new RuntimeException(
+            "El ejecutable PHP configurado en PHP_EXE ({$phpExe}) no existe en disco."
+        );
     }
 
     $scriptProcesar = $raizProyecto . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'procesar_alertas.php';
@@ -148,9 +150,15 @@ try {
         if ($almacenAProcesar !== null) {
             $argv[] = "--almacen={$almacenAProcesar}";
         }
+        if (!defined('PROCESAR_ALERTAS_EMBEBIDO')) {
+            define('PROCESAR_ALERTAS_EMBEBIDO', true);
+        }
         ob_start();
-        require $scriptProcesar;
-        $salida = (string) ob_get_clean();
+        try {
+            require $scriptProcesar;
+        } finally {
+            $salida = (string) ob_get_clean();
+        }
     }
 
     // 5. El registro en el log correspondiente (logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log)
