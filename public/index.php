@@ -255,7 +255,7 @@ $nombreBD = getDatabaseName();
 <main class="contenedor">
     <?php
     $tituloEncabezado = 'ALMACÉN - ' . strtoupper(getNombreAlmacen($almActivo));
-    $subtituloEncabezado = 'Sistema de Alertas y Monitoreo de Stock Mínimo (Almacén ' . $almActivo . ')';
+    $subtituloEncabezado = 'Sistema de Alertas y Monitoreo de Stock Mínimo';
     ob_start();
     ?>
         <a href="seleccionar_almacen.php" class="btn btn-secundario" title="Cambiar de almacén">

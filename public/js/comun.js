@@ -34,12 +34,6 @@ function toggleDarkMode(e) {
     try {
         localStorage.setItem('dark_mode', valor);
     } catch (_) {}
-
-    // 4. Actualizar el emoji del botón
-    const btn = document.getElementById('btn-toggle-dark');
-    if (btn) {
-        btn.textContent = esOscuro ? '🌞' : '🌚';
-    }
 }
 
 // Escapa texto para insertarlo de forma segura en HTML
@@ -48,14 +42,6 @@ function escapeHtml(texto) {
     div.textContent = texto || '';
     return div.innerHTML;
 }
-
-// Sincronizar el emoji del botón de tema según el estado activo de la página
-document.addEventListener('DOMContentLoaded', function () {
-    const btnDark = document.getElementById('btn-toggle-dark');
-    if (btnDark) {
-        btnDark.textContent = document.documentElement.classList.contains('dark-mode') ? '🌞' : '🌚';
-    }
-});
 
 // Aviso con un único botón "Entendido" (requiere SweetAlert2)
 function swalEntendido(icon, title, html) {

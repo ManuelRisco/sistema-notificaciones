@@ -59,14 +59,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Alternar visibilidad de contraseña
     if (btnToggleClave && inputClave) {
         btnToggleClave.addEventListener('click', function() {
-            const tipoActual = inputClave.getAttribute('type');
-            if (tipoActual === 'password') {
-                inputClave.setAttribute('type', 'text');
-                btnToggleClave.textContent = '🔒';
-            } else {
-                inputClave.setAttribute('type', 'password');
-                btnToggleClave.textContent = '👁️‍🗨️';
-            }
+            const mostrar = inputClave.getAttribute('type') === 'password';
+            inputClave.setAttribute('type', mostrar ? 'text' : 'password');
+            btnToggleClave.classList.toggle('clave-visible', mostrar);
+            btnToggleClave.setAttribute('aria-pressed', mostrar ? 'true' : 'false');
+            btnToggleClave.setAttribute('aria-label', mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña');
         });
     }
 

@@ -115,7 +115,13 @@ if (isset($_GET['alm'])) {
         </div>
     <?php else: ?>
         <div class="formulario almacenes-vacio">
-            <div class="almacenes-vacio-icono">⚠️</div>
+            <div class="almacenes-vacio-icono" aria-hidden="true">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </div>
             <h2 class="almacenes-vacio-titulo">Sin almacenes asignados</h2>
             <p class="almacenes-vacio-desc">
                 No tiene autorización para ingresar a ningún almacén registrado en el sistema. Comuníquese con el administrador para solicitar asignación en el sistema.

@@ -152,18 +152,33 @@ body {
 .btn-toggle-dark {
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
-    font-size: 28px;
+    color: var(--color-texto-secundario);
     text-decoration: none;
     line-height: 1;
-    filter: invert(1) hue-rotate(180deg);
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease,
+                color 0.15s ease,
+                background-color 0.15s ease;
 }
 
 .btn-toggle-dark:hover {
-    transform: scale(1.12);
+    transform: scale(1.1);
+    color: var(--color-texto);
+    background-color: var(--color-secundario-fondo);
+}
+
+.btn-toggle-dark .icono-tema-sol {
+    display: none;
+}
+
+html.dark-mode .btn-toggle-dark .icono-tema-sol {
+    display: block;
+}
+
+html.dark-mode .btn-toggle-dark .icono-tema-luna {
+    display: none;
 }
 
 .btn.btn-icono-actualizar {
@@ -1067,7 +1082,10 @@ body {
 }
 
 .error-autorizacion-icono {
-    font-size: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-peligro-texto);
     margin-bottom: 16px;
 }
 

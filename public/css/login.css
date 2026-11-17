@@ -129,6 +129,18 @@ html.dark-mode .login-logo.logo-oscuro {
     color: var(--color-texto);
 }
 
+.btn-toggle-pass .icono-clave-ocultar {
+    display: none;
+}
+
+.btn-toggle-pass.clave-visible .icono-clave-ver {
+    display: none;
+}
+
+.btn-toggle-pass.clave-visible .icono-clave-ocultar {
+    display: block;
+}
+
 .btn-login-submit {
     width: 100%;
     padding: 12px;

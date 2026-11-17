@@ -43,13 +43,7 @@ $urlToggleDark = '?' . http_build_query($paramsToggleDark);
                     Salir
                 </a>
             <?php endif; ?>
-            <a href="<?= h($urlToggleDark) ?>"
-               id="btn-toggle-dark"
-               onclick="toggleDarkMode(event)"
-               class="btn-toggle-dark"
-               title="Alternar modo claro / oscuro">
-                <?= $darkMode ? '🌞' : '🌚' ?>
-            </a>
+            <?php renderBotonModoOscuro($urlToggleDark); ?>
         </div>
 
         <?php if (!empty($accionesEncabezadoHtml)): ?>

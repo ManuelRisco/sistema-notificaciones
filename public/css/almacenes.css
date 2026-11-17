@@ -86,7 +86,10 @@
 }
 
 .almacenes-vacio-icono {
-    font-size: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-editar-texto);
     margin-bottom: 16px;
 }
 
