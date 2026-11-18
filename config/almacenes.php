@@ -50,14 +50,10 @@ function esAlmacenSoportado(string $almCodigo): bool
 }
 
 /**
- * Retorna el código de empresa por defecto configurado mediante APP_EMPRESA en .env.
+ * Retorna el código de empresa fijo del ERP (configuración de dominio junto al catálogo de almacenes).
  */
 function getEmpresaDefecto(): string
 {
-    if (!function_exists('obtenerVariableEntorno')) {
-        require_once __DIR__ . '/bootstrap.php';
-    }
-
-    return obtenerVariableEntorno('APP_EMPRESA');
+    return '001';
 }
 

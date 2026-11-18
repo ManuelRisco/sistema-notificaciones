@@ -122,53 +122,30 @@ try {
         session_write_close();
     }
 
-    // Ruta del ejecutable PHP: leída estrictamente desde PHP_EXE en .env
-    $phpExe = obtenerVariableEntorno('PHP_EXE');
-    if (!is_file($phpExe)) {
-        throw new RuntimeException(
-            "El ejecutable PHP configurado en PHP_EXE ({$phpExe}) no existe en disco."
-        );
-    }
-
     $scriptProcesar = $raizProyecto . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'procesar_alertas.php';
-    $argAlmacen = $almacenAProcesar !== null ? " \"--almacen={$almacenAProcesar}\"" : '';
-
-    $salida = '';
-    $codigoSalida = 0;
-
-    // 4. Ejecutar mediante el CLI de PHP (misma funcionalidad de ejecutar_alertas.bat)
-    if (function_exists('exec')) {
-        $comando = "\"{$phpExe}\" \"{$scriptProcesar}\"{$argAlmacen} --json 2>&1";
-        $lineas = [];
-        exec($comando, $lineas, $codigoSalida);
-        $salida = implode(PHP_EOL, $lineas);
+    if (!is_file($scriptProcesar)) {
+        throw new RuntimeException('No se encontró el script de procesamiento de alertas.');
     }
 
-    // Fallback: Si exec no estuviera disponible, ejecutar en el mismo hilo de PHP
-    if (empty($salida) && $codigoSalida === 0) {
-        $argv = ['procesar_alertas.php', '--json'];
-        if ($almacenAProcesar !== null) {
-            $argv[] = "--almacen={$almacenAProcesar}";
-        }
-        if (!defined('PROCESAR_ALERTAS_EMBEBIDO')) {
-            define('PROCESAR_ALERTAS_EMBEBIDO', true);
-        }
-        ob_start();
-        try {
-            require $scriptProcesar;
-        } finally {
-            $salida = (string) ob_get_clean();
-        }
+    // 4. Ejecutar en el mismo hilo de PHP (mismo candado flock, logs y lógica de bin/procesar_alertas.php)
+    $argv = ['procesar_alertas.php', '--json'];
+    if ($almacenAProcesar !== null) {
+        $argv[] = "--almacen={$almacenAProcesar}";
+    }
+
+    if (!defined('PROCESAR_ALERTAS_EMBEBIDO')) {
+        define('PROCESAR_ALERTAS_EMBEBIDO', true);
+    }
+
+    ob_start();
+    try {
+        require $scriptProcesar;
+    } finally {
+        $salida = (string) ob_get_clean();
     }
 
     // 5. El registro en el log correspondiente (logs/<base_de_datos>/<almacen>/<YYYY-MM>/procesamiento_<YYYY-MM-DD>.log)
     // es gestionado automáticamente por bin/procesar_alertas.php según el almacén procesado.
-
-    if ($codigoSalida !== 0) {
-        throw new RuntimeException(
-            "El proceso finalizó con código {$codigoSalida}. " . substr($salida, 0, 300)
-        );
-    }
 
     $datosProceso = decodificarResultadoProceso($salida);
 

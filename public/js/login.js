@@ -81,7 +81,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (btnSubmit) btnSubmit.disabled = true;
-            if (btnTexto) btnTexto.textContent = 'Validando credenciales...';
             if (timerError) clearTimeout(timerError);
             if (divError) divError.style.display = 'none';
 
@@ -114,7 +113,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         localStorage.removeItem('auth_user');
                     } catch (_) {}
 
-                    if (btnTexto) btnTexto.textContent = '¡Acceso concedido!';
                     window.location.href = data.redirigir || 'index.php';
                 } else {
                     mostrarError((data && data.error) ? data.error : 'Usuario o contraseña incorrectos.');

@@ -265,14 +265,14 @@ $nombreBD = getDatabaseName();
             </svg>
             Cambiar Almacén
         </a>
-        <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual">
+        <form action="ejecutar_manual.php" method="POST" class="form-ejecutar-manual" title="revisar stock manualmente">
             <input type="hidden" name="csrf_token" value="<?= h(generarTokenCsrf()) ?>">
             <input type="hidden" name="almacen" value="<?= h($almActivo) ?>">
             <button type="submit" class="btn btn-ejecutar">
                 Revisar Stock
             </button>
         </form>
-        <a href="crear.php" class="btn btn-primario">
+        <a href="crear.php" class="btn btn-primario" title="Crear nuevo registro">
             + Nuevo registro
         </a>
     <?php
